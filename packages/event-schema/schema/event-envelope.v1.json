@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bigbimbs/jekimo/main/packages/event-schema/schema/event-envelope.v1.json",
+  "title": "Jekimo event envelope",
+  "description": "Schema version 1 of the event envelope shared by Jekimo SDKs, the ingestion API, the worker, storage, and exports. Normative text: docs/event-format.md. Limits that JSON Schema cannot express (nesting depth, serialized size, future timestamps) are enforced by the reference validator.",
+  "type": "object",
+  "required": ["schema_version", "event_id", "timestamp", "kind", "severity", "message"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Envelope schema version. Incremented only on breaking changes."
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Client-generated ULID (26 Crockford base32 characters). Unique per project."
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Assigned by the server from the ingestion key. Present on stored and exported events; clients must not send it."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 date-time of when the event occurred. UTC (Z) recommended."
+    },
+    "kind": { "enum": ["exception", "log", "event"] },
+    "severity": { "enum": ["debug", "info", "warning", "error", "fatal"] },
+    "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "service": { "$ref": "#/$defs/shortString" },
+    "environment": { "$ref": "#/$defs/shortString" },
+    "release": { "$ref": "#/$defs/shortString" },
+    "fingerprint": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "exception": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "value": { "type": "string", "maxLength": 4096 },
+        "stacktrace": { "type": "string", "maxLength": 65536 }
+      }
+    },
+    "sdk": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 32 }
+      }
+    },
+    "context": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "minLength": 1, "maxLength": 64 },
+      "additionalProperties": { "type": "string", "maxLength": 1024 }
+    },
+    "attributes": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": { "minLength": 1, "maxLength": 64 },
+      "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+    }
+  },
+  "if": {
+    "properties": { "kind": { "const": "exception" } },
+    "required": ["kind"]
+  },
+  "then": {
+    "required": ["exception"],
+    "properties": { "exception": { "$ref": "#/properties/exception" } }
+  },
+  "$defs": {
+    "shortString": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attributeValue": {
+      "anyOf": [
+        { "type": "string", "maxLength": 1024 },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/attributeValue" }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": { "minLength": 1, "maxLength": 64 },
+          "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+        }
+      ]
+    }
+  }
+}

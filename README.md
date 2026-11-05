@@ -62,9 +62,9 @@ Start with PostgreSQL as the supported database engine in both paths. Keep conne
 - **Incremental clients:** keep the event contract stable while adding runtime, browser, and mobile SDKs over time.
 - **Self-hosted by design:** a single VPS operator can manage multiple isolated projects without depending on a Jekimo cloud account.
 
-## Proposed event envelope
+## Event envelope
 
-Every event should share a versioned envelope, regardless of whether it came from a backend, browser, or mobile SDK:
+Every event shares a versioned envelope, regardless of whether it came from a backend, browser, or mobile SDK. The full contract, with field rules, limits, privacy defaults, and compatibility rules, is in [docs/event-format.md](docs/event-format.md); the types, JSON Schema, and reference validator live in [`packages/event-schema`](packages/event-schema). A representative event:
 
 ```json
 {
@@ -90,7 +90,7 @@ Every event should share a versioned envelope, regardless of whether it came fro
 }
 ```
 
-The SDK must avoid collecting request bodies, credentials, or personal data by default. Projects should be able to configure field redaction and size limits. The envelope is a starting point and should be documented as a public compatibility contract before a stable release.
+The SDK must avoid collecting request bodies, credentials, or personal data by default. Projects can configure field redaction and size limits. The envelope is a public compatibility contract; changes follow the rules in the event format document.
 
 ## Suggested architecture
 
@@ -110,7 +110,8 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 ### Phase 0 — Define the contract
 
 - ~~Choose the project license.~~ Done: Apache-2.0.
-- Specify event envelope, authentication, payload limits, redaction, and retention behavior.
+- ~~Specify event envelope, payload limits, and redaction defaults.~~ Done: [docs/event-format.md](docs/event-format.md).
+- Specify ingestion authentication and retention behavior.
 - Define instance, user, and project ownership and access rules.
 - Choose a storage approach and document the expected VPS resource range.
 - Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.

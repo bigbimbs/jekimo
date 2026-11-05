@@ -1,7 +1,13 @@
 # Event schema
 
-This package holds the versioned event envelope shared by Jekimo services and SDKs. `src/index.ts` currently contains the draft TypeScript types for the envelope described in the project README.
+The versioned event envelope shared by Jekimo SDKs, the ingestion API, the worker, storage, and exports. The normative specification is [`docs/event-format.md`](../../docs/event-format.md).
 
-Changes to the public event contract must be versioned and documented in [`docs/event-format.md`](../../docs/event-format.md).
+This package contains:
 
-Validation, serialization helpers, and a published JSON Schema are not implemented yet.
+- `src/types.ts` — TypeScript types and constants for envelope v1.
+- `src/limits.ts` — size and cardinality limits, and the default redaction key list.
+- `src/validate.ts` — `validateEvent(input, { mode })`, a zero-dependency reference validator that never throws, drops unknown fields with a warning, and distinguishes the `ingest` form (no `project_id`) from the `stored` form (`project_id` required).
+- `schema/event-envelope.v1.json` — the published JSON Schema (draft 2020-12).
+- `examples/` — valid example payloads used by the documentation and the tests.
+
+The test suite checks that the validator, the JSON Schema, and the examples agree with each other. Any change to the contract must update all three and be recorded in `docs/event-format.md`.

@@ -8,7 +8,7 @@ Jekimo is an open-source, self-hosted error, crash, and log observability platfo
 
 ## Current state
 
-The repository is a scaffold. There is no application code yet. Do not describe features as implemented unless the code exists in this repository.
+The repository is a scaffold. The only implemented code is the event envelope contract in `packages/event-schema`; the API, worker, dashboard, SDK, storage, and deployment are not written yet. Do not describe features as implemented unless the code exists in this repository.
 
 ## Repository layout
 
@@ -27,7 +27,7 @@ The repository is a scaffold. There is no application code yet. Do not describe 
 2. **Secrets stay secret.** Ingestion keys and database passwords are shown once at creation or rotation, never logged, never echoed back by the UI, and never used to grant dashboard access. Setup-time administrator database credentials are not retained at runtime.
 3. **Safe by default.** SDKs do not collect request bodies, credentials, or personal data unless configured to. Redaction happens before transmission.
 4. **Low impact.** SDKs send asynchronously, bound memory, and never block application requests.
-5. **The event envelope is a public contract.** Changes to `packages/event-schema` must be versioned and documented in `docs/event-format.md`.
+5. **The event envelope is a public contract.** `docs/event-format.md` is normative. Any change to it must land in the same pull request as matching changes to the types, validator, JSON Schema, examples, and tests in `packages/event-schema`.
 6. **No real data in the repo.** Tests, fixtures, docs, and examples use synthetic payloads only.
 
 ## Conventions
@@ -44,9 +44,11 @@ The repository is a scaffold. There is no application code yet. Do not describe 
 ```bash
 npm install        # install workspace dependencies
 npm run typecheck  # TypeScript type check across apps and packages
+npm test           # Vitest unit tests
+npm run check      # both of the above
 ```
 
-Test, lint, and build commands will be added here as they are introduced.
+Lint and build commands will be added here as they are introduced.
 
 ## Local agent configuration
 
