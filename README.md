@@ -64,7 +64,7 @@ Start with PostgreSQL as the supported database engine in both paths. Keep conne
 
 ## Event envelope
 
-Every event shares a versioned envelope, regardless of whether it came from a backend, browser, or mobile SDK. The full contract, with field rules, limits, privacy defaults, and compatibility rules, is in [docs/event-format.md](docs/event-format.md); the types, JSON Schema, and reference validator live in [`packages/event-schema`](packages/event-schema). A representative event:
+Every event shares a versioned envelope, regardless of whether it came from a backend, browser, or mobile SDK. The full contract, with field rules, limits, privacy defaults, and compatibility rules, is in [docs/event-format.md](docs/event-format.md), and the HTTP protocol for sending events is in [docs/ingestion-protocol.md](docs/ingestion-protocol.md); the types, JSON Schema, and reference validator live in [`packages/event-schema`](packages/event-schema). A representative event:
 
 ```json
 {
@@ -111,7 +111,8 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 
 - ~~Choose the project license.~~ Done: Apache-2.0.
 - ~~Specify event envelope, payload limits, and redaction defaults.~~ Done: [docs/event-format.md](docs/event-format.md).
-- Specify ingestion authentication and retention behavior.
+- ~~Specify ingestion authentication, batching, and limits.~~ Done: [docs/ingestion-protocol.md](docs/ingestion-protocol.md).
+- Specify retention behavior.
 - Define instance, user, and project ownership and access rules.
 - Choose a storage approach and document the expected VPS resource range.
 - Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.
