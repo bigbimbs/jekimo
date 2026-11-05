@@ -1,6 +1,6 @@
 # Event format
 
-This document is the public contract for the Jekimo event envelope, **schema version 1**. Every SDK produces it, the ingestion API accepts it, the worker and storage keep it, and exports return it. The reference implementation is `packages/event-schema`: TypeScript types, a validator, a JSON Schema at `schema/event-envelope.v1.json`, and the example payloads in `examples/`.
+This document is the public contract for the Jekimo event envelope, **schema version 1**. How envelopes are sent over HTTP is specified in [ingestion-protocol.md](ingestion-protocol.md). Every SDK produces it, the ingestion API accepts it, the worker and storage keep it, and exports return it. The reference implementation is `packages/event-schema`: TypeScript types, a validator, a JSON Schema at `schema/event-envelope.v1.json`, and the example payloads in `examples/`.
 
 Key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are used as in RFC 2119.
 

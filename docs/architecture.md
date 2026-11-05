@@ -9,7 +9,7 @@ Node.js SDK -> authenticated API -> durable queue -> worker -> PostgreSQL
                                                    -> dashboard query API
 ```
 
-The event schema is shared across components. Every event, search, export, and issue action must be scoped to a project on the server. Project ingestion keys are separate from user sign-in credentials.
+The event schema ([event-format.md](event-format.md)) and the ingestion protocol ([ingestion-protocol.md](ingestion-protocol.md)) are the public contracts shared across components. Every event, search, export, and issue action must be scoped to a project on the server. Project ingestion keys are separate from user sign-in credentials.
 
 ## Deployment
 
