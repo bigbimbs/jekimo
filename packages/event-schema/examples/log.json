@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBQ50A6D2V8W4Y1Z3X5C7B9N",
+  "project_id": "prj_billing",
+  "timestamp": "2026-11-05T09:14:30Z",
+  "kind": "log",
+  "severity": "warning",
+  "message": "Retrying payment provider call after timeout",
+  "service": "billing-api",
+  "environment": "production",
+  "release": "1.4.2",
+  "sdk": {
+    "name": "@jekimo/sdk-node",
+    "version": "0.1.0"
+  },
+  "context": {
+    "request_id": "req_7f3c2a1b"
+  },
+  "attributes": {
+    "provider": "example-pay",
+    "timeout_ms": 3000,
+    "attempt": 1
+  }
+}

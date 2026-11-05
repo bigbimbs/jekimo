@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBQ4Z3H8X9T2K7M5N6P8R9SV",
+  "project_id": "prj_billing",
+  "timestamp": "2026-11-05T09:14:33.412Z",
+  "kind": "exception",
+  "severity": "error",
+  "message": "Database request failed while charging invoice",
+  "service": "billing-api",
+  "environment": "production",
+  "release": "1.4.2",
+  "fingerprint": "DatabaseError:charge-invoice",
+  "exception": {
+    "type": "DatabaseError",
+    "value": "connection terminated unexpectedly",
+    "stacktrace": "DatabaseError: connection terminated unexpectedly\n    at Client.query (/app/node_modules/pg/lib/client.js:526:17)\n    at chargeInvoice (/app/src/invoices/charge.ts:42:19)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)"
+  },
+  "sdk": {
+    "name": "@jekimo/sdk-node",
+    "version": "0.1.0"
+  },
+  "context": {
+    "request_id": "req_7f3c2a1b",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "host": "billing-api-6c9d7b"
+  },
+  "attributes": {
+    "invoice_id": "inv_000123",
+    "retry_count": 2,
+    "db_pool": {
+      "size": 10,
+      "idle": 0
+    }
+  }
+}

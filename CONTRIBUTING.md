@@ -23,7 +23,7 @@ Jekimo is a TypeScript monorepo using npm workspaces.
 
 Requirements:
 
-- Node.js 20 or newer (see [`.nvmrc`](.nvmrc))
+- Node.js 22.12 or newer (see [`.nvmrc`](.nvmrc))
 - npm 10 or newer
 - Docker and Docker Compose (for the deployment and storage packages, once implemented)
 
@@ -31,17 +31,17 @@ Requirements:
 git clone https://github.com/bigbimbs/jekimo.git
 cd jekimo
 npm install
-npm run typecheck
+npm run check   # type check and unit tests
 ```
 
-Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. Build, test, and lint commands will be added to the root `package.json` as the first implementation lands.
+Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. Build and lint commands will be added to the root `package.json` as the first implementation lands.
 
 ## Making changes
 
 - Create a branch from `main`: `git checkout -b feat/short-description` or `fix/short-description`.
 - Keep pull requests focused on one change. Separate refactors from behavior changes.
 - Follow the existing code style. An [`.editorconfig`](.editorconfig) is provided; formatter and linter configuration will be added with the first implementation.
-- Add or update tests for behavior you change, once a test harness exists.
+- Add or update tests for behavior you change. Tests use [Vitest](https://vitest.dev/) and live in `test/` next to each package's `src/`.
 - Update documentation under `docs/` and the relevant README when you change public behavior, configuration, or the event schema.
 - Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 
