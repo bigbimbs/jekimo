@@ -9,5 +9,6 @@ These are specified but not implemented yet. Each spec lists its own variables:
 - Retention, quotas, and disk thresholds: [retention.md](retention.md)
 - Sessions, invitations, project creation, SMTP: [access-model.md](access-model.md)
 - Ingestion rate limits: [ingestion-protocol.md](ingestion-protocol.md)
+- Object storage, cold tier, restores, and backups: [object-storage.md](object-storage.md)
 
 All variables are prefixed `JEKIMO_`.

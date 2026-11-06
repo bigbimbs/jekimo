@@ -11,6 +11,7 @@ This package contains:
 - `src/retention.ts` — retention and disk-threshold constants, `normalizeRetentionDays`, `isExpired`, `diskLevel`, and `effectiveRetentionDays`. Normative text: [`docs/retention.md`](../../docs/retention.md).
 - `src/sampling.ts` — deterministic sampling from the event id: `ulidSampleFraction` and `shouldKeepEvent`, which never drops exceptions or error/fatal events.
 - `src/permissions.ts` — the project permission catalogue, built-in role definitions, `validateCustomRole` (naming, required permission, no-escalation), and `canAssignRole`. A test checks the built-in roles against the table in [`docs/access-model.md`](../../docs/access-model.md).
+- `src/archive.ts` — cold-tier key layout (`archiveDayPrefix`, `archivePartKey`, `archiveManifestKey`, `parseArchiveKey`) and `splitRetention` for the hot/cold retention split. Normative text: [`docs/object-storage.md`](../../docs/object-storage.md).
 - `schema/event-envelope.v1.json` — the published JSON Schema (draft 2020-12).
 - `examples/` — valid example payloads used by the documentation and the tests.
 

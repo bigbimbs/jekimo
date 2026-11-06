@@ -129,6 +129,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 ### Phase 2 — Production readiness
 
 - Add alert rules, retention controls, project management, and operational metrics.
+- Add the optional object storage cold tier, bucket backups, and bucket exports ([docs/object-storage.md](docs/object-storage.md)).
 - Document delivery semantics, scaling guidance, backups, and upgrades.
 - Add SDKs for additional backend languages based on contributor demand.
 
@@ -145,6 +146,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - License: Apache-2.0.
 - Users and roles: multiple users per instance with instance roles (`admin`, `member`). Inside a project, access is permission-based: every project starts with built-in `admin`, `member`, and `viewer` roles, and custom roles can be composed from the permission catalogue. See [docs/access-model.md](docs/access-model.md).
 - Retention: 30 days by default per project, measured from receipt, with quotas, optional deterministic sampling, and disk-pressure safeguards. See [docs/retention.md](docs/retention.md).
+- Object storage: optional, S3-compatible (Cloudflare R2, S3, Backblaze B2, MinIO, or a local directory), used as a cold tier for old events, for backups, and for exports. PostgreSQL stays the hot, searchable store. Planned for Phase 2. See [docs/object-storage.md](docs/object-storage.md).
 - Proposed first-release target: a 2 vCPU, 4 GB RAM, 80 GB SSD VPS handling 1,000,000 events a month at 30-day retention. To be confirmed by measurement in Phase 1.
 
 ## Open decisions

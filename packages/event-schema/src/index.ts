@@ -5,3 +5,4 @@ export * from "./ingest.js";
 export * from "./retention.js";
 export * from "./sampling.js";
 export * from "./permissions.js";
+export * from "./archive.js";

@@ -1,6 +1,6 @@
 # Retention, sampling, and disk safety
 
-This document specifies how long a Jekimo instance keeps data, how operators bound the volume one project can store, and what happens when the VPS runs low on disk. It is normative for the worker, the storage layer, the ingestion API, and the dashboard. Reference constants and helpers live in `packages/event-schema/src/retention.ts` and `src/sampling.ts`.
+This document specifies how long a Jekimo instance keeps data, how operators bound the volume one project can store, and what happens when the VPS runs low on disk. It describes an instance **without** object storage; [object-storage.md](object-storage.md) extends it with a cold tier, longer retention, and archive-instead-of-delete behavior when a bucket is configured. It is normative for the worker, the storage layer, the ingestion API, and the dashboard. Reference constants and helpers live in `packages/event-schema/src/retention.ts` and `src/sampling.ts`.
 
 Key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are used as in RFC 2119.
 
@@ -46,7 +46,7 @@ Every project has a retention period in whole days.
 - Event storage is partitioned by `received_at` day. Expiring a whole day for a project is a partition-level delete or drop, not a row-by-row scan. This is the main reason the partition key is `received_at` rather than `timestamp`.
 - After events expire, issues with no remaining events are deleted, and project counters are updated. Resolved or ignored state on an issue is lost with the issue.
 - Expiry MUST be idempotent and safe to interrupt. A crashed pass leaves no half-deleted day visible to queries, because partitions are detached before they are dropped.
-- Expired data is not recoverable from the instance. Operators who need longer history use backups ([backups-and-restore.md](backups-and-restore.md)) or per-project export before the period ends.
+- Expired data is not recoverable from the instance. Operators who need longer history configure a cold tier ([object-storage.md](object-storage.md)), keep backups ([backups-and-restore.md](backups-and-restore.md)), or export per project before the period ends.
 
 ## Quotas
 
@@ -83,7 +83,7 @@ The operator configures the data directory or database volume. The instance watc
 | Full | 5% free | Ingestion returns `503 unavailable` with `Retry-After: 60`. Dashboard and export keep working so data can be moved out. |
 
 - Thresholds are operator-configurable (`JEKIMO_DISK_WARN_PERCENT`, `JEKIMO_DISK_CRITICAL_PERCENT`, `JEKIMO_DISK_FULL_PERCENT`).
-- Emergency expiry at the critical level is the one case where data is deleted before its configured retention. It is logged per project with the number of events removed, so the operator can see what happened.
+- Emergency expiry at the critical level is the one case where data is deleted before its configured retention. It is logged per project with the number of events removed, so the operator can see what happened. With a healthy object store configured, the instance archives those days instead of deleting them; see [object-storage.md](object-storage.md).
 - Ingestion MUST fail closed when it cannot determine free space; it MUST NOT assume the disk is healthy.
 
 ## Deletion
@@ -126,5 +126,4 @@ The install guide MUST show how storage scales: `monthly events × average event
 ## Open questions
 
 - Whether to offer per-kind retention (for example, keep exceptions longer than logs) in the first release or later.
-- Tiered storage: moving old partitions to object storage instead of deleting them.
 - Whether emergency expiry should prefer projects over their soft storage cap before touching the others.
