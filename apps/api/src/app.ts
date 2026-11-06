@@ -62,7 +62,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     reply.status(404).send({ error: { code: "not_found", message: "not found" } });
   });
 
-  app.get("/healthz", async (_request, reply) => {
+  // Health checks poll every few seconds; keep them out of info-level logs.
+  app.get("/healthz", { logLevel: "warn" }, async (_request, reply) => {
     try {
       await deps.metadata.countUsers();
       return { status: "ok" };

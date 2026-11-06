@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
-    "build": "node ../../scripts/build-app.mjs apps/worker src/main.ts",
+    "start": "node dist/main.mjs",
+    "build": "node ../../scripts/build-app.mjs apps/worker main=src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --root ../.. apps/worker"
   },

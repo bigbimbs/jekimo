@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
-    "build": "node ../../scripts/build-app.mjs apps/api src/main.ts",
+    "start": "node dist/main.mjs",
+    "build": "node ../../scripts/build-app.mjs apps/api main=src/main.ts migrate=../../packages/storage-postgres/src/migrate-cli.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --root ../.. apps/api"
   },
