@@ -226,4 +226,20 @@ export interface Queue<T> {
   fail(job: Job<T>, error: unknown): Promise<"retry" | "dead">;
 }
 
+/** Queue that carries accepted events from the ingest endpoint to the worker. */
+export const INGEST_QUEUE = "ingest";
+
+/** One ingest request's accepted events, as enqueued by the API. */
+export interface IngestJob {
+  /** Derived from the ingestion key, never from the request. */
+  project_id: string;
+  key_id: string;
+  /** Server time the request was received, RFC 3339. */
+  received_at: string;
+  /** received_at minus the client's sent_at, when sent_at was usable. */
+  skew_ms?: number;
+  /** Validated envelopes in ingest form, unique by event_id. */
+  events: EventEnvelope[];
+}
+
 export type { ProjectPermission };

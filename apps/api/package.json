@@ -2,5 +2,20 @@
   "name": "@jekimo/api",
   "private": true,
   "version": "0.1.0",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "node ../../scripts/build-app.mjs apps/api src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. apps/api"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@jekimo/event-schema": "0.1.0",
+    "@jekimo/storage-postgres": "0.1.0",
+    "argon2": "^0.45.2",
+    "fastify": "^5.12.8"
+  }
 }

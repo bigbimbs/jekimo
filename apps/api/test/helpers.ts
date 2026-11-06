@@ -1,0 +1,84 @@
+import type { FastifyInstance } from "fastify";
+import type { ProjectPermission } from "@jekimo/event-schema";
+import type { IngestJob } from "@jekimo/storage-postgres";
+import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo/storage-postgres/memory";
+import { buildApp } from "../src/app.js";
+import { generateIngestionKey } from "../src/keys.js";
+import type { PasswordHasher } from "../src/passwords.js";
+import { CSRF_HEADER, SESSION_COOKIE } from "../src/session.js";
+
+/** Fast stand-in for Argon2id in unit tests. One test exercises the real hasher. */
+export const fakeHasher: PasswordHasher = {
+  hash: async (pw) => `fake$${pw}`,
+  verify: async (hash, pw) => hash === `fake$${pw}`,
+};
+
+export const PASSWORD = "correct-horse-battery";
+export const SETUP_TOKEN = "synthetic-setup-token-for-tests";
+
+export interface Harness {
+  app: FastifyInstance;
+  metadata: MemoryMetadataRepository;
+  events: MemoryEventStore;
+  queue: MemoryQueue<IngestJob>;
+  now: { value: Date };
+}
+
+export async function harness(options: { setupToken?: string | null; config?: Parameters<typeof buildApp>[0]["config"] } = {}): Promise<Harness> {
+  const now = { value: new Date("2026-11-05T09:15:00.000Z") };
+  const metadata = new MemoryMetadataRepository(() => now.value);
+  const events = new MemoryEventStore();
+  const queue = new MemoryQueue<IngestJob>();
+  const app = await buildApp({
+    metadata,
+    events,
+    queue,
+    hasher: fakeHasher,
+    setupToken: options.setupToken ?? null,
+    clock: () => now.value,
+    ...(options.config && { config: options.config }),
+  });
+  return { app, metadata, events, queue, now };
+}
+
+export interface SignedIn {
+  userId: string;
+  cookie: string;
+  csrf: string;
+  headers: Record<string, string>;
+}
+
+export async function signIn(h: Harness, email: string, role: "admin" | "member" = "member"): Promise<SignedIn> {
+  const user = h.metadata.addUser(email, await fakeHasher.hash(PASSWORD), role);
+  const res = await h.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email, password: PASSWORD } });
+  if (res.statusCode !== 200) throw new Error(`login failed: ${res.statusCode} ${res.body}`);
+  const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
+  const csrf = res.json().csrf_token as string;
+  return { userId: user.id, cookie: `${SESSION_COOKIE}=${cookie.value}`, csrf, headers: { cookie: `${SESSION_COOKIE}=${cookie.value}`, [CSRF_HEADER]: csrf } };
+}
+
+/** Creates a project owned by `owner` and a key for it, directly in storage. */
+export async function projectWithKey(h: Harness, owner: SignedIn, id = "prj_test"): Promise<{ projectId: string; key: string; keyId: string }> {
+  await h.metadata.createProject({ userId: owner.userId, instanceRole: "member" }, { id, name: "Test project", retentionDays: 30 });
+  const access = await h.metadata.resolveProjectAccess({ userId: owner.userId, instanceRole: "member" }, id);
+  const k = generateIngestionKey();
+  await h.metadata.createIngestionKey(access!, { keyId: k.keyId, keyHash: k.keyHash, name: "test" });
+  return { projectId: id, key: k.key, keyId: k.keyId };
+}
+
+export function setRole(h: Harness, projectId: string, userId: string, role: string, permissions?: ProjectPermission[]): void {
+  if (permissions) h.metadata.defineRole(projectId, role, permissions);
+  h.metadata.setMember(projectId, userId, role);
+}
+
+export function ingestEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    event_id: "01JBQ4Z3H8X9T2K7M5N6P8R9SV",
+    timestamp: "2026-11-05T09:14:33.412Z",
+    kind: "log",
+    severity: "info",
+    message: "synthetic test event",
+    ...overrides,
+  };
+}
