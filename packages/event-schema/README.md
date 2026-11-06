@@ -10,6 +10,7 @@ This package contains:
 - `src/ingest.ts` — ingestion protocol v1: request and response types, `parseIngestionKey`, `bearerToken`, the error code to HTTP status table, and `validateIngestRequest`, which applies batch limits, clock skew correction, in-request deduplication, and per-event validation. Normative text: [`docs/ingestion-protocol.md`](../../docs/ingestion-protocol.md).
 - `src/retention.ts` — retention and disk-threshold constants, `normalizeRetentionDays`, `isExpired`, `diskLevel`, and `effectiveRetentionDays`. Normative text: [`docs/retention.md`](../../docs/retention.md).
 - `src/sampling.ts` — deterministic sampling from the event id: `ulidSampleFraction` and `shouldKeepEvent`, which never drops exceptions or error/fatal events.
+- `src/permissions.ts` — the project permission catalogue, built-in role definitions, `validateCustomRole` (naming, required permission, no-escalation), and `canAssignRole`. A test checks the built-in roles against the table in [`docs/access-model.md`](../../docs/access-model.md).
 - `schema/event-envelope.v1.json` — the published JSON Schema (draft 2020-12).
 - `examples/` — valid example payloads used by the documentation and the tests.
 

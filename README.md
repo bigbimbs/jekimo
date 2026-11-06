@@ -143,7 +143,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - First SDK target: Node.js (TypeScript).
 - Database engine for the first release: PostgreSQL only, behind a storage boundary.
 - License: Apache-2.0.
-- Users and roles: multiple users per instance with instance roles (`admin`, `member`) and project roles (`admin`, `member`, `viewer`). See [docs/access-model.md](docs/access-model.md).
+- Users and roles: multiple users per instance with instance roles (`admin`, `member`). Inside a project, access is permission-based: every project starts with built-in `admin`, `member`, and `viewer` roles, and custom roles can be composed from the permission catalogue. See [docs/access-model.md](docs/access-model.md).
 - Retention: 30 days by default per project, measured from receipt, with quotas, optional deterministic sampling, and disk-pressure safeguards. See [docs/retention.md](docs/retention.md).
 - Proposed first-release target: a 2 vCPU, 4 GB RAM, 80 GB SSD VPS handling 1,000,000 events a month at 30-day retention. To be confirmed by measurement in Phase 1.
 

@@ -21,8 +21,9 @@ Status: draft.
 | **User** | A person with an email address and a password. Users are instance-wide. |
 | **Instance role** | `admin` or `member`. Every user has exactly one. |
 | **Project** | An isolated container of events, issues, settings, ingestion keys, and memberships. |
-| **Membership** | Links one user to one project with one project role. |
-| **Project role** | `admin`, `member`, or `viewer`. |
+| **Membership** | Links one user to one project with one role. |
+| **Permission** | A stable identifier for one capability inside a project, such as `keys.manage`. |
+| **Role** | A named set of permissions within a project. Three built-in roles (`admin`, `member`, `viewer`) exist in every project; custom roles can be added. |
 | **Ingestion key** | A project credential for SDKs. Not a user; grants nothing beyond `POST /api/v1/ingest`. See the [ingestion protocol](ingestion-protocol.md). |
 
 ## Instance roles
@@ -38,24 +39,64 @@ Status: draft.
 | Restore a project within its deletion grace period | Yes | No |
 
 - The first user, created during setup, is an instance `admin`. An instance MUST always have at least one active admin; the last one cannot be demoted or deactivated.
-- Instance admins act on projects with implicit project `admin` rights. Those actions are audit-logged with a flag showing they were performed through instance authority rather than membership.
+- Instance admins hold every project permission in every project implicitly. Those actions are audit-logged with a flag showing they were performed through instance authority rather than membership.
 
-## Project roles
+## Project permissions and roles
 
-| Capability | `admin` | `member` | `viewer` |
+Access inside a project is **permission-based**. A role is a named set of permissions. Every project is created with three built-in roles, and anyone holding the `roles.manage` permission can add custom roles for that project.
+
+### Permission catalogue
+
+Permission identifiers are stable strings. Reference list: `PROJECT_PERMISSIONS` in `packages/event-schema/src/permissions.ts`.
+
+| Permission | Grants |
+| --- | --- |
+| `project.read` | View events, issues, search, and project settings. Every role MUST include it. |
+| `issues.manage` | Resolve, ignore, reopen, and comment on issues. |
+| `data.export` | Export project data. |
+| `data.delete` | Delete issues, or events by filter. |
+| `keys.manage` | Create, rotate, and revoke ingestion keys. |
+| `settings.manage` | Change project settings: name, environments, retention, sample rate, redaction rules. |
+| `members.manage` | Add and remove members and assign them roles. |
+| `roles.manage` | Create, edit, and delete custom roles in the project. |
+| `project.delete` | Delete the project. |
+
+### Built-in roles
+
+Created with every project. They cannot be renamed, edited, or deleted, so documentation and support can rely on them. The test suite checks that this table and `DEFAULT_PROJECT_ROLES` in the code agree.
+
+| Permission | `admin` | `member` | `viewer` |
 | --- | --- | --- | --- |
-| View events, issues, and search | Yes | Yes | Yes |
-| Resolve, ignore, reopen, and comment on issues | Yes | Yes | No |
-| Export project data | Yes | Yes | No |
-| Delete issues or events by filter | Yes | No | No |
-| Create, rotate, and revoke ingestion keys | Yes | No | No |
-| Change project settings: name, environments, retention, sample rate, redaction rules | Yes | No | No |
-| Manage members and their roles | Yes | No | No |
-| Delete the project | Yes | No | No |
+| `project.read` | Yes | Yes | Yes |
+| `issues.manage` | Yes | Yes | No |
+| `data.export` | Yes | Yes | No |
+| `data.delete` | Yes | No | No |
+| `keys.manage` | Yes | No | No |
+| `settings.manage` | Yes | No | No |
+| `members.manage` | Yes | No | No |
+| `roles.manage` | Yes | No | No |
+| `project.delete` | Yes | No | No |
 
-- The user who creates a project becomes its `admin`.
-- A project MUST always have at least one `admin` member, unless an instance admin is removing the last one on purpose, in which case the dashboard warns that only instance admins will be able to manage it.
-- Roles are per project. The same user can be `admin` on one project and `viewer` on another.
+`admin` always holds every permission, including any added in a future release.
+
+### Custom roles
+
+- A custom role belongs to one project and has a name (1 to 40 characters, unique within the project, case-insensitive, and not one of the built-in names), an optional description, and a set of permissions that MUST include `project.read`.
+- **No escalation:** a user can only grant permissions they hold themselves. Creating or editing a role with a permission the actor lacks is rejected, and so is assigning such a role to anyone, including themselves.
+- Editing a custom role changes what its current holders can do immediately. The dashboard shows how many members hold the role before the change is saved.
+- A custom role with members cannot be deleted; members are reassigned first.
+- Role changes are audit-logged with the before and after permission sets.
+
+### Membership rules
+
+- The user who creates a project receives the built-in `admin` role.
+- A project MUST always have at least one member with the built-in `admin` role, unless an instance admin is removing the last one on purpose, in which case the dashboard warns that only instance admins will be able to manage it.
+- A user has exactly one role per project. The same user can be `admin` on one project and a custom role on another.
+- Instance admins hold every project permission implicitly; see "Instance roles".
+
+### Adding permissions in a future release
+
+Adding a permission is an additive change. The built-in `admin` role gains it automatically; `member`, `viewer`, and custom roles do not, and the release notes say which roles should be reviewed. Removing or renaming a permission is a breaking change and requires a migration that maps old identifiers to new ones.
 
 ## Authentication
 
@@ -86,7 +127,7 @@ TOTP second factor is planned as an additive change. The data model reserves roo
 
 ### API tokens for people
 
-Personal API tokens for the query and export API are planned. They will be scoped to a subset of the user's projects and roles, revocable, and shown once. Until they exist, the query API accepts session cookies only. Ingestion keys MUST NOT be accepted by the query API under any circumstances.
+Personal API tokens for the query and export API are planned. They will be scoped to a subset of the user's projects and permissions, revocable, and shown once. Until they exist, the query API accepts session cookies only. Ingestion keys MUST NOT be accepted by the query API under any circumstances.
 
 ## Authorization enforcement
 
@@ -94,7 +135,7 @@ This is the implementation of rule 1 in `AGENTS.md`: project isolation is a hard
 
 1. **The storage layer takes `project_id` as a mandatory parameter** on every read and write of project data. There is no function that reads events across projects. The only cross-project queries are membership lookups and instance-admin listings, and they live in separate modules.
 2. **The API resolves the project from the URL and checks membership before anything else.** A request for a project the user cannot access returns `404`, not `403`, so the response does not reveal whether the project exists. The one exception is instance admins, who get `200`.
-3. **Role checks are declared per route**, not scattered in handlers, and tested with a matrix of every role against every route.
+3. **Permission checks are declared per route** as the permission the route requires, not scattered in handlers, and tested with a matrix of every built-in role, a custom role with each single permission, and the instance admin against every route.
 4. **Exports and searches are scoped at the query**, not filtered afterwards.
 5. **Ingestion keys cannot reach any endpoint except ingest.** The ingest endpoint cannot be reached with a session cookie. Each credential type has its own middleware; neither falls through to the other.
 6. **The dashboard never trusts a project id from the client** for anything but routing. The server re-derives access on every request.
@@ -109,6 +150,7 @@ Recorded events include:
 - User invited, activated, deactivated, role changed.
 - Project created, settings changed, deleted, restored.
 - Membership added, role changed, removed.
+- Custom role created, edited (with before and after permissions), deleted.
 - Ingestion key created, rotated, revoked.
 - Retention, quota, or sample rate changed.
 - Bulk deletion of events or issues.
@@ -137,4 +179,3 @@ Each entry records the actor, the action, the target, the time, the source IP, a
 
 - Teams or groups as a way to grant many users access to many projects at once.
 - Single sign-on (OIDC) for organisations that require it.
-- Whether `viewer` should be allowed to export.
