@@ -5,7 +5,15 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { createPool, INGEST_QUEUE, PostgresEventStore, PostgresMetadataRepository, PostgresQueue, type IngestJob } from "@jekimo/storage-postgres";
+import {
+  createPool,
+  INGEST_QUEUE,
+  PostgresEventStore,
+  PostgresMetadataRepository,
+  PostgresQueue,
+  queuePolicyFromEnv,
+  type IngestJob,
+} from "@jekimo/storage-postgres";
 import { buildApp, loggerOptions } from "./app.js";
 import { loadApiConfig } from "./config.js";
 
@@ -36,7 +44,7 @@ async function main(): Promise<void> {
   const app = await buildApp({
     metadata,
     events: new PostgresEventStore(pool),
-    queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE),
+    queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE, queuePolicyFromEnv()),
     config,
     setupToken,
     logger: loggerOptions(config.logLevel),

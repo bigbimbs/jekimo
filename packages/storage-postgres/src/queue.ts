@@ -26,6 +26,20 @@ export const DEFAULT_QUEUE_POLICY: QueuePolicy = {
   maxBackoffMs: 60_000,
 };
 
+/**
+ * Reads JEKIMO_QUEUE_VISIBILITY_SECONDS and JEKIMO_QUEUE_MAX_ATTEMPTS. The API
+ * stamps max attempts on each job it enqueues; the worker applies the
+ * visibility timeout when it claims jobs.
+ */
+export function queuePolicyFromEnv(env: NodeJS.ProcessEnv = process.env): Partial<QueuePolicy> {
+  const policy: Partial<QueuePolicy> = {};
+  const visibility = Number(env.JEKIMO_QUEUE_VISIBILITY_SECONDS);
+  if (env.JEKIMO_QUEUE_VISIBILITY_SECONDS && Number.isInteger(visibility) && visibility > 0) policy.visibilityTimeoutMs = visibility * 1000;
+  const attempts = Number(env.JEKIMO_QUEUE_MAX_ATTEMPTS);
+  if (env.JEKIMO_QUEUE_MAX_ATTEMPTS && Number.isInteger(attempts) && attempts > 0) policy.maxAttempts = attempts;
+  return policy;
+}
+
 export type FailureDecision = { status: "dead" } | { status: "retry"; delayMs: number };
 
 /** What happens to a job whose attempt number `attempts` (1-based) failed. */

@@ -4,4 +4,4 @@ export { createPool, databaseUrl, withTransaction, type Pool, type PoolOptions }
 export { defaultMigrationsDir, loadMigrations, migrate, type Migration } from "./migrate.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export { PostgresEventStore, daysFrom, partitionName } from "./event-store.js";
-export { PostgresQueue, DEFAULT_QUEUE_POLICY, decideFailure, type FailureDecision, type QueuePolicy } from "./queue.js";
+export { PostgresQueue, DEFAULT_QUEUE_POLICY, decideFailure, queuePolicyFromEnv, type FailureDecision, type QueuePolicy } from "./queue.js";
