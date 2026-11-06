@@ -31,16 +31,54 @@ Requirements:
 git clone https://github.com/bigbimbs/jekimo.git
 cd jekimo
 npm install
-npm run check   # type check and unit tests
+npm run check   # lint, type check, and unit tests
 ```
 
-Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. Build and lint commands will be added to the root `package.json` as the first implementation lands.
+Day-to-day commands, all run from the repository root:
+
+| Command | What it does |
+| --- | --- |
+| `npm run lint` | Checks lint rules, formatting, and import order with [Biome](https://biomejs.dev/). Writes nothing. |
+| `npm run lint:fix` | Applies Biome's safe fixes and formatting. |
+| `npm run format` | Formats every file with Biome. |
+| `npm run typecheck` | Type-checks every TypeScript project with `tsc -b`. |
+| `npm test` | Runs the Vitest unit tests. |
+| `npm run check` | Runs `lint`, `typecheck`, and `test` in that order, as CI does. |
+
+Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. A build command will be added to the root `package.json` when the first package needs one.
+
+### Editor setup
+
+Install the Biome extension for your editor; VS Code offers it automatically from [`.vscode/extensions.json`](.vscode/extensions.json). Enable format on save with Biome as the default formatter so your changes already match `npm run lint`. Disable Prettier and ESLint extensions for this workspace if you have them installed globally; the repository does not use them.
+
+### TypeScript configuration
+
+Shared compiler options live in [`tsconfig.base.json`](tsconfig.base.json): ES2022, NodeNext modules, `strict`, `exactOptionalPropertyTypes`, and `noUncheckedIndexedAccess`. The root [`tsconfig.json`](tsconfig.json) is a solution file: it compiles nothing itself and lists each TypeScript project under `references`, so `tsc -b` checks them all. Root-level config files such as `vitest.config.ts` are covered by `tsconfig.config.json`.
+
+When a workspace gets its first source file, wire it in within the same pull request:
+
+1. Add `tsconfig.json` to the workspace:
+
+   ```json
+   {
+     "extends": "../../tsconfig.base.json",
+     "compilerOptions": {
+       "composite": true,
+       "types": ["node"]
+     },
+     "include": ["src", "test"]
+   }
+   ```
+
+   Adjust `types` to what the workspace runs on (the dashboard will want DOM libraries rather than Node types). If it imports another workspace, add that workspace to its own `references`.
+2. Add `{ "path": "./apps/<name>" }` or `{ "path": "./packages/<name>" }` to `references` in the root `tsconfig.json`.
+3. Run `npm run check`. Biome and Vitest already pick up every workspace, so they need no changes.
 
 ## Making changes
 
 - Create a branch from `main`: `git checkout -b feat/short-description` or `fix/short-description`.
 - Keep pull requests focused on one change. Separate refactors from behavior changes.
-- Follow the existing code style. An [`.editorconfig`](.editorconfig) is provided; formatter and linter configuration will be added with the first implementation.
+- Follow the existing code style. Formatting and lint rules are enforced by Biome ([`biome.json`](biome.json)), which reads [`.editorconfig`](.editorconfig); run `npm run lint:fix` before committing. Suppress a rule only with a `biome-ignore` comment that states the reason.
 - Add or update tests for behavior you change. Tests use [Vitest](https://vitest.dev/) and live in `test/` next to each package's `src/`.
 - Update documentation under `docs/` and the relevant README when you change public behavior, configuration, or the event schema.
 - Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
