@@ -20,7 +20,7 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -b",
     "test": "vitest run",
     "check": "npm run typecheck && npm test"
   },

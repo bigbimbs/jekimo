@@ -1,19 +1,4 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": [
-    "vitest.config.ts",
-    "apps/*/src/**/*.ts",
-    "apps/*/src/**/*.tsx",
-    "apps/*/test/**/*.ts",
-    "packages/*/src/**/*.ts",
-    "packages/*/test/**/*.ts"
-  ]
+  "files": [],
+  "references": [{ "path": "./tsconfig.config.json" }, { "path": "./packages/event-schema" }]
 }
