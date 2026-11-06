@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Release machinery: a `release.yml` workflow that creates a GitHub Release from a `v*` tag with notes taken from this changelog and the event envelope JSON Schema and a `docs/` tarball attached; an `images.yml` workflow that builds multi-arch `ghcr.io/bigbimbs/jekimo-api` and `ghcr.io/bigbimbs/jekimo-worker` images (`edge` from `main`, versioned from tags) once the apps have Dockerfiles; and a `publish-sdk.yml` workflow that publishes `@jekimo/sdk-node` to npm with provenance from `sdk-node-v*` tags. The versioning policy, release checklist, and one-time setup are in `docs/releasing.md`.
+- First draft of the VPS install guide in `docs/install-vps.md`: sizing and the storage formula, DNS and HTTPS with Caddy, existing or local PostgreSQL, environment variables, first-run setup, verifying ingestion, backups, upgrades and rollback, and troubleshooting. Steps that depend on unreleased code are marked as such.
+- `docs/README.md`, an index of the documentation.
 - Storage engine guidance in `docs/architecture.md`: why PostgreSQL is the hot store for the first release, how the event tables must be built, where its limits are, and five binding design rules that keep the event store replaceable so ClickHouse can be offered as an opt-in event store in Phase 2.
 - Object storage specification in `docs/object-storage.md`: an optional S3-compatible boundary (Cloudflare R2, S3, Backblaze B2, MinIO, local filesystem) used as a cold tier with hot and cold retention, per-project key layout, archive format and manifest, restores, disk safety with archiving, backups, exports, security rules, and configuration. `packages/event-schema` gains `archiveDayPrefix`, `archivePartKey`, `archiveManifestKey`, `parseArchiveKey`, and `splitRetention`, with tests. `docs/backups-and-restore.md` now states what backups contain and where they go.
 - Retention specification in `docs/retention.md`: per-project retention measured from receipt, expiry mechanics, quotas, deterministic sampling that never drops exceptions or errors, disk-pressure levels with emergency expiry and ingestion refusal, deletion semantics, and proposed first-release sizing. `packages/event-schema` gains `RETENTION` and `DISK_THRESHOLDS` constants, `normalizeRetentionDays`, `isExpired`, `diskLevel`, `effectiveRetentionDays`, and `shouldKeepEvent`, with tests.
@@ -18,5 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test tooling: Vitest with `npm test`, run in CI alongside the type check.
 - Repository scaffold: monorepo layout, product brief, contributor documentation, issue and pull request templates, and CI workflow.
 - Apache License 2.0.
+
+### Changed
+
+- `SECURITY.md` now has a supported-versions table for `0.x` and states the policy from `1.0.0`: the latest minor, plus the previous minor for 90 days.
+- Dependabot groups GitHub Actions updates into one pull request.
 
 [Unreleased]: https://github.com/bigbimbs/jekimo/commits/main
