@@ -1,5 +1,36 @@
 # API service
 
-The Node.js and TypeScript service will provide project/user management, authenticated event ingestion, search, and issue APIs. Enforce project access at every API and storage boundary.
+Fastify server for setup, sign-in, projects, ingestion keys, event ingestion, and the event query API. It enforces project access at every route and never writes SQL itself; storage goes through `@jekimo/storage-postgres`.
 
-Implementation has not started yet.
+Fastify was chosen over Hono because it is Node-native and mature, gives per-route body parsers and encapsulated plugins (the ingest endpoint has its own parser, error format, and no session middleware), ships structured logging with redaction, and has `inject()` for tests without a socket.
+
+## Endpoints
+
+| Method and path | Credential | Purpose |
+| --- | --- | --- |
+| `GET /healthz` | none | Liveness, including a database round trip. |
+| `GET /api/v1/setup` | none | Whether the instance still needs its first admin. |
+| `POST /api/v1/setup` | setup token printed at start | Creates the first instance admin. |
+| `POST /api/v1/auth/login` | email and password | Starts a session (cookie) and returns a CSRF token. |
+| `GET /api/v1/auth/session` | session | Current user and CSRF token. |
+| `POST /api/v1/auth/logout` | session + CSRF | Ends the session. |
+| `GET /api/v1/projects` | session | Projects the user belongs to (all, for instance admins). |
+| `POST /api/v1/projects` | session + CSRF | Creates a project with built-in roles; the creator becomes its admin. |
+| `GET /api/v1/projects/:id` | session, `project.read` | One project. |
+| `POST /api/v1/projects/:id/keys` | session + CSRF, `keys.manage` | Creates an ingestion key and returns it once. |
+| `GET /api/v1/projects/:id/events` | session, `project.read` | Events by `from`, `to` (RFC 3339, on `received_at`), `severity` (comma list), `limit` (1 to 500), and `cursor`. |
+| `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md). |
+
+State-changing session requests need the `X-Jekimo-CSRF-Token` header. Session routes reject any `Authorization` header, so an ingestion key is never accepted there, and the ingest route ignores cookies. Projects the user cannot access answer `404`.
+
+Not yet implemented: rate limits and quotas (a TODO in `src/routes/ingest.ts` cites the protocol), invitations, password reset, key rotation and revocation endpoints, and custom role management.
+
+## Development
+
+```bash
+npm run dev -w @jekimo/api     # tsx watch, needs DATABASE_URL
+npm run build -w @jekimo/api   # dist/main.mjs and dist/migrate.mjs
+npm test -- apps/api
+```
+
+The container image is built from the repository root with `docker build -f apps/api/Dockerfile .`; see [docs/local-development.md](../../docs/local-development.md). Settings are in [docs/configuration.md](../../docs/configuration.md).

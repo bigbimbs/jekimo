@@ -8,7 +8,9 @@ Jekimo is an open-source, self-hosted error, crash, and log observability platfo
 
 ## Current state
 
-The repository is a scaffold. The only implemented code is the contract-level helpers in `packages/event-schema` (envelope validation, ingestion request validation, retention and sampling helpers); the API, worker, dashboard, SDK, storage, and deployment are not written yet. Do not describe features as implemented unless the code exists in this repository.
+A first vertical slice is implemented: instance setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API. It spans `apps/api`, `apps/worker`, `packages/storage-postgres`, and `packages/event-schema`, and runs locally with `deploy/docker-compose/docker-compose.dev.yml` ([docs/local-development.md](docs/local-development.md)). Not implemented yet: the dashboard (`apps/web`), rate limits and quotas, invitations and password reset, key rotation and revocation endpoints, custom role management, daily counters, disk-pressure handling, object storage, and the production deployment. Do not describe features as implemented unless the code exists in this repository.
+
+Storage rules to keep: only `packages/storage-postgres` writes SQL; project data is reached through a `ProjectAccess` from `resolveProjectAccess`; the event store (`EventStore`) and metadata (`MetadataRepository`) are separate boundaries with no transaction spanning them; appends are idempotent on `(project_id, event_id)`; issue counts are derived from the event store.
 
 ## Repository layout
 
@@ -44,11 +46,14 @@ The repository is a scaffold. The only implemented code is the contract-level he
 ```bash
 npm install        # install workspace dependencies
 npm run typecheck  # TypeScript type check across apps and packages
-npm test           # Vitest unit tests
+npm test           # Vitest unit tests; PostgreSQL integration tests run when DATABASE_URL is set
 npm run check      # both of the above
+npm run migrate -w @jekimo/storage-postgres   # apply migrations to DATABASE_URL
+npm run build --workspaces --if-present       # bundle apps/api and apps/worker into dist/
+docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build   # local stack
 ```
 
-Lint and build commands will be added here as they are introduced.
+Lint commands will be added here as they are introduced.
 
 ## Local agent configuration
 

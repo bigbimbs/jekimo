@@ -54,4 +54,4 @@ Engines considered and not chosen for the core: Elasticsearch and OpenSearch (be
 
 Docker Compose will run the app on one VPS. Setup will connect an existing PostgreSQL datasource or provision PostgreSQL locally. Provisioning credentials are one-time setup secrets; runtime services use a restricted application account.
 
-This document describes the intended design; implementation has not started.
+This document describes the intended design. A first vertical slice of the API, worker, and PostgreSQL storage follows it; [local-development.md](local-development.md) shows it running.
