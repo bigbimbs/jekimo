@@ -34,6 +34,7 @@ export function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mutation tests deliberately write values the envelope type forbids
 export type Mutable = Record<string, any>;
 
 /**

@@ -22,16 +22,16 @@ export interface ParsedIngestionKey {
 /** Parses an ingestion key. Returns null for anything that is not well-formed. */
 export function parseIngestionKey(value: unknown): ParsedIngestionKey | null {
   if (typeof value !== "string") return null;
-  const m = INGESTION_KEY_PATTERN.exec(value);
-  if (!m) return null;
-  return { keyId: m[1]!, secret: m[2]! };
+  const [, keyId, secret] = INGESTION_KEY_PATTERN.exec(value) ?? [];
+  if (keyId === undefined || secret === undefined) return null;
+  return { keyId, secret };
 }
 
 /** Extracts the bearer token from an Authorization header value, or null. */
 export function bearerToken(header: unknown): string | null {
   if (typeof header !== "string") return null;
   const m = /^Bearer\s+(\S+)\s*$/i.exec(header);
-  return m ? m[1]! : null;
+  return m?.[1] ?? null;
 }
 
 export interface IngestRequest {
