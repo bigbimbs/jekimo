@@ -2,5 +2,23 @@
   "name": "@jekimo/storage-postgres",
   "private": true,
   "version": "0.1.0",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory": "./src/memory/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "migrate": "tsx src/migrate-cli.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. packages/storage-postgres"
+  },
+  "dependencies": {
+    "@jekimo/event-schema": "0.1.0",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  }
 }
