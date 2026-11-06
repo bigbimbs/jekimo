@@ -157,9 +157,9 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 
 ## Repository layout
 
-The repository is a TypeScript monorepo. `apps/api` handles ingestion and project APIs, `apps/worker` processes events, and `apps/web` is the browser dashboard. Shared packages define the event schema, Node.js SDK, and PostgreSQL storage. `deploy/docker-compose` and `docs` will hold the VPS setup and operating guides.
+The repository is a TypeScript monorepo. `apps/api` handles ingestion and project APIs, `apps/worker` processes events, and `apps/web` is the browser dashboard. Shared packages define the event schema and PostgreSQL storage, and [`packages/sdk-node`](packages/sdk-node) is the Node.js SDK, published to npm as [`@jekimo/sdk-node`](packages/sdk-node/README.md) (alpha). `deploy/docker-compose` and `docs` will hold the VPS setup and operating guides.
 
-This repository currently contains the scaffold and product brief; the services and deployment are not implemented yet.
+This repository currently contains the product brief, the event and ingestion contracts in `packages/event-schema`, and an alpha of the Node.js SDK; the services and deployment are not implemented yet.
 
 ## Contributing
 

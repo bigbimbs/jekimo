@@ -25,3 +25,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - name: Build and pack the Node.js SDK
+        run: |
+          npm run build --workspace packages/sdk-node
+          npm pack --dry-run --workspace packages/sdk-node
