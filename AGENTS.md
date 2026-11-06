@@ -27,7 +27,7 @@ The repository is a scaffold. The only implemented code is the contract-level he
 2. **Secrets stay secret.** Ingestion keys and database passwords are shown once at creation or rotation, never logged, never echoed back by the UI, and never used to grant dashboard access. Setup-time administrator database credentials are not retained at runtime.
 3. **Safe by default.** SDKs do not collect request bodies, credentials, or personal data unless configured to. Redaction happens before transmission.
 4. **Low impact.** SDKs send asynchronously, bound memory, and never block application requests.
-5. **The specs in `docs/` are normative.** `docs/event-format.md`, `docs/ingestion-protocol.md`, `docs/retention.md`, and `docs/access-model.md` define the contracts. Any change to them must land in the same pull request as matching changes to the types, validator, JSON Schema, examples, and tests in `packages/event-schema`.
+5. **The specs in `docs/` are normative.** `docs/event-format.md`, `docs/ingestion-protocol.md`, `docs/retention.md`, `docs/access-model.md`, and `docs/object-storage.md` define the contracts. Any change to them must land in the same pull request as matching changes to the types, validator, JSON Schema, examples, and tests in `packages/event-schema`.
 6. **No real data in the repo.** Tests, fixtures, docs, and examples use synthetic payloads only.
 
 ## Conventions
