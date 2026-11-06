@@ -112,9 +112,9 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - ~~Choose the project license.~~ Done: Apache-2.0.
 - ~~Specify event envelope, payload limits, and redaction defaults.~~ Done: [docs/event-format.md](docs/event-format.md).
 - ~~Specify ingestion authentication, batching, and limits.~~ Done: [docs/ingestion-protocol.md](docs/ingestion-protocol.md).
-- Specify retention behavior.
-- Define instance, user, and project ownership and access rules.
-- Choose a storage approach and document the expected VPS resource range.
+- ~~Specify retention behavior.~~ Done: [docs/retention.md](docs/retention.md).
+- ~~Define instance, user, and project ownership and access rules.~~ Done: [docs/access-model.md](docs/access-model.md).
+- ~~Choose a storage approach and document the expected VPS resource range.~~ PostgreSQL; proposed range in [docs/retention.md](docs/retention.md).
 - Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.
 
 ### Phase 1 — Backend MVP
@@ -138,13 +138,19 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - Add source maps and native symbolication as separate, opt-in capabilities.
 - Review privacy, consent, network, and battery impact for client-side capture.
 
+## Decisions so far
+
+- First SDK target: Node.js (TypeScript).
+- Database engine for the first release: PostgreSQL only, behind a storage boundary.
+- License: Apache-2.0.
+- Users and roles: multiple users per instance with instance roles (`admin`, `member`) and project roles (`admin`, `member`, `viewer`). See [docs/access-model.md](docs/access-model.md).
+- Retention: 30 days by default per project, measured from receipt, with quotas, optional deterministic sampling, and disk-pressure safeguards. See [docs/retention.md](docs/retention.md).
+- Proposed first-release target: a 2 vCPU, 4 GB RAM, 80 GB SSD VPS handling 1,000,000 events a month at 30-day retention. To be confirmed by measurement in Phase 1.
+
 ## Open decisions
 
-- Which backend language should the first SDK target?
-- Which VPS size and event volume should the first release target?
-- Should PostgreSQL be the only database engine for the first release?
-- Should the first release support only one instance administrator, or multiple user accounts with roles?
-- What event volume and retention period should the MVP be designed around?
+- Whether to offer per-kind retention (for example, exceptions kept longer than logs) in the first release.
+- Teams or groups for granting many users access to many projects at once.
 
 ## Repository layout
 
