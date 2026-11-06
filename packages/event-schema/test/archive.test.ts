@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  HOT_DAYS,
-  RETENTION,
   archiveDayPrefix,
   archiveManifestKey,
   archivePartKey,
+  HOT_DAYS,
   parseArchiveKey,
   projectPrefix,
+  RETENTION,
   splitRetention,
   utcDay,
 } from "../src/index.js";
@@ -15,9 +15,15 @@ describe("archive key layout", () => {
   it("builds the documented keys", () => {
     expect(projectPrefix("prj_billing")).toBe("v1/projects/prj_billing/");
     expect(archiveDayPrefix("prj_billing", "2026-11-05")).toBe("v1/projects/prj_billing/events/2026/11/05/");
-    expect(archivePartKey("prj_billing", "2026-11-05", 0)).toBe("v1/projects/prj_billing/events/2026/11/05/part-00000.ndjson.zst");
-    expect(archivePartKey("prj_billing", "2026-11-05", 42)).toBe("v1/projects/prj_billing/events/2026/11/05/part-00042.ndjson.zst");
-    expect(archiveManifestKey("prj_billing", "2026-11-05")).toBe("v1/projects/prj_billing/events/2026/11/05/manifest.json");
+    expect(archivePartKey("prj_billing", "2026-11-05", 0)).toBe(
+      "v1/projects/prj_billing/events/2026/11/05/part-00000.ndjson.zst",
+    );
+    expect(archivePartKey("prj_billing", "2026-11-05", 42)).toBe(
+      "v1/projects/prj_billing/events/2026/11/05/part-00042.ndjson.zst",
+    );
+    expect(archiveManifestKey("prj_billing", "2026-11-05")).toBe(
+      "v1/projects/prj_billing/events/2026/11/05/manifest.json",
+    );
   });
 
   it("keeps every project under its own prefix", () => {
@@ -77,28 +83,72 @@ describe("archive key layout", () => {
 
 describe("splitRetention", () => {
   it("without an object store the whole period is hot", () => {
-    expect(splitRetention({ retentionDays: 30, objectStoreConfigured: false })).toEqual({ ok: true, hotDays: 30, coldDays: 0 });
-    expect(splitRetention({ retentionDays: 30, hotDays: 30, objectStoreConfigured: false })).toEqual({ ok: true, hotDays: 30, coldDays: 0 });
-    expect(splitRetention({ retentionDays: 30, hotDays: 7, objectStoreConfigured: false })).toEqual({ ok: false, reason: "cold_tier_unavailable" });
+    expect(splitRetention({ retentionDays: 30, objectStoreConfigured: false })).toEqual({
+      ok: true,
+      hotDays: 30,
+      coldDays: 0,
+    });
+    expect(splitRetention({ retentionDays: 30, hotDays: 30, objectStoreConfigured: false })).toEqual({
+      ok: true,
+      hotDays: 30,
+      coldDays: 0,
+    });
+    expect(splitRetention({ retentionDays: 30, hotDays: 7, objectStoreConfigured: false })).toEqual({
+      ok: false,
+      reason: "cold_tier_unavailable",
+    });
   });
 
   it("with an object store the hot period defaults to 14 days, capped by the total", () => {
-    expect(splitRetention({ retentionDays: 90, objectStoreConfigured: true })).toEqual({ ok: true, hotDays: HOT_DAYS.DEFAULT_WITH_OBJECT_STORE, coldDays: 76 });
-    expect(splitRetention({ retentionDays: 7, objectStoreConfigured: true })).toEqual({ ok: true, hotDays: 7, coldDays: 0 });
-    expect(splitRetention({ retentionDays: 365, hotDays: 30, objectStoreConfigured: true })).toEqual({ ok: true, hotDays: 30, coldDays: 335 });
+    expect(splitRetention({ retentionDays: 90, objectStoreConfigured: true })).toEqual({
+      ok: true,
+      hotDays: HOT_DAYS.DEFAULT_WITH_OBJECT_STORE,
+      coldDays: 76,
+    });
+    expect(splitRetention({ retentionDays: 7, objectStoreConfigured: true })).toEqual({
+      ok: true,
+      hotDays: 7,
+      coldDays: 0,
+    });
+    expect(splitRetention({ retentionDays: 365, hotDays: 30, objectStoreConfigured: true })).toEqual({
+      ok: true,
+      hotDays: 30,
+      coldDays: 335,
+    });
   });
 
   it("rejects out-of-range values", () => {
     expect(splitRetention({ retentionDays: 0, objectStoreConfigured: true }).ok).toBe(false);
-    expect(splitRetention({ retentionDays: RETENTION.MAX_DAYS + 1, objectStoreConfigured: true })).toEqual({ ok: false, reason: "invalid_retention" });
-    expect(splitRetention({ retentionDays: 90, hotDays: 0, objectStoreConfigured: true })).toEqual({ ok: false, reason: "invalid_hot_days" });
-    expect(splitRetention({ retentionDays: 90, hotDays: 2.5, objectStoreConfigured: true })).toEqual({ ok: false, reason: "invalid_hot_days" });
-    expect(splitRetention({ retentionDays: 400, hotDays: HOT_DAYS.MAX + 1, objectStoreConfigured: true })).toEqual({ ok: false, reason: "invalid_hot_days" });
-    expect(splitRetention({ retentionDays: 30, hotDays: 31, objectStoreConfigured: true })).toEqual({ ok: false, reason: "hot_exceeds_retention" });
+    expect(splitRetention({ retentionDays: RETENTION.MAX_DAYS + 1, objectStoreConfigured: true })).toEqual({
+      ok: false,
+      reason: "invalid_retention",
+    });
+    expect(splitRetention({ retentionDays: 90, hotDays: 0, objectStoreConfigured: true })).toEqual({
+      ok: false,
+      reason: "invalid_hot_days",
+    });
+    expect(splitRetention({ retentionDays: 90, hotDays: 2.5, objectStoreConfigured: true })).toEqual({
+      ok: false,
+      reason: "invalid_hot_days",
+    });
+    expect(splitRetention({ retentionDays: 400, hotDays: HOT_DAYS.MAX + 1, objectStoreConfigured: true })).toEqual({
+      ok: false,
+      reason: "invalid_hot_days",
+    });
+    expect(splitRetention({ retentionDays: 30, hotDays: 31, objectStoreConfigured: true })).toEqual({
+      ok: false,
+      reason: "hot_exceeds_retention",
+    });
   });
 
   it("honours operator maximums", () => {
-    expect(splitRetention({ retentionDays: 120, objectStoreConfigured: true, maxRetentionDays: 90 })).toEqual({ ok: false, reason: "invalid_retention" });
-    expect(splitRetention({ retentionDays: 90, hotDays: 60, objectStoreConfigured: true, maxHotDays: 30 })).toEqual({ ok: false, reason: "invalid_hot_days" });
+    expect(splitRetention({ retentionDays: 120, objectStoreConfigured: true, maxRetentionDays: 90 })).toEqual({
+      ok: false,
+      reason: "invalid_retention",
+    });
+    expect(splitRetention({ retentionDays: 90, hotDays: 60, objectStoreConfigured: true, maxHotDays: 30 })).toEqual({
+      ok: false,
+      reason: "invalid_hot_days",
+    });
   });
 });

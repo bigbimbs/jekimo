@@ -5,7 +5,7 @@
  * the same answer and an event is never half-sampled across retries.
  */
 
-import { ULID_PATTERN, type EventEnvelope, type Severity } from "./types.js";
+import { type EventEnvelope, type Severity, ULID_PATTERN } from "./types.js";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 /** Number of trailing ULID characters used for the sampling fraction (5 bits each). */

@@ -57,8 +57,14 @@ export function archiveDayPrefix(projectId: string, day: string): string {
   return `${projectPrefix(projectId)}events/${y}/${m}/${d}/`;
 }
 
-export function archivePartKey(projectId: string, day: string, part: number, format: ArchiveFormat = "ndjson.zst"): string {
-  if (!Number.isInteger(part) || part < 0 || part > 99999) throw new RangeError("part must be an integer from 0 to 99999");
+export function archivePartKey(
+  projectId: string,
+  day: string,
+  part: number,
+  format: ArchiveFormat = "ndjson.zst",
+): string {
+  if (!Number.isInteger(part) || part < 0 || part > 99999)
+    throw new RangeError("part must be an integer from 0 to 99999");
   return `${archiveDayPrefix(projectId, day)}part-${String(part).padStart(5, "0")}.${format}`;
 }
 

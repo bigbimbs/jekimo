@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIMITS, SCHEMA_VERSION, isRedactedKey, validateEvent } from "../src/index.js";
+import { isRedactedKey, LIMITS, SCHEMA_VERSION, validateEvent } from "../src/index.js";
 import { clone, exceptionExample, invalidCases, loadExamples, type Mutable } from "./fixtures.js";
 
 const examples = loadExamples();

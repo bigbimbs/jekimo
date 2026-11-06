@@ -69,9 +69,7 @@ export interface RoleIssue {
   permission?: string;
 }
 
-export type RoleValidation =
-  | { ok: true; role: ProjectRole }
-  | { ok: false; issues: RoleIssue[] };
+export type RoleValidation = { ok: true; role: ProjectRole } | { ok: false; issues: RoleIssue[] };
 
 /**
  * Validates a custom role definition as submitted by a user holding
@@ -87,11 +85,17 @@ export function validateCustomRole(
 
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (name.length === 0) issues.push({ code: "name_empty", message: "role name is required" });
-  else if (name.length > ROLE_NAME_MAX_CHARS) issues.push({ code: "name_too_long", message: `role name must be at most ${ROLE_NAME_MAX_CHARS} characters` });
-  else if (isBuiltInRoleName(name)) issues.push({ code: "name_reserved", message: `"${name}" is a built-in role name` });
+  else if (name.length > ROLE_NAME_MAX_CHARS)
+    issues.push({ code: "name_too_long", message: `role name must be at most ${ROLE_NAME_MAX_CHARS} characters` });
+  else if (isBuiltInRoleName(name))
+    issues.push({ code: "name_reserved", message: `"${name}" is a built-in role name` });
 
   const permissions = new Set<ProjectPermission>();
-  const raw = Array.isArray(input.permissions) ? input.permissions : input.permissions instanceof Set ? [...input.permissions] : null;
+  const raw = Array.isArray(input.permissions)
+    ? input.permissions
+    : input.permissions instanceof Set
+      ? [...input.permissions]
+      : null;
   if (raw === null) {
     issues.push({ code: "unknown_permission", message: "permissions must be a list" });
   } else {
@@ -104,7 +108,11 @@ export function validateCustomRole(
     }
   }
   if (raw !== null && !permissions.has(REQUIRED_PERMISSION)) {
-    issues.push({ code: "missing_required_permission", message: `every role must include ${REQUIRED_PERMISSION}`, permission: REQUIRED_PERMISSION });
+    issues.push({
+      code: "missing_required_permission",
+      message: `every role must include ${REQUIRED_PERMISSION}`,
+      permission: REQUIRED_PERMISSION,
+    });
   }
   for (const p of permissions) {
     if (!actorPermissions.has(p)) {
@@ -120,7 +128,10 @@ export function validateCustomRole(
  * True when `actorPermissions` may assign `role` to someone: the actor needs
  * `members.manage` and must hold every permission the role grants.
  */
-export function canAssignRole(actorPermissions: ReadonlySet<ProjectPermission>, role: Pick<ProjectRole, "permissions">): boolean {
+export function canAssignRole(
+  actorPermissions: ReadonlySet<ProjectPermission>,
+  role: Pick<ProjectRole, "permissions">,
+): boolean {
   if (!actorPermissions.has("members.manage")) return false;
   for (const p of role.permissions) if (!actorPermissions.has(p)) return false;
   return true;

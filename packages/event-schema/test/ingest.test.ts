@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  bearerToken,
   INGEST_ERROR_STATUS,
   LIMITS,
-  RETRYABLE_INGEST_ERROR_CODES,
-  bearerToken,
   parseIngestionKey,
+  RETRYABLE_INGEST_ERROR_CODES,
   validateIngestRequest,
 } from "../src/index.js";
 import { clone, exceptionExample, loadExamples, type Mutable } from "./fixtures.js";
@@ -150,7 +150,9 @@ describe("validateIngestRequest: per-event results", () => {
     const r = validateIngestRequest({ events }, { now });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.response.warnings).toEqual([expect.objectContaining({ index: 1, path: "/extra", code: "unknown_field" })]);
+      expect(r.response.warnings).toEqual([
+        expect.objectContaining({ index: 1, path: "/extra", code: "unknown_field" }),
+      ]);
       expect("extra" in r.accepted[1]!.event).toBe(false);
     }
   });

@@ -1,5 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EventEnvelope } from "../src/index.js";
 
@@ -40,6 +40,7 @@ export type Mutable = Record<string, any>;
  * Invalid variations of a valid stored-form event. `schemaDetects` is false
  * for rules that JSON Schema cannot express and only the validator enforces.
  */
+// biome-ignore format: one case per line keeps the cases readable as a table
 export const invalidCases: Array<{
   name: string;
   mutate: (e: Mutable) => void;

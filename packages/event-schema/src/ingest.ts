@@ -4,8 +4,8 @@
  */
 
 import { LIMITS } from "./limits.js";
-import { TIMESTAMP_PATTERN, type EventEnvelope } from "./types.js";
-import { validateEvent, type ValidationIssue } from "./validate.js";
+import { type EventEnvelope, TIMESTAMP_PATTERN } from "./types.js";
+import { type ValidationIssue, validateEvent } from "./validate.js";
 
 export const INGEST_PATH = "/api/v1/ingest" as const;
 

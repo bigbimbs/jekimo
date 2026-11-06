@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import Ajv2020Module from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
+import { describe, expect, it } from "vitest";
 import { validateEvent } from "../src/index.js";
 import { clone, exceptionExample, invalidCases, loadExamples, loadSchema, type Mutable } from "./fixtures.js";
 
