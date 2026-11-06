@@ -130,6 +130,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 
 - Add alert rules, retention controls, project management, and operational metrics.
 - Add the optional object storage cold tier, bucket backups, and bucket exports ([docs/object-storage.md](docs/object-storage.md)).
+- Add ClickHouse as an opt-in event store for operators with high log volume, behind the same event store boundary.
 - Document delivery semantics, scaling guidance, backups, and upgrades.
 - Add SDKs for additional backend languages based on contributor demand.
 
@@ -142,7 +143,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 ## Decisions so far
 
 - First SDK target: Node.js (TypeScript).
-- Database engine for the first release: PostgreSQL only, behind a storage boundary.
+- Database engine for the first release: PostgreSQL only. The event store sits behind its own boundary and is designed so ClickHouse can be offered as an opt-in event store for high log volume in Phase 2; see the storage engines section of [docs/architecture.md](docs/architecture.md).
 - License: Apache-2.0.
 - Users and roles: multiple users per instance with instance roles (`admin`, `member`). Inside a project, access is permission-based: every project starts with built-in `admin`, `member`, and `viewer` roles, and custom roles can be composed from the permission catalogue. See [docs/access-model.md](docs/access-model.md).
 - Retention: 30 days by default per project, measured from receipt, with quotas, optional deterministic sampling, and disk-pressure safeguards. See [docs/retention.md](docs/retention.md).

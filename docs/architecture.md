@@ -34,12 +34,19 @@ PostgreSQL is the hot store for the first release, and the only engine the MVP s
 
 Around 5 to 10 million events a day on one instance, or hot retention beyond about 90 days. The symptoms are index write amplification, JSONB bloat, and aggregations over hundreds of millions of rows taking seconds. Full-text search quality is adequate, not excellent. The optional cold tier covers the long-retention case, which is the more common reason to outgrow PostgreSQL early.
 
-### Upgrade path
+### Designed for ClickHouse from day one
 
-The storage boundary in `packages/storage-postgres` exposes project-scoped operations, not SQL, and the query API contract must not depend on PostgreSQL-specific behavior. That allows two steps when an operator outgrows plain PostgreSQL:
+ClickHouse is the strongest engine for high-volume structured logs and events: columnar, 10 to 20 times compression, fast aggregations, native S3 backup and S3-backed storage tiers. It runs on a single VPS, but it raises the realistic minimum to 8 GB of RAM and adds a second database with its own backups, upgrades, and credentials, and it has no transactions. Those are the reasons it is not the MVP default for a product whose first promise is a simple install on a small VPS.
 
-1. **TimescaleDB.** A PostgreSQL extension that adds hypertables and columnar compression, cutting event storage by roughly 90% while keeping one database and one backup. This is a migration, not a new system, and is the first upgrade to offer.
-2. **ClickHouse as an optional high-volume event store.** Columnar, 10 to 20 times compression, fast aggregations; the engine behind Sentry, SigNoz, HyperDX, and PostHog. Only the event store moves; users, projects, issues, and the audit log stay in PostgreSQL. The cost is a second system to operate, which is why it is optional and not before Phase 3.
+So the first release ships PostgreSQL only, and the design treats the **event store** as replaceable from the start. These rules are binding on `apps/api`, `apps/worker`, and `packages/storage-postgres`:
+
+1. **Two stores, one boundary.** Users, projects, memberships, settings, ingestion keys, issue state, counters, and the audit log are *metadata* and always live in PostgreSQL. Event rows are the *event store* behind a separate interface with project-scoped operations (`appendEvents`, `queryEvents`, `expireDay`, `archiveDay`), never raw SQL.
+2. **Idempotent appends keyed on `event_id`.** The worker writes events so that a retry produces no duplicate on either engine: a unique index in PostgreSQL, a `ReplacingMergeTree` on `(project_id, event_id)` in ClickHouse. Nothing may depend on an insert failing to detect a duplicate.
+3. **No transaction spans the two stores.** Accepting an event, updating its issue, and incrementing counters are separate idempotent steps with the event store written first. Issue counts are derived from the event store and may be recomputed; they are never the source of truth.
+4. **No engine-specific features in the query API contract.** Search, filters, and aggregations are expressed in the boundary's terms. If a capability is cheap in one engine and expensive in another (full-text ranking, exact distinct counts), the contract names it as optional and the dashboard degrades.
+5. **The event store schema is the envelope plus server metadata**, flat enough to map to a columnar table without reshaping.
+
+With those rules, offering ClickHouse is an additional implementation of one interface plus an installer option, not a rewrite. It is planned as an opt-in event store for operators with high log volume in **Phase 2**, alongside the object storage cold tier. TimescaleDB (hypertables and columnar compression inside PostgreSQL) remains a lighter intermediate step for operators who want more headroom without a second system.
 
 Engines considered and not chosen for the core: Elasticsearch and OpenSearch (best full-text search, heaviest operational footprint), Loki (cheap and object-storage native, weak at structured search), VictoriaLogs (lightweight and promising, still young).
 
