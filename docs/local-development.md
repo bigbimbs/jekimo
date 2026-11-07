@@ -222,7 +222,25 @@ curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/events
 }
 ```
 
-The server set `project_id` from the key, derived a `fingerprint`, recorded `skew_ms` (`received_at` minus `sent_at`), and redacted `password` with the default key list. Query parameters: `from` and `to` (RFC 3339, on `received_at`, default the last 24 hours), `severity` (comma-separated), `limit` (1 to 500, default 100), and `cursor` (the `next_cursor` of the previous page).
+The server set `project_id` from the key, derived a `fingerprint`, recorded `skew_ms` (`received_at` minus `sent_at`), and redacted `password` with the default key list. Query parameters, all optional and combined with AND:
+
+| Parameter | Meaning |
+| --- | --- |
+| `from`, `to` | RFC 3339 bounds on `received_at`; `from` inclusive, `to` exclusive. Default: the last 24 hours. |
+| `severity` | Comma-separated severities, for example `error,fatal`. |
+| `kind` | Comma-separated kinds: `exception`, `log`, `event`. |
+| `environment`, `release`, `fingerprint` | Exact match on that field. |
+| `q` | Words that must all appear in `message`, case-insensitive. A word is a run of letters and digits, so `q=internal` matches `db.internal`. No ranking, stemming, or prefix matching. |
+| `limit` | 1 to 500, default 100. |
+| `cursor` | The `next_cursor` of the previous page. Keep the other parameters the same. |
+
+To read one event by its id:
+
+```bash
+curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/events/01JBQ4Z3H8X9T2K7M5N6P8R9SV"
+```
+
+The response is one element of the `events` list above. An id that does not exist in this project, including one that exists in a project you cannot access, answers `404`.
 
 ## 9. Check the isolation rules
 

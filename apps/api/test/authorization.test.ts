@@ -7,7 +7,7 @@
 
 import { PROJECT_PERMISSIONS, type ProjectPermission } from "@jekimo/event-schema";
 import { beforeAll, describe, expect, it } from "vitest";
-import { type Harness, harness, projectWithKey, type SignedIn, setRole, signIn } from "./helpers.js";
+import { type Harness, harness, projectWithKey, type SignedIn, setRole, signIn, storeEvent } from "./helpers.js";
 
 interface Route {
   method: "GET" | "POST";
@@ -16,9 +16,17 @@ interface Route {
   ok: number;
 }
 
+const MATRIX_EVENT_ID = "01JBQ4Z3H8X9T2K7M5N6P8R9SV";
+
 const ROUTES: Route[] = [
   { method: "GET", url: (id) => `/api/v1/projects/${id}`, permission: "project.read", ok: 200 },
   { method: "GET", url: (id) => `/api/v1/projects/${id}/events`, permission: "project.read", ok: 200 },
+  {
+    method: "GET",
+    url: (id) => `/api/v1/projects/${id}/events/${MATRIX_EVENT_ID}`,
+    permission: "project.read",
+    ok: 200,
+  },
   { method: "POST", url: (id) => `/api/v1/projects/${id}/keys`, permission: "keys.manage", ok: 201 },
 ];
 
@@ -38,6 +46,7 @@ beforeAll(async () => {
   h = await harness();
   owner = await signIn(h, "owner@example.test");
   ({ projectId, key } = await projectWithKey(h, owner, "prj_matrix"));
+  await storeEvent(h, projectId, { event_id: MATRIX_EVENT_ID });
   for (const [role, permissions] of Object.entries(BUILT_IN)) {
     const user = await signIn(h, `${role}@example.test`);
     setRole(h, projectId, user.userId, role);
@@ -101,7 +110,12 @@ describe("isolation", () => {
   });
 
   it("never accepts an ingestion key on session endpoints", async () => {
-    for (const url of ["/api/v1/projects", `/api/v1/projects/${projectId}/events`, "/api/v1/auth/session"]) {
+    for (const url of [
+      "/api/v1/projects",
+      `/api/v1/projects/${projectId}/events`,
+      `/api/v1/projects/${projectId}/events/${MATRIX_EVENT_ID}`,
+      "/api/v1/auth/session",
+    ]) {
       const res = await h.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${key}` } });
       expect(res.statusCode).toBe(401);
     }
@@ -192,6 +206,16 @@ describe("projects and keys", () => {
       "?from=yesterday",
       "?from=2026-11-05T10:00:00Z&to=2026-11-05T09:00:00Z",
       "?cursor=bogus",
+      "?kind=crash",
+      "?kind=",
+      "?environment=",
+      `?environment=${"x".repeat(129)}`,
+      "?environment=a&environment=b",
+      `?release=${"x".repeat(129)}`,
+      `?fingerprint=${"x".repeat(257)}`,
+      "?q=",
+      "?q=%21%3F%2E",
+      `?q=${"x".repeat(257)}`,
     ]) {
       const res = await h.app.inject({ method: "GET", url: url + q, headers: owner.headers });
       expect({ q, status: res.statusCode }).toEqual({ q, status: 400 });

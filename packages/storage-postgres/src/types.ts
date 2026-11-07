@@ -168,10 +168,35 @@ export interface EventQuery {
   from: Date;
   /** Exclusive upper bound on received_at. */
   to: Date;
+  /** Any of these severities. */
   severities?: Severity[];
+  /** Any of these kinds. */
+  kinds?: EventKind[];
+  /** Exact match. */
+  environment?: string;
+  /** Exact match. */
+  release?: string;
+  /** Exact match. */
+  fingerprint?: string;
+  /**
+   * Events whose message contains every word of this text, case-insensitive.
+   * Word matching only: no ranking, no stemming, no phrase or prefix syntax.
+   * Optional capability: only valid when `capabilities.textSearch` is true.
+   */
+  text?: string;
   limit: number;
   /** Opaque cursor from a previous page's nextCursor. */
   cursor?: string;
+}
+
+/**
+ * Query features that are cheap on one engine and expensive on another
+ * (docs/architecture.md, "Designed for ClickHouse from day one", rule 4).
+ * Callers check these and degrade instead of assuming them.
+ */
+export interface EventStoreCapabilities {
+  /** `EventQuery.text` is supported. */
+  textSearch: boolean;
 }
 
 export interface EventPage {
@@ -191,13 +216,20 @@ export interface FingerprintSummary {
  * cross-project read. Appends are idempotent on (project_id, event_id).
  */
 export interface EventStore {
+  /** Optional query features this engine supports. */
+  readonly capabilities: EventStoreCapabilities;
   /** Returns the event_ids that were new; repeats are ignored, not errors. */
   appendEvents(projectId: string, events: AppendEvent[]): Promise<{ inserted: string[] }>;
-  /** Newest first by received_at. */
+  /** Newest first by received_at. Throws RangeError for an invalid cursor or unsupported filter. */
   queryEvents(projectId: string, query: EventQuery): Promise<EventPage>;
+  /** One event by id, or null. Another project's event_id is null, never its event. */
+  getEvent(projectId: string, eventId: string): Promise<StoredEvent | null>;
   /** Derived counts per fingerprint, for issue summaries. All fingerprints when omitted. */
   summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]>;
-  /** Removes one project's events for one UTC day (YYYY-MM-DD). Idempotent. */
+  /**
+   * Removes one project's events for one UTC day (YYYY-MM-DD). Idempotent and
+   * safe to interrupt: queries see either the whole day or none of it.
+   */
   expireDay(projectId: string, day: string): Promise<{ deleted: number }>;
   /** Phase 2 (docs/object-storage.md). Not implemented in the first release. */
   archiveDay(projectId: string, day: string): Promise<never>;

@@ -5,6 +5,7 @@
 
 import { utcDay } from "@jekimo/event-schema";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MESSAGE_VECTOR } from "../src/event-store.js";
 import { type AppendEvent, PostgresEventStore, PostgresMetadataRepository, PostgresQueue } from "../src/index.js";
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../src/testing.js";
 
@@ -152,6 +153,127 @@ describe.skipIf(!hasDatabase)("PostgreSQL storage", () => {
     expect(await store.expireDay("prj_exp_b", day)).toEqual({ deleted: 1 });
     expect(await store.listDays()).not.toContain(day);
     expect(await store.expireDay("prj_exp_b", day)).toEqual({ deleted: 0 });
+  });
+
+  it("detaches a day only one project used, so an interrupted run hides the whole day", async () => {
+    const old = new Date(Date.now() - 41 * DAY_MS);
+    const day = utcDay(old);
+    const part = `events_${day.replaceAll("-", "")}`;
+    const window = { from: new Date(old.getTime() - DAY_MS), to: new Date(old.getTime() + DAY_MS), limit: 10 };
+    await store.appendEvents("prj_det", [
+      makeEvent("prj_det", "01JBQ81000000000000000000A", old),
+      makeEvent("prj_det", "01JBQ81000000000000000000B", old),
+    ]);
+    // A run that died after its detach committed, before the drop.
+    await db.pool.query(`ALTER TABLE events DETACH PARTITION "${part}"`);
+    expect((await store.queryEvents("prj_det", window)).events).toHaveLength(0);
+    expect(await store.getEvent("prj_det", "01JBQ81000000000000000000A")).toBeNull();
+    // The leftover is still reported, so the next pass finishes the job, and
+    // another project's run leaves it for its owner.
+    expect(await store.listDays()).toContain(day);
+    expect(await store.expireDay("prj_someone_else", day)).toEqual({ deleted: 0 });
+    expect(await store.listDays()).toContain(day);
+    expect(await store.expireDay("prj_det", day)).toEqual({ deleted: 2 });
+    expect(await store.listDays()).not.toContain(day);
+    const left = await db.pool.query("SELECT to_regclass($1) AS t", [part]);
+    expect(left.rows[0].t).toBeNull();
+  });
+
+  it("deletes from a shared day atomically and never detaches today", async () => {
+    const now = new Date();
+    const today = utcDay(now);
+    await store.appendEvents("prj_today_a", [makeEvent("prj_today_a", "01JBQ82000000000000000000A", now)]);
+    await store.appendEvents("prj_today_b", [makeEvent("prj_today_b", "01JBQ82000000000000000000B", now)]);
+    expect(await store.expireDay("prj_today_a", today)).toEqual({ deleted: 1 });
+    expect(await store.getEvent("prj_today_a", "01JBQ82000000000000000000A")).toBeNull();
+    expect(await store.getEvent("prj_today_b", "01JBQ82000000000000000000B")).not.toBeNull();
+    expect(await store.expireDay("prj_today_b", today)).toEqual({ deleted: 1 });
+    // Appends keep arriving today, so its partition stays attached.
+    expect(await store.listDays()).toContain(today);
+    const attached = await db.pool.query("SELECT relispartition FROM pg_class WHERE oid = to_regclass($1)", [
+      `events_${today.replaceAll("-", "")}`,
+    ]);
+    expect(attached.rows[0].relispartition).toBe(true);
+  });
+
+  it("filters by kind, severity, environment, release, fingerprint, and words of the message", async () => {
+    const base = Date.now();
+    const p = "prj_filter";
+    const ids = (n: number[]) => n.map((i) => `01JBQ83000000000000000000${String.fromCharCode(64 + i)}`);
+    const [a, b, c, d] = ids([1, 2, 3, 4]) as [string, string, string, string];
+    await store.appendEvents(p, [
+      makeEvent(p, a, new Date(base + 1), {
+        kind: "exception",
+        severity: "error",
+        message: "Database request failed while charging invoice",
+        environment: "production",
+        release: "billing@1.4.2",
+        fingerprint: "fp-db",
+      }),
+      makeEvent(p, b, new Date(base + 2), {
+        message: "Invoice charged",
+        environment: "staging",
+        release: "billing@1.4.2",
+        fingerprint: "fp-ok",
+      }),
+      makeEvent(p, c, new Date(base + 3), {
+        kind: "event",
+        message: "connect to db.internal timed out",
+        environment: "production",
+        release: "billing@1.5.0",
+        fingerprint: "fp-db",
+      }),
+      makeEvent(p, d, new Date(base + 4), { severity: "warning", message: "Retrying charge-invoice job" }),
+    ]);
+    await store.appendEvents("prj_filter_other", [
+      makeEvent("prj_filter_other", "01JBQ83000000000000000000Z", new Date(base + 5), { message: "invoice" }),
+    ]);
+    const q = { from: new Date(base - 1000), to: new Date(base + 1000), limit: 10 };
+    const find = async (extra: Partial<Parameters<typeof store.queryEvents>[1]>) =>
+      (await store.queryEvents(p, { ...q, ...extra })).events.map((e) => e.event.event_id);
+    expect(await find({ kinds: ["exception"] })).toEqual([a]);
+    expect(await find({ kinds: ["log", "event"] })).toEqual([d, c, b]);
+    expect(await find({ severities: ["info"] })).toEqual([c, b]);
+    expect(await find({ environment: "production" })).toEqual([c, a]);
+    expect(await find({ release: "billing@1.4.2" })).toEqual([b, a]);
+    expect(await find({ fingerprint: "fp-db" })).toEqual([c, a]);
+    expect(await find({ text: "invoice" })).toEqual([d, b, a]);
+    expect(await find({ text: "INVOICE database" })).toEqual([a]);
+    expect(await find({ text: "internal" })).toEqual([c]);
+    expect(await find({ text: "db.internal" })).toEqual([c]);
+    expect(await find({ text: "invoic" })).toEqual([]);
+    expect(await find({ environment: "production", kinds: ["event"], text: "db" })).toEqual([c]);
+    await expect(find({ text: "!?" })).rejects.toThrow(RangeError);
+    expect(store.capabilities.textSearch).toBe(true);
+  });
+
+  it("serves text search from the message index", async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL enable_seqscan = off");
+      const plan = await client.query(
+        `EXPLAIN SELECT event_id FROM events
+         WHERE ${MESSAGE_VECTOR} @@ plainto_tsquery('simple', 'invoice')`,
+      );
+      expect(plan.rows.map((r) => r["QUERY PLAN"]).join("\n")).toMatch(/Bitmap Index Scan on \S*to_tsvector/);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("looks up one event by (project, event_id) and never across projects", async () => {
+    const at = new Date();
+    await store.appendEvents("prj_get_a", [makeEvent("prj_get_a", "01JBQ84000000000000000000A", at)]);
+    await store.appendEvents("prj_get_b", [
+      makeEvent("prj_get_b", "01JBQ84000000000000000000B", at, { message: "only b" }),
+    ]);
+    const found = await store.getEvent("prj_get_a", "01JBQ84000000000000000000A");
+    expect(found?.event).toMatchObject({ project_id: "prj_get_a", event_id: "01JBQ84000000000000000000A" });
+    expect(found?.keyId).toBe("0123456789AB");
+    expect(await store.getEvent("prj_get_a", "01JBQ84000000000000000000B")).toBeNull();
+    expect(await store.getEvent("prj_get_a", "01JBQ84000000000000000000C")).toBeNull();
   });
 
   it("summarizes fingerprints from the event store", async () => {

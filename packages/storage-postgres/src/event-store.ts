@@ -7,14 +7,38 @@
  * touched here, so no transaction spans the two stores.
  */
 
-import { type EventEnvelope, SEVERITIES, type Severity, utcDay } from "@jekimo/event-schema";
+import { EVENT_KINDS, type EventEnvelope, SEVERITIES, type Severity, utcDay } from "@jekimo/event-schema";
 import { type Pool, withTransaction } from "./pool.js";
-import type { AppendEvent, EventPage, EventQuery, EventStore, FingerprintSummary, StoredEvent } from "./types.js";
+import type {
+  AppendEvent,
+  EventPage,
+  EventQuery,
+  EventStore,
+  EventStoreCapabilities,
+  FingerprintSummary,
+  StoredEvent,
+} from "./types.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PARTITION_NAME = /^events_(\d{4})(\d{2})(\d{2})$/;
 /** PostgreSQL: no partition of relation found for row. */
 const NO_PARTITION = "23514";
+
+/**
+ * The words of a text search: runs of letters and digits, lowercased. The
+ * same rule splits messages, so "db.internal" and "charge-invoice" each match
+ * a search for either half.
+ */
+export function searchWords(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+/**
+ * Must match the expression of events_message_search_idx (migration 0006)
+ * exactly, or PostgreSQL will not use the index.
+ */
+export const MESSAGE_VECTOR =
+  "to_tsvector('simple', regexp_replace(message, '[[:punct:][:space:][:cntrl:]]+', ' ', 'g'))";
 
 export function partitionName(day: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new RangeError("day must be YYYY-MM-DD");
@@ -134,6 +158,7 @@ const COLUMN_LIST = `project_id, event_id, received_at, key_id, skew_ms, schema_
   exception_stacktrace, sdk_name, sdk_version, context, attributes`;
 
 export class PostgresEventStore implements EventStore {
+  readonly capabilities: EventStoreCapabilities = { textSearch: true };
   /** Days known to have a partition, so appends do not ask every time. */
   private readonly preparedDays = new Set<string>();
 
@@ -192,10 +217,29 @@ export class PostgresEventStore implements EventStore {
   async queryEvents(projectId: string, query: EventQuery): Promise<EventPage> {
     const params: unknown[] = [projectId, query.from.toISOString(), query.to.toISOString()];
     let where = "project_id = $1 AND received_at >= $2 AND received_at < $3";
+    const add = (value: unknown, clause: (n: string) => string) => {
+      params.push(value);
+      where += ` AND ${clause(`$${params.length}`)}`;
+    };
     if (query.severities && query.severities.length > 0) {
-      const severities = query.severities.filter((s) => (SEVERITIES as readonly string[]).includes(s));
-      params.push(severities);
-      where += ` AND severity = ANY($${params.length}::text[])`;
+      add(
+        query.severities.filter((s) => (SEVERITIES as readonly string[]).includes(s)),
+        (n) => `severity = ANY(${n}::text[])`,
+      );
+    }
+    if (query.kinds && query.kinds.length > 0) {
+      add(
+        query.kinds.filter((k) => (EVENT_KINDS as readonly string[]).includes(k)),
+        (n) => `kind = ANY(${n}::text[])`,
+      );
+    }
+    if (query.environment !== undefined) add(query.environment, (n) => `environment = ${n}`);
+    if (query.release !== undefined) add(query.release, (n) => `release = ${n}`);
+    if (query.fingerprint !== undefined) add(query.fingerprint, (n) => `fingerprint = ${n}`);
+    if (query.text !== undefined) {
+      const words = searchWords(query.text);
+      if (words.length === 0) throw new RangeError("text has no words to search for");
+      add(words.join(" "), (n) => `${MESSAGE_VECTOR} @@ plainto_tsquery('simple', ${n})`);
     }
     if (query.cursor !== undefined) {
       const c = decodeCursor(query.cursor);
@@ -215,6 +259,19 @@ export class PostgresEventStore implements EventStore {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
+  }
+
+  async getEvent(projectId: string, eventId: string): Promise<StoredEvent | null> {
+    // Served by events_project_event_received_key, one probe per day partition.
+    // Earliest first: past the 7-day deduplication window a retry can store
+    // the same event_id again, and the first copy is the original.
+    const { rows } = await this.pool.query<EventRow>(
+      `SELECT ${COLUMN_LIST} FROM events WHERE project_id = $1 AND event_id = $2
+       ORDER BY received_at LIMIT 1`,
+      [projectId, eventId],
+    );
+    const row = rows[0];
+    return row ? fromRow(row) : null;
   }
 
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {
@@ -238,34 +295,71 @@ export class PostgresEventStore implements EventStore {
     }));
   }
 
+  /**
+   * docs/retention.md, "Expiry mechanics". Day partitions are shared by every
+   * project, so a project's day is removed in one of two ways:
+   *
+   * - If no other project has rows in a past day's partition, the partition
+   *   is detached in one transaction and dropped in a later one. Queries stop
+   *   seeing the day the moment the detach commits.
+   * - Otherwise the project's rows are deleted in a single transaction, which
+   *   PostgreSQL applies all at once or, if interrupted, not at all.
+   *
+   * Either way an interrupted run leaves the whole day visible or none of it.
+   * A partition detached by a run that died before dropping it is dropped by
+   * the next call for that day (listDays still reports it).
+   */
   async expireDay(projectId: string, day: string): Promise<{ deleted: number }> {
     const part = partitionName(day);
-    return withTransaction(this.pool, async (client) => {
-      const exists = await client.query<{ ok: boolean }>("SELECT to_regclass($1) IS NOT NULL AS ok", [part]);
-      if (!exists.rows[0]?.ok) return { deleted: 0 };
-      // The partition name is validated by partitionName and quoted here.
+    const past = day < utcDay(new Date());
+    // The partition name is validated by partitionName and quoted below.
+    const outcome = await withTransaction(this.pool, async (client) => {
+      const state = await client.query<{ attached: boolean }>(
+        "SELECT relispartition AS attached FROM pg_class WHERE oid = to_regclass($1)",
+        [part],
+      );
+      const found = state.rows[0];
+      if (!found) return { deleted: 0 };
+      if (!found.attached) return "detached" as const;
+      // Blocks appends and other expiry runs on this day, not reads.
+      await client.query(`LOCK TABLE "${part}" IN SHARE ROW EXCLUSIVE MODE`);
+      const range = await client.query<{ lo: string | null; hi: string | null }>(
+        `SELECT (SELECT project_id FROM "${part}" ORDER BY project_id LIMIT 1) AS lo,
+                (SELECT project_id FROM "${part}" ORDER BY project_id DESC LIMIT 1) AS hi`,
+      );
+      const lo = range.rows[0]?.lo ?? null;
+      const hi = range.rows[0]?.hi ?? null;
+      const onlyThisProject = lo === null || (lo === projectId && hi === projectId);
+      if (past && onlyThisProject) {
+        await client.query(`ALTER TABLE events DETACH PARTITION "${part}"`);
+        return "detached" as const;
+      }
       const res = await client.query(`DELETE FROM "${part}" WHERE project_id = $1`, [projectId]);
       return { deleted: res.rowCount ?? 0 };
-    }).then(async (result) => {
-      await this.dropIfEmpty(day);
-      return result;
     });
+    if (outcome !== "detached") return outcome;
+    this.preparedDays.delete(day);
+    return this.dropDetached(projectId, part);
   }
 
-  /** Detaches, then drops, a past day's partition once no project has rows in it. */
-  private async dropIfEmpty(day: string): Promise<void> {
-    if (day >= utcDay(new Date())) return;
-    const part = partitionName(day);
-    await withTransaction(this.pool, async (client) => {
-      const exists = await client.query<{ ok: boolean }>("SELECT to_regclass($1) IS NOT NULL AS ok", [part]);
-      if (!exists.rows[0]?.ok) return;
+  /**
+   * Drops a detached day partition. It is only ever detached while it holds
+   * one project's rows; if those belong to another project, that project's
+   * own expiry run drops it, so its deleted count still reaches the caller.
+   */
+  private dropDetached(projectId: string, part: string): Promise<{ deleted: number }> {
+    return withTransaction(this.pool, async (client) => {
       await client.query(`LOCK TABLE "${part}" IN ACCESS EXCLUSIVE MODE`);
-      const any = await client.query(`SELECT 1 FROM "${part}" LIMIT 1`);
-      if (any.rowCount !== 0) return;
-      await client.query(`ALTER TABLE events DETACH PARTITION "${part}"`);
+      const counts = await client.query<{ mine: string; others: string }>(
+        `SELECT count(*) FILTER (WHERE project_id = $1) AS mine,
+                count(*) FILTER (WHERE project_id <> $1) AS others
+         FROM "${part}"`,
+        [projectId],
+      );
+      if (Number(counts.rows[0]?.others ?? 0) > 0) return { deleted: 0 };
       await client.query(`DROP TABLE "${part}"`);
+      return { deleted: Number(counts.rows[0]?.mine ?? 0) };
     });
-    this.preparedDays.delete(day);
   }
 
   archiveDay(_projectId: string, _day: string): Promise<never> {
@@ -275,10 +369,11 @@ export class PostgresEventStore implements EventStore {
   }
 
   async listDays(): Promise<string[]> {
+    // Attached partitions, plus any left detached by an interrupted expiry.
     const { rows } = await this.pool.query<{ name: string }>(
-      `SELECT c.relname AS name FROM pg_inherits i
-       JOIN pg_class c ON c.oid = i.inhrelid
-       WHERE i.inhparent = 'events'::regclass`,
+      `SELECT relname AS name FROM pg_class
+       WHERE relnamespace = (SELECT relnamespace FROM pg_class WHERE oid = 'events'::regclass)
+         AND relkind = 'r' AND relname ~ '^events_[0-9]{8}$'`,
     );
     return rows
       .map((r) => PARTITION_NAME.exec(r.name))
