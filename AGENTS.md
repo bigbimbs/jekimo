@@ -8,7 +8,11 @@ Jekimo is an open-source, self-hosted error, crash, and log observability platfo
 
 ## Current state
 
-The repository is a scaffold. The implemented code is the contract-level helpers in `packages/event-schema` (envelope validation, ingestion request validation, retention and sampling helpers) and an alpha of the Node.js SDK in `packages/sdk-node` (envelope building, redaction, batching, retries, crash capture), tested against a mocked transport only; the API, worker, dashboard, storage, and deployment are not written yet. Do not describe features as implemented unless the code exists in this repository.
+A first vertical slice is implemented: instance setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API. It spans `apps/api`, `apps/worker`, `packages/storage-postgres`, and `packages/event-schema`, and runs locally with `deploy/docker-compose/docker-compose.dev.yml` ([docs/local-development.md](docs/local-development.md)). Not implemented yet: the dashboard (`apps/web`), rate limits and quotas, invitations and password reset, key rotation and revocation endpoints, custom role management, daily counters, disk-pressure handling, object storage, and the production deployment. Do not describe features as implemented unless the code exists in this repository.
+
+Storage rules to keep: only `packages/storage-postgres` writes SQL; project data is reached through a `ProjectAccess` from `resolveProjectAccess`; the event store (`EventStore`) and metadata (`MetadataRepository`) are separate boundaries with no transaction spanning them; appends are idempotent on `(project_id, event_id)`; issue counts are derived from the event store.
+
+The Node.js SDK `@jekimo/sdk-node` exists as an alpha in `packages/sdk-node`; it is built and packed in CI but not yet published to npm.
 
 ## Repository layout
 
@@ -56,11 +60,14 @@ npm run lint       # Biome lint, format, and import-order check (no writes)
 npm run lint:fix   # apply Biome's safe fixes and formatting
 npm run format     # format every file with Biome
 npm run typecheck  # tsc -b over the solution tsconfig and its project references
-npm test           # Vitest unit tests
+npm test           # Vitest unit tests; PostgreSQL integration tests run when DATABASE_URL is set
 npm run check      # lint, typecheck, then test; CI runs the same three steps
+npm run migrate -w @jekimo/storage-postgres   # apply migrations to DATABASE_URL
+npm run build --workspaces --if-present       # bundle apps/api and apps/worker into dist/
+docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build   # local stack
 ```
 
-Biome (`biome.json`) is the only linter and formatter; do not add ESLint or Prettier. Run `npm run lint:fix` before committing. Each package with source has its own `tsconfig.json` that extends `tsconfig.base.json` and is listed in the root `tsconfig.json` references; see "TypeScript configuration" in [CONTRIBUTING.md](CONTRIBUTING.md). A build command will be added here when the first package needs one.
+Biome (`biome.json`) is the only linter and formatter; do not add ESLint or Prettier. Run `npm run lint:fix` before committing. Each package with source has its own `tsconfig.json` that extends `tsconfig.base.json` and is listed in the root `tsconfig.json` references; see "TypeScript configuration" in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Local agent configuration
 

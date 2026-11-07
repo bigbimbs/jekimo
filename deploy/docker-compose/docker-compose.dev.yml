@@ -1,0 +1,72 @@
+# Local development stack: PostgreSQL 16, a one-shot migration job, the API,
+# and the worker. Not a production deployment. Run from the repository root:
+#
+#   cp .env.example .env
+#   docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build
+#
+# Walkthrough: docs/local-development.md
+
+name: jekimo-dev
+
+x-database-url: &database-url
+  DATABASE_URL: postgres://jekimo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/jekimo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jekimo
+      POSTGRES_USER: jekimo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${JEKIMO_DEV_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jekimo -d jekimo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: jekimo-api:dev
+    command: ["node", "dist/migrate.mjs"]
+    environment:
+      <<: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: jekimo-api:dev
+    environment:
+      <<: *database-url
+      JEKIMO_LOG_LEVEL: ${JEKIMO_LOG_LEVEL:-info}
+      JEKIMO_MEMBERS_CAN_CREATE_PROJECTS: ${JEKIMO_MEMBERS_CAN_CREATE_PROJECTS:-true}
+    ports:
+      # Loopback only: plain HTTP is acceptable for local development only.
+      - "127.0.0.1:${JEKIMO_DEV_API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    image: jekimo-worker:dev
+    environment:
+      <<: *database-url
+      JEKIMO_LOG_LEVEL: ${JEKIMO_LOG_LEVEL:-info}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

@@ -3,6 +3,9 @@
   "references": [
     { "path": "./tsconfig.config.json" },
     { "path": "./packages/event-schema" },
-    { "path": "./packages/sdk-node" }
+    { "path": "./packages/sdk-node" },
+    { "path": "./packages/storage-postgres" },
+    { "path": "./apps/api" },
+    { "path": "./apps/worker" }
   ]
 }

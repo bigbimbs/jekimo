@@ -2,5 +2,18 @@
   "name": "@jekimo/worker",
   "private": true,
   "version": "0.1.0",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.mjs",
+    "build": "node ../../scripts/build-app.mjs apps/worker main=src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. apps/worker"
+  },
+  "dependencies": {
+    "@jekimo/event-schema": "0.1.0",
+    "@jekimo/storage-postgres": "0.1.0",
+    "pino": "^10.4.0"
+  }
 }

@@ -157,9 +157,20 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 
 ## Repository layout
 
-The repository is a TypeScript monorepo. `apps/api` handles ingestion and project APIs, `apps/worker` processes events, and `apps/web` is the browser dashboard. Shared packages define the event schema and PostgreSQL storage, and [`packages/sdk-node`](packages/sdk-node) is the Node.js SDK, published to npm as [`@jekimo/sdk-node`](packages/sdk-node/README.md) (alpha). `deploy/docker-compose` and `docs` will hold the VPS setup and operating guides.
+The repository is a TypeScript monorepo using npm workspaces.
 
-This repository currently contains the product brief, the event and ingestion contracts in `packages/event-schema`, and an alpha of the Node.js SDK; the services and deployment are not implemented yet.
+| Path | Contents | State |
+| --- | --- | --- |
+| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, and the event query API | Vertical slice |
+| `apps/worker` | Queue consumer: sampling, redaction, fingerprinting, event storage, issue summaries, and expiry | Vertical slice |
+| `apps/web` | React dashboard | Not started |
+| `packages/event-schema` | Event envelope v1, ingestion protocol helpers, retention, sampling, and permission model | Implemented |
+| `packages/storage-postgres` | Migrations, metadata repository, partitioned event store, and durable queue | Vertical slice |
+| `packages/sdk-node` | Node.js SDK `@jekimo/sdk-node` 0.1.0-alpha.0 (built, not yet published) | Alpha |
+| `deploy/docker-compose` | `docker-compose.dev.yml` for local development; the VPS deployment is still to come | Development only |
+| `docs` | Specifications and operating guides | |
+
+One thin path works end to end: create the first admin, sign in, create a project and an ingestion key, send an event, and read it back. [docs/local-development.md](docs/local-development.md) walks through it. Rate limits, the dashboard, invitations, and the production deployment are not implemented yet.
 
 ## Contributing
 
