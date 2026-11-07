@@ -1,6 +1,5 @@
-import type { ProjectAccess } from "../access.js";
 import type { IngestChargeOutcome } from "../constants/ingest-limits.js";
-import type { Actor } from "../types.js";
+import type { Actor, ProjectAccess } from "./access.js";
 
 /** A project's own settings; null inherits the instance-wide default. */
 export interface IngestLimitSettings {

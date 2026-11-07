@@ -1,8 +1,18 @@
 // Normative text: docs/event-format.md, "Privacy defaults".
 
-import { isRedactedKey, normalizeKey, REDACTED_VALUE } from "./limits.js";
-import type { KeyRedactor, RedactOptions } from "./types/index.js";
-import type { AttributeValue, EventEnvelope } from "./types.js";
+import { DEFAULT_REDACTED_KEYS, REDACTED_VALUE } from "./constants/redact.js";
+import type { AttributeValue, EventEnvelope } from "./types/envelope.js";
+import type { KeyRedactor, RedactOptions } from "./types/redact.js";
+
+/** Lowercases and strips `-`, `_`, and whitespace, for comparison with DEFAULT_REDACTED_KEYS. */
+export function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/[-_\s]/g, "");
+}
+
+/** True when a key is redacted under the default policy, before any per-project additions. */
+export function isRedactedKey(key: string): boolean {
+  return DEFAULT_REDACTED_KEYS.includes(normalizeKey(key));
+}
 
 export function createKeyRedactor(options: RedactOptions = {}): KeyRedactor {
   const extra = new Set((options.extraKeys ?? []).map(normalizeKey));

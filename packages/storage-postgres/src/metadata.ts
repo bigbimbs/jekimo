@@ -1,8 +1,4 @@
-/**
- * PostgreSQL metadata repository: users, sessions, projects, roles,
- * memberships, ingestion keys, issues, daily counters, redaction rules, and
- * the audit log. Cross-project reads live in cross-project.ts.
- */
+// Cross-project reads live only in cross-project.ts.
 
 import {
   DEFAULT_PROJECT_ROLES,
@@ -10,40 +6,36 @@ import {
   PROJECT_PERMISSIONS,
   type ProjectPermission,
 } from "@jekimo/event-schema";
-import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
+import { mintProjectAccess } from "./access.js";
 import { PostgresAccessRepository } from "./access-repository.js";
-import type { IssueStatus } from "./constants/index.js";
-import {
-  findIngestionKey,
-  listProjectRetention,
-  listProjectsForActor,
-  PROJECT_COLUMNS,
-  type ProjectRow,
-  toProject,
-} from "./cross-project.js";
+import type { IssueStatus } from "./constants/issues.js";
+import { PROJECT_COLUMNS, USER_COLUMNS } from "./constants/sql.js";
+import { findIngestionKey, listProjectRetention, listProjectsForActor, toProject } from "./cross-project.js";
 import { getIssue, listIssues, setIssueStatus, upsertIssues } from "./issues.js";
-import { type Pool, type PoolClient, withTransaction } from "./pool.js";
+import { withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
-import { insertAudit, requirePermission, toUser, USER_COLUMNS } from "./sql-shared.js";
-import type { IssuePage, IssueQuery, UserRow } from "./types/index.js";
+import { insertAudit, requirePermission, toUser } from "./sql-shared.js";
 import type {
   Actor,
-  AuditEntry,
-  DailyCounterIncrement,
-  DailyCounters,
-  FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
-  IssueRecord,
-  IssueSummary,
-  MetadataRepository,
+  ProjectAccess,
+  SessionRecord,
+  UserRecord,
+} from "./types/access.js";
+import type { AuditEntry } from "./types/audit.js";
+import type { FingerprintSummary } from "./types/event-store.js";
+import type { IssuePage, IssueQuery, IssueRecord, IssueSummary } from "./types/issues.js";
+import type { MetadataRepository } from "./types/metadata.js";
+import type {
+  DailyCounterIncrement,
+  DailyCounters,
   ProjectRecord,
   ProjectRetention,
   RedactionRules,
-  SessionRecord,
-  UserRecord,
-} from "./types.js";
+} from "./types/projects.js";
+import type { ProjectRow, UserRow } from "./types/rows.js";
 
 export class PostgresMetadataRepository extends PostgresAccessRepository implements MetadataRepository {
   async countUsers(): Promise<number> {

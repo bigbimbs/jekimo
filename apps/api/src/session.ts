@@ -1,37 +1,19 @@
-/**
- * Session authentication for every endpoint except ingest
- * (docs/access-model.md, "Sessions" and "Authorization enforcement").
- *
- * Server-side sessions identified by a random 256-bit token in an HttpOnly,
- * Secure, SameSite=Lax cookie. Only the token's SHA-256 is stored.
- * Cookie-authenticated state changes need the session's CSRF token in a
- * header. Ingestion keys are never accepted here: any Authorization header
- * is rejected rather than ignored, so a misconfigured client finds out.
- */
+// Session authentication for every endpoint except ingest (docs/access-model.md,
+// "Sessions" and "Authorization enforcement"). The cookie holds a random
+// 256-bit token and only its SHA-256 is stored. Ingestion keys are never
+// accepted here: an Authorization header is rejected rather than ignored, so a
+// misconfigured client finds out.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { ProjectPermission } from "@jekimo/event-schema";
 import type { Actor, MetadataRepository, ProjectAccess, SessionRecord } from "@jekimo/storage-postgres";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { CSRF_HEADER, DAY_MS, SESSION_COOKIE } from "./constants/index.js";
 import { ApiError } from "./errors.js";
+import type { SessionOptions } from "./types/index.js";
 
-export const SESSION_COOKIE = "jekimo_session";
-export const CSRF_HEADER = "x-jekimo-csrf-token";
-const DAY_MS = 24 * 60 * 60 * 1000;
 /** Avoid a write per request: last_seen_at moves at most once a minute. */
 const TOUCH_INTERVAL_MS = 60_000;
-
-declare module "fastify" {
-  interface FastifyRequest {
-    actor?: Actor;
-    session?: SessionRecord;
-    projectAccess?: ProjectAccess;
-  }
-  interface FastifyContextConfig {
-    /** The project permission a /projects/:id route requires. */
-    permission?: ProjectPermission;
-  }
-}
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function newSessionToken(): string {
   return randomBytes(32).toString("base64url");
@@ -49,14 +31,6 @@ function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
-}
-
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-
-export interface SessionOptions {
-  metadata: MetadataRepository;
-  idleDays: number;
-  clock: () => Date;
 }
 
 /**
@@ -83,8 +57,8 @@ export function projectAccessOf(request: FastifyRequest): ProjectAccess {
 
 /**
  * onRequest hook for every dashboard route, including those without a
- * session (setup, sign-in, invitation and reset links): an Authorization
- * header is rejected, so an ingestion key never reaches anything but ingest.
+ * session (setup, sign-in, invitation and reset links), so an ingestion key
+ * never reaches anything but ingest.
  */
 export async function rejectAuthorizationHeader(request: FastifyRequest): Promise<void> {
   if (request.headers.authorization !== undefined) {

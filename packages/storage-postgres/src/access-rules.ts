@@ -1,5 +1,6 @@
-import { AUDIT_ACTIONS, type AuditAction, type IngestionKeyStatus } from "./constants/index.js";
-import type { IngestionKeySummary } from "./types/index.js";
+import type { IngestionKeyStatus } from "./constants/access.js";
+import { AUDIT_ACTIONS, type AuditAction } from "./constants/audit.js";
+import type { IngestionKeySummary } from "./types/access.js";
 
 export function isAuditAction(value: unknown): value is AuditAction {
   return typeof value === "string" && (AUDIT_ACTIONS as readonly string[]).includes(value);

@@ -8,15 +8,8 @@
  */
 
 import { type KeyRedactor, LIMITS, REDACTED_VALUE } from "@jekimo/event-schema";
-import type { AttributeValue, EventEnvelope, ExceptionInfo } from "./index.js";
-
-const ELLIPSIS = "…";
-/** Replaces containers nested deeper than the attribute depth limit. */
-export const TRUNCATED_VALUE = "[Truncated]";
-/** Replaces a reference back to an enclosing object. */
-export const CIRCULAR_VALUE = "[Circular]";
-/** How many `cause` links are followed into the stacktrace text. */
-const MAX_CAUSE_DEPTH = 8;
+import { CIRCULAR_VALUE, ELLIPSIS, MAX_CAUSE_DEPTH, TRUNCATED_VALUE } from "./constants/index.js";
+import type { AttributeValue, EventEnvelope, ExceptionInfo } from "./types/index.js";
 
 /**
  * Shortens `value` to at most `max` UTF-16 code units, ending with `…` when it
@@ -31,7 +24,6 @@ export function truncate(value: string, max: number): string {
   return value.slice(0, end) + ELLIPSIS;
 }
 
-/** Returns a non-empty string truncated to `max`, or undefined. */
 export function shortString(value: unknown, max: number): string | undefined {
   if (typeof value !== "string" || value.length === 0) return undefined;
   return truncate(value, max);
@@ -50,9 +42,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Copies a context object: string keys of valid length, string values (numbers
- * and booleans are converted, anything else is dropped), at most 32 entries,
- * with redaction.
+ * Context values must be strings (docs/event-format.md, "context"): numbers and booleans
+ * are converted, anything else is dropped.
  */
 export function normalizeContext(
   input: Record<string, unknown> | undefined,
@@ -194,7 +185,6 @@ export function normalizeAttributes(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** Name of an error: its `name`, else its constructor's name, else "Error". */
 function errorType(error: object): string {
   const name = (error as { name?: unknown }).name;
   if (typeof name === "string" && name.length > 0) return name;
@@ -235,7 +225,6 @@ function fullStack(error: object): string {
   return text;
 }
 
-/** Extracts exception info and a default message from any thrown value. */
 export function exceptionFrom(error: unknown): { exception: ExceptionInfo; message: string } {
   if (isRecord(error) && (error instanceof Error || "stack" in error || "message" in error)) {
     const type = truncate(errorType(error), LIMITS.MAX_EXCEPTION_TYPE_CHARS);
@@ -248,7 +237,6 @@ export function exceptionFrom(error: unknown): { exception: ExceptionInfo; messa
     };
     return { exception, message: value.length > 0 ? value : type };
   }
-  // A thrown string, number, or other non-error value.
   const text = typeof error === "string" ? error : safeJson(error);
   return {
     exception: { type: "NonError", value: truncate(text, LIMITS.MAX_EXCEPTION_VALUE_CHARS) },
@@ -261,7 +249,7 @@ function safeJson(value: unknown): string {
     const json = JSON.stringify(value);
     if (json !== undefined) return json;
   } catch {
-    // fall through
+    // Cycles, BigInt, or a throwing toJSON: fall back to String().
   }
   return safeString(value);
 }

@@ -1,32 +1,68 @@
 import type { ProjectPermission } from "@jekimo/event-schema";
-import type { ProjectAccess } from "../access.js";
-import type { Actor, InstanceRole, ProjectRecord, UserRecord } from "../types.js";
+import type { AuditQuery, AuditRecord } from "./audit.js";
+import type { ProjectRecord } from "./projects.js";
 
-export interface AuditRecord {
-  id: string;
-  occurredAt: Date;
-  actorUserId: string | null;
-  /** The actor's current email, or null when the user was deleted. */
-  actorEmail: string | null;
-  action: string;
-  targetType: string | null;
-  targetId: string | null;
-  projectId: string | null;
-  sourceIp: string | null;
-  viaInstanceAdmin: boolean;
-  details: Record<string, unknown>;
+export type { ProjectPermission };
+
+declare const brand: unique symbol;
+
+/**
+ * Proof that an actor may touch a project's data (docs/access-model.md,
+ * "Authorization enforcement", rule 1). Only repositories in this package can
+ * create one, after checking membership or instance-admin authority, so code
+ * outside the package cannot reach project data by passing a bare project id
+ * it read from a request.
+ */
+export interface ProjectAccess {
+  readonly projectId: string;
+  readonly userId: string;
+  readonly permissions: ReadonlySet<ProjectPermission>;
+  /** True when access comes from the instance admin role rather than membership. */
+  readonly viaInstanceAdmin: boolean;
+  readonly [brand]: true;
 }
 
-export interface AuditQuery {
-  actorUserId?: string;
-  action?: string;
-  /** Inclusive lower bound on occurred_at. */
-  from?: Date;
-  /** Exclusive upper bound on occurred_at. */
-  to?: Date;
-  /** Entries with an id below this one: the previous page's last id. */
-  beforeId?: string;
-  limit: number;
+export type InstanceRole = "admin" | "member";
+
+/** The signed-in person a metadata call acts for. */
+export interface Actor {
+  userId: string;
+  instanceRole: InstanceRole;
+}
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  instanceRole: InstanceRole;
+  status: "active" | "deactivated";
+  createdAt: Date;
+}
+
+export interface SessionRecord {
+  sessionId: string;
+  user: UserRecord;
+  csrfToken: string;
+  createdAt: Date;
+  lastSeenAt: Date;
+  expiresAt: Date;
+}
+
+export interface IngestionKeyRecord {
+  keyId: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+}
+
+/** What the ingest endpoint needs to authenticate a bearer key. */
+export interface IngestionKeyLookup {
+  keyId: string;
+  projectId: string;
+  /** SHA-256 of the full key string. */
+  keyHash: Uint8Array;
+  revokedAt: Date | null;
+  expiresAt: Date | null;
+  projectDisabled: boolean;
 }
 
 export interface SessionSummary {

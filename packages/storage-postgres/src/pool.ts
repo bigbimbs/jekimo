@@ -1,15 +1,5 @@
 import pg from "pg";
-
-export type Pool = pg.Pool;
-export type PoolClient = pg.PoolClient;
-
-export interface PoolOptions {
-  /** Defaults to databaseUrl(): JEKIMO_DATABASE_URL, else the deprecated DATABASE_URL. */
-  connectionString?: string;
-  /** Defaults to JEKIMO_DATABASE_POOL_MAX, else 10. */
-  max?: number;
-  applicationName?: string;
-}
+import type { Pool, PoolClient, PoolOptions } from "./types/pool.js";
 
 let warnedDeprecatedUrl = false;
 
@@ -42,7 +32,6 @@ export function createPool(options: PoolOptions = {}): Pool {
   return pool;
 }
 
-/** Runs `fn` in a transaction on one client. */
 export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {

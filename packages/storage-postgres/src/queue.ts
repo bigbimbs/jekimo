@@ -6,29 +6,10 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { Pool } from "./pool.js";
+import { DEFAULT_QUEUE_POLICY } from "./constants/queue.js";
 import { firstRow } from "./rows.js";
-import type { Job, Queue, QueueStats } from "./types.js";
-
-export interface QueuePolicy {
-  /** How long a claimed job stays invisible to other consumers. */
-  visibilityTimeoutMs: number;
-  /** Attempts before a job is dead-lettered. */
-  maxAttempts: number;
-  /** First retry delay; doubles per attempt up to maxBackoffMs. */
-  baseBackoffMs: number;
-  maxBackoffMs: number;
-  /** Pending plus running jobs above which enqueue throws QueueFullError. */
-  maxDepth: number;
-}
-
-export const DEFAULT_QUEUE_POLICY: QueuePolicy = {
-  visibilityTimeoutMs: 60_000,
-  maxAttempts: 5,
-  baseBackoffMs: 1_000,
-  maxBackoffMs: 60_000,
-  maxDepth: 10_000,
-};
+import type { Pool } from "./types/pool.js";
+import type { FailureDecision, Job, Queue, QueuePolicy, QueueStats } from "./types/queue.js";
 
 /**
  * Thrown by enqueue when the queue already holds maxDepth pending and running
@@ -58,8 +39,6 @@ export function queuePolicyFromEnv(env: NodeJS.ProcessEnv = process.env): Partia
   if (env.JEKIMO_QUEUE_MAX_DEPTH && Number.isInteger(depth) && depth > 0) policy.maxDepth = depth;
   return policy;
 }
-
-export type FailureDecision = { status: "dead" } | { status: "retry"; delayMs: number };
 
 /** What happens to a job whose attempt number `attempts` (1-based) failed. */
 export function decideFailure(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../src/access.js";
+import { assertProjectAccess, mintProjectAccess } from "../src/access.js";
 import { decodeCursor, encodeCursor } from "../src/event-store.js";
 import {
   DEFAULT_QUEUE_POLICY,
@@ -15,6 +15,7 @@ import {
 } from "../src/index.js";
 import { MemoryMetadataRepository, MemoryQueue } from "../src/memory/index.js";
 import { describeError } from "../src/queue.js";
+import type { ProjectAccess } from "../src/types/access.js";
 
 describe("queue retry policy", () => {
   it("backs off exponentially from the base delay up to the cap", () => {

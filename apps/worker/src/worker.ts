@@ -1,34 +1,10 @@
-/**
- * The worker loop: drain the ingest queue in batches, ack or fail each job,
- * and run the expiry pass on an interval. Logs carry job ids, project ids,
- * and counts, never event payloads.
- */
+// Logs carry job ids, project ids, and counts, never event payloads.
 
 import type { DiskLevel } from "@jekimo/event-schema";
-import type { DiskMonitor, EventStore, IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
-import type { Logger } from "pino";
+import { DEFAULT_DISK_CHECK_INTERVAL_MS, EMERGENCY_EXPIRY_INTERVAL_MS } from "./constants/index.js";
 import { processIngestJob, runExpiryPass } from "./process.js";
 import { RedactorCache } from "./redact.js";
-
-export interface WorkerOptions {
-  queue: Queue<IngestJob>;
-  metadata: MetadataRepository;
-  events: EventStore;
-  log: Logger;
-  batchSize: number;
-  pollMs: number;
-  expiryIntervalMs: number;
-  auditLogDays?: number;
-  clock?: () => Date;
-  disk?: DiskMonitor;
-  /** Default 60000. */
-  diskCheckIntervalMs?: number;
-  retentionDefaultDays?: number;
-  retentionMaxDays?: number;
-}
-
-/** docs/retention.md, "Disk safety". */
-const EMERGENCY_EXPIRY_INTERVAL_MS = 60_000;
+import type { WorkerOptions } from "./types/index.js";
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -105,7 +81,7 @@ export class Worker {
     const disk = this.opts.disk;
     if (!disk) return;
     const now = this.clock().getTime();
-    if (now - this.lastDiskCheck < (this.opts.diskCheckIntervalMs ?? 60_000)) return;
+    if (now - this.lastDiskCheck < (this.opts.diskCheckIntervalMs ?? DEFAULT_DISK_CHECK_INTERVAL_MS)) return;
     this.lastDiskCheck = now;
     const status = await disk.status();
     // Never delete data early on an unknown reading; the API already fails closed.
@@ -131,7 +107,7 @@ export class Worker {
     if (level === "critical" || level === "full") {
       if (!this.emergency) {
         this.emergency = true;
-        this.lastExpiry = 0; // run the first emergency pass now
+        this.lastExpiry = 0;
       }
     } else if (level === "ok") {
       this.emergency = false;
@@ -195,7 +171,6 @@ export class Worker {
         const e = err as Error;
         this.opts.log.error({ err: { type: e.name, message: e.message } }, "dequeue failed");
       }
-      // Keep going while there is work; otherwise wait for the next poll.
       if (claimed < this.opts.batchSize) await sleep(this.opts.pollMs, signal);
     }
   }

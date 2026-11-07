@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type EventEnvelope, LIMITS, REDACTED_VALUE, ULID_PATTERN, validateEvent } from "@jekimo/event-schema";
 import { afterEach, describe, expect, it } from "vitest";
-import { byteLength, CIRCULAR_VALUE, fitEvent, TRUNCATED_VALUE, truncate } from "../src/envelope.js";
+import { CIRCULAR_VALUE, TRUNCATED_VALUE } from "../src/constants/index.js";
+import { byteLength, fitEvent, truncate } from "../src/envelope.js";
 import { SDK_NAME, SDK_VERSION } from "../src/index.js";
 import { type Harness, harness } from "./helpers.js";
 

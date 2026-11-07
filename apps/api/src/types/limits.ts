@@ -1,9 +1,19 @@
-import type { IngestLimitStore, IngestLimits } from "@jekimo/storage-postgres";
+import type { IngestLimitSettings, IngestLimitStore, IngestLimits } from "@jekimo/storage-postgres";
 import type { preHandlerHookHandler } from "fastify";
+import type { LimitService } from "../modules/limits/service.js";
+
+export interface LimitServiceDeps {
+  limits: IngestLimitStore;
+  defaults: IngestLimits;
+}
 
 export interface LimitRouteOptions {
-  limits: IngestLimitStore;
+  service: LimitService;
   session: preHandlerHookHandler;
   projectAccess: preHandlerHookHandler;
-  defaults: IngestLimits;
+}
+
+export interface ResolvedLimits {
+  settings: IngestLimitSettings;
+  effective: IngestLimits;
 }

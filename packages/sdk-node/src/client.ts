@@ -20,6 +20,15 @@ import {
   validateEvent,
 } from "@jekimo/event-schema";
 import {
+  BODY_OVERHEAD_BYTES,
+  DEFAULTS,
+  LOOPBACK_HOSTNAMES,
+  MAX_ATTEMPTS,
+  NAME,
+  REQUEST_TIMEOUT_MS,
+  VERSION,
+} from "./constants/index.js";
+import {
   byteLength,
   exceptionFrom,
   fitEvent,
@@ -28,6 +37,7 @@ import {
   shortString,
   truncate,
 } from "./envelope.js";
+import { attempt, prepareBody, requestHeaders, retryDelay } from "./transport.js";
 import type {
   CaptureOptions,
   ClientStats,
@@ -39,21 +49,8 @@ import type {
   PartialEnvelope,
   Severity,
   Transport,
-} from "./index.js";
-import { attempt, MAX_ATTEMPTS, prepareBody, REQUEST_TIMEOUT_MS, requestHeaders, retryDelay } from "./transport.js";
+} from "./types/index.js";
 import { createUlidGenerator } from "./ulid.js";
-import { NAME, VERSION } from "./version.js";
-
-export const DEFAULTS = {
-  maxQueueSize: 1000,
-  flushIntervalMs: 2000,
-  maxBatchEvents: LIMITS.MAX_BATCH_EVENTS,
-  maxBatchBytes: 512 * 1024,
-  shutdownTimeoutMs: 2000,
-} as const;
-
-/** Bytes of `{"sent_at":"<24 chars>","events":[]}` plus slack. */
-const BODY_OVERHEAD_BYTES = 64;
 
 interface QueuedEvent {
   id: string;
@@ -67,8 +64,6 @@ interface Connection {
   secret: string;
   insecure: boolean;
 }
-
-const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
 function resolveConnection(options: JekimoOptions): Connection | string {
   let base: URL;
@@ -101,7 +96,7 @@ function resolveConnection(options: JekimoOptions): Connection | string {
     url: `${base.origin}${path}${INGEST_PATH}`,
     key,
     secret: parsed.secret,
-    insecure: base.protocol === "http:" && !LOOPBACK.has(base.hostname) && !base.hostname.startsWith("127."),
+    insecure: base.protocol === "http:" && !LOOPBACK_HOSTNAMES.has(base.hostname) && !base.hostname.startsWith("127."),
   };
 }
 
@@ -297,8 +292,6 @@ export class Client implements JekimoClient {
     return drained;
   }
 
-  // ---- building ----------------------------------------------------------
-
   private safely(fn: () => string | undefined): string | undefined {
     if (!this.active) return undefined;
     try {
@@ -370,8 +363,6 @@ export class Client implements JekimoClient {
     this.enqueue({ id: event.event_id, json, bytes: byteLength(json) });
     return event.event_id;
   }
-
-  // ---- queue -------------------------------------------------------------
 
   private enqueue(item: QueuedEvent): void {
     if (this.queue.length >= this.maxQueueSize) {
@@ -449,8 +440,6 @@ export class Client implements JekimoClient {
     }
     return true;
   }
-
-  // ---- delivery ----------------------------------------------------------
 
   private async deliver(batch: QueuedEvent[]): Promise<void> {
     const { connection } = this;
@@ -551,8 +540,6 @@ export class Client implements JekimoClient {
     });
   }
 
-  // ---- process exit ------------------------------------------------------
-
   /**
    * On `beforeExit` (the event loop is empty), flush once within the shutdown
    * timeout. A request still running at the deadline is aborted so the
@@ -571,8 +558,6 @@ export class Client implements JekimoClient {
     const unsent = this.queue.length + (this.currentBatch?.length ?? 0);
     if (unsent > 0) this.drop("shutdown", unsent);
   }
-
-  // ---- reporting ---------------------------------------------------------
 
   private drop(reason: DropReason, count: number): void {
     this.counters.dropped += count;
@@ -613,7 +598,7 @@ export class Client implements JekimoClient {
       if (typeof debug === "function") debug(text);
       else console.debug(text);
     } catch {
-      // ignore
+      // A failing debug sink must not break the SDK.
     }
   }
 }

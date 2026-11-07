@@ -1,17 +1,9 @@
-/**
- * Password hashing with Argon2id (docs/access-model.md, "Passwords").
- * Parameters are above the OWASP minimum of m=19 MiB, t=2, p=1.
- */
+// Argon2id per docs/access-model.md, "Passwords". The parameters are above
+// the OWASP minimum of m=19 MiB, t=2, p=1.
 
 import argon2 from "argon2";
-
-export const PASSWORD_MIN_CHARS = 12;
-export const PASSWORD_MAX_CHARS = 128;
-
-export interface PasswordHasher {
-  hash(password: string): Promise<string>;
-  verify(hash: string, password: string): Promise<boolean>;
-}
+import { PASSWORD_MAX_CHARS, PASSWORD_MIN_CHARS } from "./constants/index.js";
+import type { PasswordHasher } from "./types/index.js";
 
 const ARGON2_OPTIONS = { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1 } as const;
 
@@ -34,8 +26,8 @@ export function passwordProblem(password: unknown): string | null {
 }
 
 /**
- * Verifies against a throwaway hash so that a sign-in for an unknown email
- * costs the same as one for a known email.
+ * Verifies against a throwaway hash when there is no user, so that a sign-in
+ * for an unknown email costs the same as one for a known email.
  */
 export class TimingSafeVerifier {
   private dummy: Promise<string> | undefined;

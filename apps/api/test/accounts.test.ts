@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { runAdminCommand } from "../src/admin-command.js";
-import { SESSION_COOKIE } from "../src/session.js";
+import { SESSION_COOKIE } from "../src/constants/index.js";
 import { fakeHasher, type Harness, harness, PASSWORD, projectWithKey, type SignedIn, signIn } from "./helpers.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -1,50 +1,9 @@
-/**
- * API configuration from environment variables. Documented in
- * docs/configuration.md; safe placeholders live in .env.example.
- */
+// Documented in docs/configuration.md; safe placeholders live in .env.example.
 
 import { RETENTION } from "@jekimo/event-schema";
-import { DEFAULT_RATE_LIMIT_PER_MINUTE, INGEST_LIMIT_BOUNDS } from "@jekimo/storage-postgres";
-
-export interface ApiConfig {
-  host: string;
-  port: number;
-  logLevel: LogLevel;
-  /** Trust X-Forwarded-For from a reverse proxy for the client address. */
-  trustProxy: boolean;
-  membersCanCreateProjects: boolean;
-  sessionIdleDays: number;
-  sessionMaxDays: number;
-  retentionDefaultDays: number;
-  retentionMaxDays: number;
-  rateLimitPerMinute: number;
-  /** Null: no quota. */
-  quotaEventsPerDay: number | null;
-  inviteExpiryDays: number;
-  keyRotationGraceHours: number;
-  /** Null: invitation and reset links are paths, not URLs. */
-  publicUrl: string | null;
-}
-
-export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace"] as const;
-export type LogLevel = (typeof LOG_LEVELS)[number];
-
-export const DEFAULT_API_CONFIG: ApiConfig = {
-  host: "127.0.0.1",
-  port: 8080,
-  logLevel: "info",
-  trustProxy: false,
-  membersCanCreateProjects: true,
-  sessionIdleDays: 14,
-  sessionMaxDays: 30,
-  retentionDefaultDays: RETENTION.DEFAULT_DAYS,
-  retentionMaxDays: RETENTION.MAX_DAYS,
-  rateLimitPerMinute: DEFAULT_RATE_LIMIT_PER_MINUTE,
-  quotaEventsPerDay: null,
-  inviteExpiryDays: 7,
-  keyRotationGraceHours: 24,
-  publicUrl: null,
-};
+import { INGEST_LIMIT_BOUNDS } from "@jekimo/storage-postgres";
+import { DEFAULT_API_CONFIG, LOG_LEVELS, type LogLevel } from "./constants/index.js";
+import type { ApiConfig } from "./types/index.js";
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
   const raw = env[name];

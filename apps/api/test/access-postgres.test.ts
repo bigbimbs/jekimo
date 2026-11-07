@@ -16,7 +16,7 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runAdminCommand } from "../src/admin-command.js";
 import { buildApp } from "../src/app.js";
-import { CSRF_HEADER, SESSION_COOKIE } from "../src/session.js";
+import { CSRF_HEADER, SESSION_COOKIE } from "../src/constants/index.js";
 import { fakeHasher, ingestEvent, PASSWORD, SETUP_TOKEN } from "./helpers.js";
 
 const NEW_PASSWORD = "another-synthetic-passphrase";

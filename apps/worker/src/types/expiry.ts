@@ -6,3 +6,18 @@ export interface ExpiryOptions {
   retentionDefaultDays?: number;
   retentionMaxDays?: number;
 }
+
+export interface ProjectExpiry {
+  projectId: string;
+  deleted: number;
+  retentionDays: number;
+}
+
+export interface ExpiryResult {
+  deletedEvents: number;
+  projectsTouched: number;
+  dedupePruned: number;
+  countersPruned: number;
+  perProject: ProjectExpiry[];
+  auditPruned: number;
+}

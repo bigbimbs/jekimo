@@ -1,13 +1,9 @@
 // docs/architecture.md, "Storage engines", rule 3: issue counts are derived
 // from the event store and can be rebuilt from it at any time.
 
-import type { ProcessDeps } from "./process.js";
-import type { RecomputeResult } from "./types/index.js";
+import type { ProcessDeps, RecomputeOptions, RecomputeResult } from "./types/index.js";
 
-export async function recomputeIssues(
-  deps: ProcessDeps,
-  options: { projectId?: string; clock?: () => Date } = {},
-): Promise<RecomputeResult> {
+export async function recomputeIssues(deps: ProcessDeps, options: RecomputeOptions = {}): Promise<RecomputeResult> {
   const clock = options.clock ?? (() => new Date());
   const projectIds =
     options.projectId !== undefined

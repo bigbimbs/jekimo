@@ -5,15 +5,14 @@
  * the same answer and an event is never half-sampled across retries.
  */
 
-import { type EventEnvelope, type Severity, ULID_PATTERN } from "./types.js";
+import { ULID_PATTERN } from "./constants/envelope.js";
+import { ALWAYS_KEPT_SEVERITIES } from "./constants/sampling.js";
+import type { EventEnvelope } from "./types/envelope.js";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-/** Number of trailing ULID characters used for the sampling fraction (5 bits each). */
+/** Trailing ULID characters used for the sampling fraction, 5 bits each. */
 const SAMPLE_CHARS = 8;
-const SAMPLE_SPACE = 2 ** (5 * SAMPLE_CHARS); // 2^40
-
-/** Severities that are never sampled out. */
-export const ALWAYS_KEPT_SEVERITIES: ReadonlySet<Severity> = new Set<Severity>(["error", "fatal"]);
+const SAMPLE_SPACE = 2 ** (5 * SAMPLE_CHARS);
 
 /**
  * Maps a ULID to a fraction in [0, 1) from its last 40 random bits.

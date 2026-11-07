@@ -2,7 +2,7 @@ import type { IngestJob } from "@jekimo/storage-postgres";
 import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo/storage-postgres/memory";
 import { describe, expect, it } from "vitest";
 import { buildApp, loggerOptions } from "../src/app.js";
-import { CSRF_HEADER, SESSION_COOKIE } from "../src/session.js";
+import { CSRF_HEADER, SESSION_COOKIE } from "../src/constants/index.js";
 import { fakeHasher, harness, ingestEvent, PASSWORD, SETUP_TOKEN, signIn } from "./helpers.js";
 
 describe("setup", () => {

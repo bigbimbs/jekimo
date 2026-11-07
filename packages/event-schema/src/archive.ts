@@ -1,29 +1,14 @@
-/**
- * Cold-tier key layout and hot/cold retention split.
- * Normative text: docs/object-storage.md.
- */
+// Normative text: docs/object-storage.md.
 
-import { RETENTION } from "./retention.js";
-
-export const ARCHIVE_LAYOUT_VERSION = 1 as const;
-
-/** Archive part formats recorded in a day manifest. */
-export const ARCHIVE_FORMATS = ["ndjson.zst"] as const;
-export type ArchiveFormat = (typeof ARCHIVE_FORMATS)[number];
-
-/** Internal project identifiers must be safe to embed in object keys. */
-export const SAFE_PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-/** Calendar day in UTC as YYYY-MM-DD. */
-export const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-export const HOT_DAYS = {
-  /** Hot period for new projects when an object store is configured. */
-  DEFAULT_WITH_OBJECT_STORE: 14,
-  /** Total retention for new projects when an object store is configured. */
-  RETENTION_DEFAULT_WITH_OBJECT_STORE: 90,
-  MAX: 365,
-} as const;
+import {
+  ARCHIVE_LAYOUT_VERSION,
+  type ArchiveFormat,
+  DAY_PATTERN,
+  HOT_DAYS,
+  SAFE_PROJECT_ID_PATTERN,
+} from "./constants/archive.js";
+import { RETENTION } from "./constants/retention.js";
+import type { ParsedArchiveKey, RetentionSplit, RetentionSplitInput } from "./types/archive.js";
 
 function assertProjectId(projectId: string): void {
   if (!SAFE_PROJECT_ID_PATTERN.test(projectId)) throw new RangeError("projectId is not a safe identifier");
@@ -71,10 +56,6 @@ export function archiveManifestKey(projectId: string, day: string): string {
   return `${archiveDayPrefix(projectId, day)}manifest.json`;
 }
 
-export type ParsedArchiveKey =
-  | { kind: "part"; projectId: string; day: string; part: number; format: ArchiveFormat }
-  | { kind: "manifest"; projectId: string; day: string };
-
 const ARCHIVE_KEY_PATTERN =
   /^v1\/projects\/([a-z0-9][a-z0-9_-]{0,63})\/events\/(\d{4})\/(\d{2})\/(\d{2})\/(?:part-(\d{5})\.(ndjson\.zst)|manifest\.json)$/;
 
@@ -93,20 +74,6 @@ export function parseArchiveKey(key: string): ParsedArchiveKey | null {
   }
   return { kind: "manifest", projectId, day };
 }
-
-export interface RetentionSplitInput {
-  /** Total retention in days, hot plus cold. */
-  retentionDays: number;
-  /** Requested hot period; omitted means "use the default for the configuration". */
-  hotDays?: number;
-  objectStoreConfigured: boolean;
-  maxRetentionDays?: number;
-  maxHotDays?: number;
-}
-
-export type RetentionSplit =
-  | { ok: true; hotDays: number; coldDays: number }
-  | { ok: false; reason: "invalid_retention" | "invalid_hot_days" | "hot_exceeds_retention" | "cold_tier_unavailable" };
 
 /**
  * Resolves a project's hot and cold periods. Without an object store the hot

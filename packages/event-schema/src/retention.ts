@@ -1,39 +1,7 @@
-/**
- * Retention constants and helpers. Normative text: docs/retention.md.
- */
+// Normative text: docs/retention.md.
 
-export const RETENTION = {
-  /** Retention for new projects, in days. */
-  DEFAULT_DAYS: 30,
-  MIN_DAYS: 1,
-  /** Absolute upper bound; operators may lower it instance-wide. */
-  MAX_DAYS: 3650,
-  /** Retention applied to every project during emergency expiry. */
-  EMERGENCY_DAYS: 7,
-  /**
-   * Minimum time stored event_ids are remembered for deduplication, from
-   * received_at. Checked at append to the event store, not at enqueue.
-   */
-  DEDUPE_WINDOW_DAYS: 7,
-  /** Grace period in which a deleted project can be restored. */
-  PROJECT_DELETE_GRACE_DAYS: 7,
-  AUDIT_LOG_DAYS: 365,
-} as const;
-
-export interface DiskThresholds {
-  /** Percent of free space at or below which admins are warned. */
-  readonly WARN_PERCENT: number;
-  /** Percent at or below which emergency expiry runs. */
-  readonly CRITICAL_PERCENT: number;
-  /** Percent at or below which ingestion returns 503. */
-  readonly FULL_PERCENT: number;
-}
-
-export const DISK_THRESHOLDS: DiskThresholds = {
-  WARN_PERCENT: 20,
-  CRITICAL_PERCENT: 10,
-  FULL_PERCENT: 5,
-};
+import { DISK_THRESHOLDS, RETENTION } from "./constants/retention.js";
+import type { DiskLevel, DiskThresholds } from "./types/retention.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -56,8 +24,6 @@ export function retentionExpiry(receivedAt: Date, retentionDays: number): Date {
 export function isExpired(receivedAt: Date, retentionDays: number, now: Date = new Date()): boolean {
   return now.getTime() >= retentionExpiry(receivedAt, retentionDays).getTime();
 }
-
-export type DiskLevel = "ok" | "warn" | "critical" | "full";
 
 /**
  * Classifies free disk space. `thresholds` lets operators override the

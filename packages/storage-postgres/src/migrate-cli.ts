@@ -1,8 +1,3 @@
-/**
- * `npm run migrate`: applies pending migrations, then creates event
- * partitions for yesterday through the next week. Reads JEKIMO_DATABASE_URL.
- */
-
 import { runMigrations } from "./migrate.js";
 import { createPool } from "./pool.js";
 

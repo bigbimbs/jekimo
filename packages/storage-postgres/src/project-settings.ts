@@ -1,27 +1,13 @@
-/**
- * Validation for project-level values stored by the metadata repository:
- * redaction rules (docs/event-format.md, "Privacy defaults") and daily
- * counter increments (docs/retention.md, "What is retained").
- */
+// Redaction rules: docs/event-format.md, "Privacy defaults". Daily counters:
+// docs/retention.md, "What is retained".
 
 import { normalizeKey } from "@jekimo/event-schema";
-import type { DailyCounterIncrement, DailyCounterName, RedactionRules } from "./types.js";
-
-export const REDACTION_RULE_LIMITS = {
-  MAX_KEYS: 200,
-  MAX_KEY_CHARS: 128,
-  MAX_PATTERNS: 50,
-  MAX_PATTERN_CHARS: 256,
-} as const;
-
-/** Counters are kept for 13 months (docs/retention.md). */
-export const DAILY_COUNTER_RETENTION_MONTHS = 13;
-
-export const DAILY_COUNTER_NAMES: readonly DailyCounterName[] = ["accepted", "rejected", "dropped", "sampled"];
+import { DAILY_COUNTER_NAMES, type DailyCounterName, REDACTION_RULE_LIMITS } from "./constants/project-settings.js";
+import type { DailyCounterIncrement, RedactionRules } from "./types/projects.js";
 
 const UTC_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** True for a real calendar day written YYYY-MM-DD. */
+/** True only for a real calendar day written YYYY-MM-DD. */
 export function isUtcDay(value: string): boolean {
   if (!UTC_DAY.test(value)) return false;
   const d = new Date(`${value}T00:00:00Z`);

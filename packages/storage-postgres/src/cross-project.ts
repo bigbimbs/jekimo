@@ -6,19 +6,11 @@
  * else in this package takes a project id or a ProjectAccess.
  */
 
-import type { Pool, PoolClient } from "./pool.js";
-import type { Actor, IngestionKeyLookup, ProjectRecord, ProjectRetention } from "./types.js";
-
-export interface ProjectRow {
-  id: string;
-  name: string;
-  retention_days: number;
-  sample_rate: number;
-  disabled: boolean;
-  created_at: Date;
-}
-
-export const PROJECT_COLUMNS = "p.id, p.name, p.retention_days, p.sample_rate, p.disabled, p.created_at";
+import { PROJECT_COLUMNS } from "./constants/sql.js";
+import type { Actor, IngestionKeyLookup } from "./types/access.js";
+import type { Pool, PoolClient } from "./types/pool.js";
+import type { ProjectRecord, ProjectRetention } from "./types/projects.js";
+import type { ProjectRow } from "./types/rows.js";
 
 export function toProject(r: ProjectRow): ProjectRecord {
   return {
@@ -31,7 +23,6 @@ export function toProject(r: ProjectRow): ProjectRecord {
   };
 }
 
-/** Projects the actor is a member of. Instance admins see every project. */
 export async function listProjectsForActor(db: Pool | PoolClient, actor: Actor): Promise<ProjectRecord[]> {
   const { rows } =
     actor.instanceRole === "admin"
@@ -70,7 +61,6 @@ export async function findIngestionKey(db: Pool | PoolClient, keyId: string): Pr
   };
 }
 
-/** Every project's retention period, for the expiry pass. */
 export async function listProjectRetention(db: Pool | PoolClient): Promise<ProjectRetention[]> {
   const { rows } = await db.query<{ id: string; retention_days: number }>(
     "SELECT id, retention_days FROM projects ORDER BY id",

@@ -14,13 +14,31 @@ import {
   SEVERITIES,
   utcDay,
 } from "@jekimo/event-schema";
-import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
-import type { IssueStatus } from "../constants/index.js";
+import { assertProjectAccess, mintProjectAccess } from "../access.js";
+import type { IssueStatus } from "../constants/issues.js";
+import { DEFAULT_QUEUE_POLICY } from "../constants/queue.js";
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
 import { checkIngestLimitSettings, currentUsage, decideCharge, requireInstanceAdmin } from "../ingest-limits.js";
 import { decodeIssueCursor, encodeIssueCursor, issueStatusAction, mergeEnvironments } from "../issues.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
-import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
+import { decideFailure, describeError, QueueFullError } from "../queue.js";
+import type {
+  Actor,
+  IngestionKeyLookup,
+  IngestionKeyRecord,
+  ProjectAccess,
+  SessionRecord,
+  UserRecord,
+} from "../types/access.js";
+import type {
+  AppendEvent,
+  EventPage,
+  EventQuery,
+  EventStore,
+  EventStoreCapabilities,
+  FingerprintSummary,
+  StoredEvent,
+} from "../types/event-store.js";
 import type {
   IngestChargeResult,
   IngestLimitSettings,
@@ -28,35 +46,18 @@ import type {
   IngestLimits,
   IngestUsage,
   IngestUsageRow,
-  IssuePage,
-  IssueQuery,
-  MemoryUser,
-} from "../types/index.js";
+} from "../types/ingest-limits.js";
+import type { IssuePage, IssueQuery, IssueRecord, IssueSummary } from "../types/issues.js";
+import type { MemoryUser } from "../types/memory.js";
+import type { MetadataRepository } from "../types/metadata.js";
 import type {
-  Actor,
-  AppendEvent,
   DailyCounterIncrement,
   DailyCounters,
-  EventPage,
-  EventQuery,
-  EventStore,
-  EventStoreCapabilities,
-  FingerprintSummary,
-  IngestionKeyLookup,
-  IngestionKeyRecord,
-  IssueRecord,
-  IssueSummary,
-  Job,
-  MetadataRepository,
   ProjectRecord,
   ProjectRetention,
-  Queue,
-  QueueStats,
   RedactionRules,
-  SessionRecord,
-  StoredEvent,
-  UserRecord,
-} from "../types.js";
+} from "../types/projects.js";
+import type { Job, Queue, QueuePolicy, QueueStats } from "../types/queue.js";
 import { MemoryAccessRepository, sameBytes } from "./access.js";
 
 export class MemoryMetadataRepository extends MemoryAccessRepository implements MetadataRepository {

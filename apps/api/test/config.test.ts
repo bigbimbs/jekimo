@@ -1,6 +1,7 @@
 import { RETENTION } from "@jekimo/event-schema";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_API_CONFIG, loadApiConfig } from "../src/config.js";
+import { loadApiConfig } from "../src/config.js";
+import { DEFAULT_API_CONFIG } from "../src/constants/index.js";
 
 describe("loadApiConfig", () => {
   it("uses the defaults when nothing is set", () => {

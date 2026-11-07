@@ -3,26 +3,30 @@
 // the rows the decision depends on, so two concurrent requests cannot both pass.
 
 import { canAssignRole, isProjectPermission, type ProjectPermission } from "@jekimo/event-schema";
-import type { ProjectAccess } from "./access.js";
-import { PROJECT_COLUMNS, type ProjectRow, toProject } from "./cross-project.js";
-import { type Pool, type PoolClient, withTransaction } from "./pool.js";
+import { PROJECT_COLUMNS, USER_COLUMNS } from "./constants/sql.js";
+import { toProject } from "./cross-project.js";
+import { withTransaction } from "./pool.js";
 import { firstRow } from "./rows.js";
-import { insertAudit, isUuid, requirePermission, toUser, USER_COLUMNS } from "./sql-shared.js";
+import { insertAudit, isUuid, requirePermission, toUser } from "./sql-shared.js";
 import type {
   AccessRepository,
-  AuditQuery,
-  AuditRecord,
+  Actor,
   IngestionKeySummary,
+  InstanceRole,
   InvitationRecord,
   MemberRecord,
   PasswordResetRecord,
+  ProjectAccess,
   ProjectSettingsChange,
   Result,
   RoleRecord,
   SessionSummary,
-  UserRow,
-} from "./types/index.js";
-import type { Actor, InstanceRole, ProjectRecord, UserRecord } from "./types.js";
+  UserRecord,
+} from "./types/access.js";
+import type { AuditQuery, AuditRecord } from "./types/audit.js";
+import type { Pool, PoolClient } from "./types/pool.js";
+import type { ProjectRecord } from "./types/projects.js";
+import type { ProjectRow, UserRow } from "./types/rows.js";
 
 function requireInstanceAdmin(actor: Actor | null): void {
   if (actor !== null && actor.instanceRole !== "admin") throw new Error("instance admin required");

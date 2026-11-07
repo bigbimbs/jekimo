@@ -1,9 +1,3 @@
-/**
- * API entry point. Reads configuration from the environment, connects to
- * PostgreSQL, prints the one-time setup token when the instance has no
- * users yet, and serves until SIGTERM or SIGINT.
- */
-
 import { randomBytes } from "node:crypto";
 import {
   checkDatabase,
@@ -24,7 +18,8 @@ import {
   runMigrations,
 } from "@jekimo/storage-postgres";
 import { buildApp, loggerOptions } from "./app.js";
-import { type ApiConfig, loadApiConfig } from "./config.js";
+import { loadApiConfig } from "./config.js";
+import type { ApiConfig } from "./types/index.js";
 
 async function main(): Promise<void> {
   let config: ApiConfig;

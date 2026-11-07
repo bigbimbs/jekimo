@@ -2,9 +2,8 @@
 // an instance admin recovers their own account, and there is no other back door.
 
 import { accountLink, newAccountToken } from "./account-links.js";
+import { DAY_MS } from "./constants/index.js";
 import type { AdminCommandDeps } from "./types/index.js";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ADMIN_USAGE = "usage: jekimo admin reset-password <email>";
 
