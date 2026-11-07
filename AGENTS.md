@@ -8,7 +8,7 @@ Jekimo is an open-source, self-hosted error, crash, and log observability platfo
 
 ## Current state
 
-The repository is a scaffold. The only implemented code is the contract-level helpers in `packages/event-schema` (envelope validation, ingestion request validation, retention and sampling helpers); the API, worker, dashboard, SDK, storage, and deployment are not written yet. Do not describe features as implemented unless the code exists in this repository.
+The repository is a scaffold. The implemented code is the contract-level helpers in `packages/event-schema` (envelope validation, ingestion request validation, retention and sampling helpers) and an alpha of the Node.js SDK in `packages/sdk-node` (envelope building, redaction, batching, retries, crash capture), tested against a mocked transport only; the API, worker, dashboard, storage, and deployment are not written yet. Do not describe features as implemented unless the code exists in this repository.
 
 ## Repository layout
 
@@ -16,7 +16,7 @@ The repository is a scaffold. The only implemented code is the contract-level he
 - `apps/worker` — asynchronous event processing (validation, redaction, fingerprinting, retention)
 - `apps/web` — React/TypeScript dashboard
 - `packages/event-schema` — versioned event envelope shared by services and SDKs
-- `packages/sdk-node` — Node.js SDK
+- `packages/sdk-node` — Node.js SDK, published as `@jekimo/sdk-node`; bundles `@jekimo/event-schema` at build time and has no runtime dependencies
 - `packages/storage-postgres` — PostgreSQL storage boundary and migrations
 - `deploy/docker-compose` — VPS deployment
 - `docs/` — operator and contributor documentation

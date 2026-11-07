@@ -1,6 +1,58 @@
 {
   "name": "@jekimo/sdk-node",
-  "private": true,
-  "version": "0.1.0",
-  "license": "Apache-2.0"
+  "version": "0.1.0-alpha.0",
+  "description": "Node.js SDK for Jekimo: report exceptions, logs, and custom events to a self-hosted Jekimo instance",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "jekimo",
+    "error-tracking",
+    "crash-reporting",
+    "logging",
+    "observability",
+    "self-hosted"
+  ],
+  "homepage": "https://github.com/bigbimbs/jekimo/tree/main/packages/sdk-node#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bigbimbs/jekimo.git",
+    "directory": "packages/sdk-node"
+  },
+  "bugs": {
+    "url": "https://github.com/bigbimbs/jekimo/issues"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@jekimo/event-schema": "0.1.0",
+    "esbuild": "^0.28.2"
+  }
 }

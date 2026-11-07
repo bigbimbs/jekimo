@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.config.json" }, { "path": "./packages/event-schema" }]
+  "references": [
+    { "path": "./tsconfig.config.json" },
+    { "path": "./packages/event-schema" },
+    { "path": "./packages/sdk-node" }
+  ]
 }
