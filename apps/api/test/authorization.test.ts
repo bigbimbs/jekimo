@@ -20,6 +20,7 @@ interface Route {
 }
 
 const MATRIX_EVENT_ID = "01JBQ4Z3H8X9T2K7M5N6P8R9SV";
+let matrixIssueId = "";
 
 let h: Harness;
 let owner: SignedIn;
@@ -140,6 +141,29 @@ const ROUTES: Route[] = [
       return { url: `/api/v1/projects/${id}/members/${target.userId}` };
     },
   },
+  {
+    name: "GET issues",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/issues`)(),
+  },
+  {
+    name: "GET issue",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/issues/${matrixIssueId}`)(),
+  },
+  ...["resolve", "ignore", "reopen"].map(
+    (action): Route => ({
+      name: `POST ${action} issue`,
+      method: "POST",
+      permission: "issues.manage",
+      ok: 200,
+      request: (id) => at(`/api/v1/projects/${id}/issues/${matrixIssueId}/${action}`, {})(),
+    }),
+  ),
 ];
 
 const BUILT_IN: Record<string, ProjectPermission[]> = {
@@ -157,6 +181,19 @@ beforeAll(async () => {
   h.metadata.defineRole(projectId, "reader", ["project.read"]);
   target = await signIn(h, "target@example.test");
   setRole(h, projectId, target.userId, "viewer");
+  await h.metadata.upsertIssues(projectId, [
+    {
+      fingerprint: "fp-test",
+      title: "synthetic test event",
+      kind: "log",
+      lastSeverity: "info",
+      eventCount: 1,
+      firstSeen: h.now.value,
+      lastSeen: h.now.value,
+      lastEventId: MATRIX_EVENT_ID,
+    },
+  ]);
+  matrixIssueId = h.metadata.issues[0]!.id;
   for (const [role, permissions] of Object.entries(BUILT_IN)) {
     const user = await signIn(h, `${role}@example.test`);
     setRole(h, projectId, user.userId, role);

@@ -13,12 +13,13 @@ Specs marked **normative** define contracts that the code in `packages/event-sch
 ## Design
 
 - [architecture.md](architecture.md): event flow, why PostgreSQL first, the event store design rules that keep ClickHouse an option, and deployment shape.
+- [database-setup.md](database-setup.md): existing-database and local-provisioning setup flows, database accounts and privileges, pre-flight checks, rollback, how administrator credentials are kept out of the instance, TLS, and credential rotation.
 
 ## Operating an instance
 
-- [install-vps.md](install-vps.md): installing Jekimo on a VPS with Docker Compose and Caddy (first draft; depends on unreleased code).
-- [configuration.md](configuration.md): index of runtime settings and the specs that define them.
-- [backups-and-restore.md](backups-and-restore.md): what backups contain, where they go, and what a restore must cover.
+- [install-vps.md](install-vps.md): installing Jekimo on a VPS with the production Docker Compose file and Caddy, from an empty server to HTTPS, setup, a first event, backups, and upgrades.
+- [configuration.md](configuration.md): every setting, its default, valid values, which service reads it, and whether it is implemented or planned.
+- [backups-and-restore.md](backups-and-restore.md): taking a backup, copying it off the server, restoring into a fresh database, and the monthly restore drill.
 
 ## Maintaining the project
 

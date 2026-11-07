@@ -7,6 +7,7 @@
   "include": ["src", "test"],
   "references": [
     { "path": "../../packages/event-schema" },
+    { "path": "../../packages/sdk-node" },
     { "path": "../../packages/storage-postgres" },
     { "path": "../worker" }
   ]

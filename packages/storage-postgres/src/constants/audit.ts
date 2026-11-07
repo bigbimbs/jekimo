@@ -31,6 +31,10 @@ export const AUDIT_ACTIONS = [
   "ingestion_key.created",
   "ingestion_key.rotated",
   "ingestion_key.revoked",
+  "issue.resolved",
+  "issue.ignored",
+  "issue.reopened",
+  "issue.regressed",
   "data.bulk_deleted",
   "instance.settings_updated",
 ] as const;

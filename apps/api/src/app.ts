@@ -14,6 +14,7 @@ import { argon2Hasher, type PasswordHasher } from "./passwords.js";
 import { accountRoutes } from "./routes/account.js";
 import { authRoutes, SetupGate } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { issueRoutes } from "./routes/issues.js";
 import { keyRoutes } from "./routes/keys.js";
 import { memberRoutes } from "./routes/members.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -175,6 +176,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       projectAccess,
       rotationGraceHours: config.keyRotationGraceHours,
       clock,
+    });
+    await dashboard.register(issueRoutes, {
+      metadata: deps.metadata,
+      events: deps.events,
+      session,
+      projectAccess,
     });
   });
 

@@ -8,7 +8,7 @@ Jekimo is an open-source, self-hosted error, crash, and log observability platfo
 
 ## Current state
 
-A first vertical slice is implemented: instance setup, sessions, invitations and password reset links without email, instance user administration, projects and memberships, ingestion key issuance, rotation, and revocation, the audit log, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API. It spans `apps/api`, `apps/worker`, `packages/storage-postgres`, and `packages/event-schema`, and runs locally with `deploy/docker-compose/docker-compose.dev.yml` ([docs/local-development.md](docs/local-development.md)). Not implemented yet: the dashboard (`apps/web`), rate limits and quotas, custom role management, project deletion and restore, emailing invitations over SMTP, API endpoints for daily counters and redaction rules (the worker and ingest fill the counters and the worker applies the rules), disk-pressure handling, object storage, and the production deployment. Do not describe features as implemented unless the code exists in this repository.
+A first vertical slice is implemented: instance setup, sessions, invitations and password reset links without email, instance user administration, projects and memberships, ingestion key issuance, rotation, and revocation, the audit log, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, the event query API, and the issue API (list, detail, resolve, ignore, reopen). It spans `apps/api`, `apps/worker`, `packages/storage-postgres`, and `packages/event-schema`, and runs locally with `deploy/docker-compose/docker-compose.dev.yml` ([docs/local-development.md](docs/local-development.md)). Not implemented yet: the dashboard (`apps/web`), rate limits and quotas, custom role management, project deletion and restore, emailing invitations over SMTP, API endpoints for daily counters and redaction rules (the worker and ingest fill the counters and the worker applies the rules), disk-pressure handling, object storage, and the production deployment. Do not describe features as implemented unless the code exists in this repository.
 
 Storage rules to keep: only `packages/storage-postgres` writes SQL; project data is reached through a `ProjectAccess` from `resolveProjectAccess`; the event store (`EventStore`) and metadata (`MetadataRepository`) are separate boundaries with no transaction spanning them; appends are idempotent on `(project_id, event_id)`; issue counts are derived from the event store.
 
@@ -42,6 +42,8 @@ The Node.js SDK `@jekimo/sdk-node` exists as an alpha in `packages/sdk-node`; it
 - Update `CHANGELOG.md` under "Unreleased" for user-visible changes.
 - Update the relevant `docs/` page when behavior, configuration, or deployment changes.
 - Prefer small, focused pull requests.
+- Declarations live in their own files: interfaces and type aliases in `src/types/<domain>.ts`, enumerations and fixed values in `src/constants/<domain>.ts` as `as const` arrays or objects with a derived union type (never TypeScript `enum`). Implementation files import them with `import type` and do not export types. See "Code organization" in [CONTRIBUTING.md](CONTRIBUTING.md).
+- Minimal comments: comment only the why that the code cannot show (a spec rule with its doc section, a security constraint, a workaround). Never restate what the code does. See "Comments" in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Releases
 

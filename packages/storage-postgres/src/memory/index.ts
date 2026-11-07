@@ -15,10 +15,12 @@ import {
   utcDay,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
+import type { IssueStatus } from "../constants/index.js";
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
+import { decodeIssueCursor, encodeIssueCursor, issueStatusAction, mergeEnvironments } from "../issues.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
-import type { MemoryUser } from "../types/index.js";
+import type { IssuePage, IssueQuery, MemoryUser } from "../types/index.js";
 import type {
   Actor,
   AppendEvent,
@@ -256,15 +258,36 @@ export class MemoryMetadataRepository extends MemoryAccessRepository implements 
     for (const s of summaries) {
       const i = this.issues.find((x) => x.projectId === projectId && x.fingerprint === s.fingerprint);
       if (!i) {
-        this.issues.push({ ...s, projectId, status: "unresolved" });
+        const { environments, ...rest } = s;
+        this.issues.push({
+          ...rest,
+          id: randomUUID(),
+          projectId,
+          status: "unresolved",
+          environments: mergeEnvironments(environments ?? []),
+        });
         continue;
+      }
+      if (i.status === "resolved" && s.lastSeen > (i.statusChangedAt ?? new Date(0))) {
+        i.status = "unresolved";
+        i.statusChangedAt = this.clock();
+        await this.appendAudit({
+          actorUserId: null,
+          action: "issue.regressed",
+          targetType: "issue",
+          targetId: i.id,
+          projectId,
+          details: { from: "resolved", to: "unresolved" },
+        });
       }
       i.eventCount = Math.max(i.eventCount, s.eventCount);
       if (s.firstSeen < i.firstSeen) i.firstSeen = s.firstSeen;
       if (s.lastSeen >= i.lastSeen) {
         i.lastSeen = s.lastSeen;
         i.lastSeverity = s.lastSeverity;
+        if (s.lastEventId !== undefined) i.lastEventId = s.lastEventId;
       }
+      i.environments = mergeEnvironments(i.environments, s.environments);
     }
   }
 
@@ -359,6 +382,65 @@ export class MemoryMetadataRepository extends MemoryAccessRepository implements 
       details: { keys: normalized.keys.length, patterns: normalized.patterns.length },
     });
     return { keys: [...normalized.keys], patterns: [...normalized.patterns] };
+  }
+
+  async listIssues(access: ProjectAccess, query: IssueQuery): Promise<IssuePage> {
+    assertProjectAccess(access);
+    if (!access.permissions.has("project.read")) throw new Error("missing permission project.read");
+    const after = query.cursor === undefined ? undefined : decodeIssueCursor(query.cursor);
+    const matches = this.issues
+      .filter(
+        (i) =>
+          i.projectId === access.projectId &&
+          (!query.statuses || query.statuses.includes(i.status)) &&
+          (!query.kinds || query.kinds.includes(i.kind)) &&
+          (!query.severities || query.severities.includes(i.lastSeverity)) &&
+          (query.environment === undefined || i.environments.includes(query.environment)) &&
+          (!query.from || i.lastSeen >= query.from) &&
+          (!query.to || i.firstSeen < query.to) &&
+          (!after ||
+            i.lastSeen.getTime() < after.lastSeen.getTime() ||
+            (i.lastSeen.getTime() === after.lastSeen.getTime() && i.id < after.id)),
+      )
+      .sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const issues = matches.slice(0, query.limit).map((i) => structuredClone(i));
+    const last = issues[issues.length - 1];
+    return matches.length > query.limit && last ? { issues, nextCursor: encodeIssueCursor(last) } : { issues };
+  }
+
+  async getIssue(access: ProjectAccess, issueId: string): Promise<IssueRecord | null> {
+    assertProjectAccess(access);
+    if (!access.permissions.has("project.read")) throw new Error("missing permission project.read");
+    const i = this.issues.find((x) => x.projectId === access.projectId && x.id === issueId);
+    return i ? structuredClone(i) : null;
+  }
+
+  async setIssueStatus(
+    access: ProjectAccess,
+    issueId: string,
+    status: IssueStatus,
+    sourceIp?: string,
+  ): Promise<IssueRecord | null> {
+    assertProjectAccess(access);
+    if (!access.permissions.has("issues.manage")) throw new Error("missing permission issues.manage");
+    const i = this.issues.find((x) => x.projectId === access.projectId && x.id === issueId);
+    if (!i) return null;
+    if (i.status !== status) {
+      const from = i.status;
+      i.status = status;
+      i.statusChangedAt = this.clock();
+      await this.appendAudit({
+        actorUserId: access.userId,
+        action: issueStatusAction(status),
+        targetType: "issue",
+        targetId: issueId,
+        projectId: access.projectId,
+        viaInstanceAdmin: access.viaInstanceAdmin,
+        details: { from, to: status },
+        ...(sourceIp !== undefined && { sourceIp }),
+      });
+    }
+    return structuredClone(i);
   }
 }
 

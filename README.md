@@ -115,7 +115,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - ~~Specify retention behavior.~~ Done: [docs/retention.md](docs/retention.md).
 - ~~Define instance, user, and project ownership and access rules.~~ Done: [docs/access-model.md](docs/access-model.md).
 - ~~Choose a storage approach and document the expected VPS resource range.~~ PostgreSQL; proposed range in [docs/retention.md](docs/retention.md).
-- Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.
+- ~~Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.~~ Done: [docs/database-setup.md](docs/database-setup.md).
 
 ### Phase 1 — Backend MVP
 
@@ -161,7 +161,7 @@ The repository is a TypeScript monorepo using npm workspaces.
 
 | Path | Contents | State |
 | --- | --- | --- |
-| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, and the event query API | Vertical slice |
+| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, the event query API, and the issue API | Vertical slice |
 | `apps/worker` | Queue consumer: sampling, redaction, fingerprinting, event storage, issue summaries, and expiry | Vertical slice |
 | `apps/web` | React dashboard | Not started |
 | `packages/event-schema` | Event envelope v1, ingestion protocol helpers, retention, sampling, and permission model | Implemented |

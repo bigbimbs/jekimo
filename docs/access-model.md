@@ -154,6 +154,7 @@ Recorded events include:
 - Ingestion key created, rotated, revoked.
 - Retention, quota, or sample rate changed.
 - Bulk deletion of events or issues.
+- Issue resolved, ignored, or reopened, with the status before and after, and an issue reopened by a regression (no actor).
 - Instance settings changed.
 
 Each entry records the actor, the action, the target, the time, the source IP, and whether instance-admin authority was used. Entries never contain passwords, keys, session tokens, or event payloads.

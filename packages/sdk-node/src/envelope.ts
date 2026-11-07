@@ -7,9 +7,8 @@
  * values never reach the serialised event.
  */
 
-import { LIMITS, REDACTED_VALUE } from "@jekimo/event-schema";
+import { type KeyRedactor, LIMITS, REDACTED_VALUE } from "@jekimo/event-schema";
 import type { AttributeValue, EventEnvelope, ExceptionInfo } from "./index.js";
-import type { KeyRedactor } from "./redact.js";
 
 const ELLIPSIS = "…";
 /** Replaces containers nested deeper than the attribute depth limit. */

@@ -11,10 +11,12 @@
  */
 
 import {
+  deriveFingerprint,
   type EventEnvelope,
   type IssueCode,
   isExpired,
   RETENTION,
+  redactEvent,
   shouldKeepEvent,
   validateEvent,
 } from "@jekimo/event-schema";
@@ -27,8 +29,8 @@ import {
   type IssueSummary,
   type MetadataRepository,
 } from "@jekimo/storage-postgres";
-import { fingerprintOf, issueTitle } from "./fingerprint.js";
-import { RedactorCache, redactEvent } from "./redact.js";
+import { issueTitle } from "./issue.js";
+import { RedactorCache } from "./redact.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -102,7 +104,7 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
     const stored: AppendEvent = {
       receivedAt,
       keyId: job.key_id,
-      event: { ...event, fingerprint: fingerprintOf(event) },
+      event: { ...event, fingerprint: deriveFingerprint(event) },
     };
     if (job.skew_ms !== undefined) stored.skewMs = job.skew_ms;
     append.push(stored);
@@ -111,15 +113,34 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
   const { inserted } = await deps.events.appendEvents(job.project_id, append);
 
   // Recompute every fingerprint in the job, not only the new rows, so a
-  // retry after a failed issue update still repairs the summary.
+  // retry after a failed issue update still repairs the summary. The latest
+  // event prefers one this attempt inserted over a repeat of an older one.
+  const insertedIds = new Set(inserted);
   const latest = new Map<string, EventEnvelope>();
-  for (const a of append) latest.set(a.event.fingerprint, a.event);
+  const environments = new Map<string, Set<string>>();
+  for (const a of append) {
+    const fp = a.event.fingerprint;
+    const prev = latest.get(fp);
+    if (!prev || insertedIds.has(a.event.event_id) || !insertedIds.has(prev.event_id)) latest.set(fp, a.event);
+    if (a.event.environment !== undefined) {
+      const envs = environments.get(fp) ?? new Set<string>();
+      environments.set(fp, envs.add(a.event.environment));
+    }
+  }
   const derived = await deps.events.summarizeFingerprints(job.project_id, [...latest.keys()]);
   const summaries: IssueSummary[] = [];
   for (const d of derived) {
     const e = latest.get(d.fingerprint);
     if (!e) continue; // only fingerprints from this job were requested
-    summaries.push({ ...d, title: issueTitle(e), kind: e.kind, lastSeverity: e.severity });
+    summaries.push({
+      ...d,
+      title: issueTitle(e),
+      kind: e.kind,
+      lastSeverity: e.severity,
+      environments: [...(environments.get(d.fingerprint) ?? [])],
+      // This job's events are the newest only if nothing was received later.
+      ...(d.lastSeen.getTime() === receivedAt.getTime() && { lastEventId: e.event_id }),
+    });
   }
   await deps.metadata.upsertIssues(job.project_id, summaries);
 

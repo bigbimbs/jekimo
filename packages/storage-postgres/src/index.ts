@@ -3,6 +3,7 @@ export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
 export * from "./constants/index.js";
 export { daysFrom, PostgresEventStore, partitionName, searchWords } from "./event-store.js";
 export { checkDatabase, checkQueue } from "./health.js";
+export { decodeIssueCursor, encodeIssueCursor, isIssueId } from "./issues.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export {
   defaultMigrationsDir,
@@ -29,5 +30,5 @@ export {
   type QueuePolicy,
   queuePolicyFromEnv,
 } from "./queue.js";
-export type * from "./types/access.js";
+export type * from "./types/index.js";
 export * from "./types.js";

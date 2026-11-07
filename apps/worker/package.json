@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "tsx watch --conditions=@jekimo/source src/main.ts",
     "start": "node dist/main.mjs",
-    "build": "node ../../scripts/build-app.mjs apps/worker main=src/main.ts",
+    "build": "node ../../scripts/build-app.mjs apps/worker main=src/main.ts recompute=src/recompute-cli.ts",
+    "recompute-issues": "tsx --conditions=@jekimo/source src/recompute-cli.ts",
     "typecheck": "tsc -b test bench",
     "bench": "tsx --conditions=@jekimo/source bench/throughput.ts",
     "test": "vitest run --root ../.. apps/worker"

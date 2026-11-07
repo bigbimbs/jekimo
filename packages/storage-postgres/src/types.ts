@@ -7,8 +7,8 @@
 
 import type { EventEnvelope, EventKind, ProjectPermission, Severity } from "@jekimo/event-schema";
 import type { ProjectAccess } from "./access.js";
-import type { AuditAction } from "./constants/index.js";
-import type { AccessRepository } from "./types/index.js";
+import type { AuditAction, IssueStatus } from "./constants/index.js";
+import type { AccessRepository, IssuePage, IssueQuery } from "./types/index.js";
 
 export type InstanceRole = "admin" | "member";
 
@@ -82,11 +82,18 @@ export interface IssueSummary {
   eventCount: number;
   firstSeen: Date;
   lastSeen: Date;
+  /** The newest event of the issue; applied when lastSeen is the newest seen. */
+  lastEventId?: string;
+  environments?: string[];
 }
 
 export interface IssueRecord extends IssueSummary {
+  /** Stable handle for the API; fingerprints can be long client strings. */
+  id: string;
   projectId: string;
-  status: "unresolved" | "resolved" | "ignored";
+  status: IssueStatus;
+  environments: string[];
+  statusChangedAt?: Date;
 }
 
 export interface ProjectRetention {
@@ -165,6 +172,23 @@ export interface MetadataRepository extends AccessRepository {
   getRedactionRules(projectId: string): Promise<RedactionRules | null>;
   /** Requires settings.manage. Rules are normalized and validated; returns what was stored. */
   setRedactionRules(access: ProjectAccess, rules: RedactionRules, sourceIp?: string): Promise<RedactionRules>;
+
+  // Issues (docs/access-model.md, "Permission catalogue").
+  /** Requires project.read. Newest last_seen first. Throws RangeError for an invalid cursor. */
+  listIssues(access: ProjectAccess, query: IssueQuery): Promise<IssuePage>;
+  /** Requires project.read. Null when the id is unknown or belongs to another project. */
+  getIssue(access: ProjectAccess, issueId: string): Promise<IssueRecord | null>;
+  /**
+   * Requires issues.manage. Sets the status and audit-logs the change; a
+   * status equal to the current one changes and logs nothing. Null when the
+   * id is unknown or belongs to another project.
+   */
+  setIssueStatus(
+    access: ProjectAccess,
+    issueId: string,
+    status: IssueStatus,
+    sourceIp?: string,
+  ): Promise<IssueRecord | null>;
 }
 
 /** One event to append, already validated, stamped, and fingerprinted. */
