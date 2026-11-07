@@ -39,6 +39,15 @@ The repository is a scaffold. The implemented code is the contract-level helpers
 - Update the relevant `docs/` page when behavior, configuration, or deployment changes.
 - Prefer small, focused pull requests.
 
+## Releases
+
+Releases are cut by maintainers by pushing tags; the process is in [docs/releasing.md](docs/releasing.md).
+
+- Never create tags, GitHub Releases, container images, or npm publishes. A `v*` tag runs `.github/workflows/release.yml` and `.github/workflows/images.yml`; an `sdk-node-v*` tag runs `.github/workflows/publish-sdk.yml`.
+- The Jekimo version, the `@jekimo/sdk-node` version, the envelope `schema_version`, and the API path version (`/api/v1`) are independent. Do not bump one because another changed.
+- Changelog entries go under "Unreleased". The release workflow takes the release notes from the version's section and fails if it is missing, so write entries for operators and SDK users, not for reviewers.
+- In workflows, keep top-level `permissions` read-only and grant write scopes per job, pin actions by major version, and check changes with [`actionlint`](https://github.com/rhysd/actionlint).
+
 ## Commands
 
 ```bash

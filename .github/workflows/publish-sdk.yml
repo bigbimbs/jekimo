@@ -1,0 +1,117 @@
+# Publishes @jekimo/sdk-node to npm with provenance.
+#
+# Trigger: a tag matching sdk-node-v* (for example sdk-node-v0.1.0-alpha.0).
+# The tag version must equal "version" in packages/sdk-node/package.json.
+# Pre-release versions (containing a hyphen) are published under the "next"
+# dist-tag so they never become "latest".
+#
+# Authentication: npm trusted publishing (OIDC). No long-lived token is
+# needed once the one-time setup below is done.
+#
+# One-time setup on npmjs.com (a maintainer with an npm account does this):
+#   1. Create the "jekimo" organisation (free plan) so the @jekimo scope exists:
+#      https://www.npmjs.com/org/create
+#   2. npm only lets you add a trusted publisher to a package that exists,
+#      so the very first version goes out with the NPM_TOKEN fallback below.
+#      Then open https://www.npmjs.com/package/@jekimo/sdk-node/access and
+#      under "Trusted Publisher" choose GitHub Actions with:
+#        Organization or user:  bigbimbs
+#        Repository:            jekimo
+#        Workflow filename:     publish-sdk.yml
+#        Environment name:      npm
+#   3. Optional, recommended: on the same page set "Publishing access" to
+#      require two-factor authentication and disallow tokens.
+#
+# Fallback while trusted publishing is not configured: create an npm
+# granular access token with read and write access to @jekimo/sdk-node and
+# save it as the repository secret NPM_TOKEN
+# (Settings > Secrets and variables > Actions, or as an environment secret
+# of the "npm" environment). npm tries OIDC first and falls back to the
+# token. Delete the secret once trusted publishing works.
+#
+# The "npm" GitHub environment is created automatically on the first run.
+# Add required reviewers to it (Settings > Environments > npm) to make every
+# publish wait for an approval.
+#
+# See docs/releasing.md.
+
+name: Publish SDK
+
+on:
+  push:
+    tags:
+      - "sdk-node-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @jekimo/sdk-node
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ github.ref_name }}
+      PACKAGE_DIR: packages/sdk-node
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or newer; Node 22 bundles npm 10.
+      - name: Update npm
+        run: npm install --global npm@11
+
+      - name: Check the tag matches the package version
+        id: version
+        run: |
+          version="${TAG#sdk-node-v}"
+          manifest="$PACKAGE_DIR/package.json"
+          package_version="$(node -p "require('./$manifest').version")"
+          if [ "$package_version" != "$version" ]; then
+            echo "::error file=$manifest::Tag '$TAG' does not match $manifest version '$package_version'. Bump the version before tagging (see docs/releasing.md)."
+            exit 1
+          fi
+          if [ "$(node -p "require('./$manifest').private === true")" = "true" ]; then
+            echo "::error file=$manifest::$manifest has \"private\": true and cannot be published."
+            exit 1
+          fi
+          repository_url="$(node -p "const r = require('./$manifest').repository; (typeof r === 'string' ? r : (r && r.url)) || ''")"
+          if [[ "$repository_url" != *"github.com/bigbimbs/jekimo"* ]]; then
+            echo "::error file=$manifest::$manifest must set \"repository\" to https://github.com/bigbimbs/jekimo (with \"directory\": \"packages/sdk-node\") for npm provenance to verify."
+            exit 1
+          fi
+          if [[ "$version" == *-* ]]; then
+            echo "dist-tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist-tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: npm ci
+      - run: npm run check
+
+      - name: Build
+        run: npm run build --workspace "$PACKAGE_DIR"
+
+      - name: Show the package contents
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        working-directory: ${{ env.PACKAGE_DIR }}
+        env:
+          DIST_TAG: ${{ steps.version.outputs.dist-tag }}
+          # Empty unless the NPM_TOKEN fallback secret is set; OIDC is tried first.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public --tag "$DIST_TAG"

@@ -28,7 +28,17 @@ Never include real credentials, personal data, or real captured event payloads i
 
 ## Supported versions
 
-Jekimo has not had a stable release yet. Until `1.0.0`, only the latest commit on the `main` branch receives security fixes. A supported-versions table will be published here with the first stable release.
+Jekimo has not had a stable release yet. Until `1.0.0`:
+
+| Version | Supported |
+| --- | --- |
+| `main` branch | Yes |
+| Latest `0.x` pre-release | Yes |
+| Older `0.x` pre-releases | No. Upgrade to the latest pre-release. |
+
+Fixes land on `main` and ship in the next `0.x` release; earlier `0.x` releases are not patched. The same applies to `@jekimo/sdk-node`: only its latest published version is supported.
+
+From `1.0.0` on, the latest minor release is supported, and the previous minor release keeps receiving security fixes for **90 days** after the next minor is released. Release notes state the end-of-support date for the previous minor. See [docs/releasing.md](docs/releasing.md) for the versioning policy.
 
 ## Scope
 

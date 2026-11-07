@@ -88,7 +88,8 @@ When a workspace gets its first source file, wire it in within the same pull req
 - Follow the existing code style. Formatting and lint rules are enforced by Biome ([`biome.json`](biome.json)), which reads [`.editorconfig`](.editorconfig); run `npm run lint:fix` before committing. Suppress a rule only with a `biome-ignore` comment that states the reason.
 - Add or update tests for behavior you change. Tests use [Vitest](https://vitest.dev/) and live in `test/` next to each package's `src/`.
 - Update documentation under `docs/` and the relevant README when you change public behavior, configuration, or the event schema.
-- Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
+- Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes. These entries become the release notes, so describe the change for people running Jekimo or using the SDK.
+- If you change a workflow under `.github/workflows/`, run [`actionlint`](https://github.com/rhysd/actionlint) on it.
 
 ### Commit messages
 
@@ -108,6 +109,10 @@ Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
 - Link the issue the pull request addresses.
 - Make sure CI passes.
 - A maintainer will review your change. Please respond to review comments; pull requests with no activity for 30 days may be closed.
+
+## Releases
+
+Maintainers cut releases by pushing tags: `vX.Y.Z` for Jekimo (GitHub Release and container images) and `sdk-node-vX.Y.Z` for the Node SDK on npm. Contributors do not need to bump versions or create tags. The versioning policy and checklist are in [docs/releasing.md](docs/releasing.md).
 
 ## Security and privacy rules
 

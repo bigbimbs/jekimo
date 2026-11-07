@@ -1,0 +1,128 @@
+# Creates a GitHub Release when a version tag is pushed.
+#
+# Trigger: a tag matching v* (for example v0.2.0 or v0.2.0-alpha.1).
+# What it does:
+#   1. Runs the same checks as CI.
+#   2. Checks that the root package.json version equals the tag version.
+#   3. Takes the release notes from the matching "## [X.Y.Z]" section of
+#      CHANGELOG.md and fails if that section is missing or empty.
+#   4. Creates the GitHub Release (marked as a pre-release when the tag
+#      contains a hyphen) and attaches the event envelope JSON Schema, a
+#      tarball of docs/, and a SHA256SUMS file.
+#
+# Container images are built by images.yml and the Node SDK is published by
+# publish-sdk.yml. See docs/releasing.md for the full checklist.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Tags are needed to decide whether this release is the newest.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build --if-present
+
+      - name: Check the tag matches the package version
+        id: version
+        run: |
+          version="${TAG#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Tag '$TAG' is not of the form vX.Y.Z or vX.Y.Z-pre.N"
+            exit 1
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$package_version" != "$version" ]; then
+            echo "::error::Tag '$TAG' does not match the root package.json version '$package_version'. Bump the version before tagging (see docs/releasing.md)."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Only the highest stable version becomes the repository's latest
+          # release, so a hotfix of an older minor does not replace a newer one.
+          newest="$(git tag --list 'v*' --sort=-v:refname | grep -v -e '-' | head -n 1 || true)"
+          if [[ "$version" != *-* ]] && [ "$TAG" = "$newest" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v version="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "## [" version "]") == 1) { found = 1; next }
+            }
+            found && /^\[[^]]+\]: / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error file=CHANGELOG.md::No '## [$VERSION]' section with content in CHANGELOG.md. Move the Unreleased entries under a '## [$VERSION] - YYYY-MM-DD' heading before tagging (see docs/releasing.md)."
+            exit 1
+          fi
+          echo "Release notes for $VERSION:"
+          cat release-notes.md
+
+      - name: Package release assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release-assets
+          cp packages/event-schema/schema/event-envelope.v1.json release-assets/
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            -czf "release-assets/jekimo-docs-$VERSION.tar.gz" docs
+          (cd release-assets && sha256sum -- * > SHA256SUMS)
+          ls -l release-assets
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          LATEST: ${{ steps.version.outputs.latest }}
+        run: |
+          flags=("--latest=$LATEST")
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Jekimo $VERSION" \
+            --notes-file release-notes.md \
+            "${flags[@]}" \
+            release-assets/*
