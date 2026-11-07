@@ -8,13 +8,14 @@
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_PROJECT_ROLES,
+  EVENT_KINDS,
   PROJECT_PERMISSIONS,
   type ProjectPermission,
   SEVERITIES,
   utcDay,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
-import { decodeCursor, encodeCursor } from "../event-store.js";
+import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
 import type {
@@ -26,6 +27,7 @@ import type {
   EventPage,
   EventQuery,
   EventStore,
+  EventStoreCapabilities,
   FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
@@ -393,6 +395,7 @@ export class MemoryMetadataRepository implements MetadataRepository {
 }
 
 export class MemoryEventStore implements EventStore {
+  readonly capabilities: EventStoreCapabilities = { textSearch: true };
   readonly rows: (StoredEvent & { projectId: string })[] = [];
   readonly dedupe = new Map<string, Date>();
 
@@ -420,9 +423,21 @@ export class MemoryEventStore implements EventStore {
     const cursor = query.cursor === undefined ? null : decodeCursor(query.cursor);
     if (query.cursor !== undefined && cursor === null) throw new RangeError("invalid cursor");
     const severities = query.severities?.filter((s) => (SEVERITIES as readonly string[]).includes(s));
+    const kinds = query.kinds?.filter((k) => (EVENT_KINDS as readonly string[]).includes(k));
+    const words = query.text === undefined ? undefined : searchWords(query.text);
+    if (words?.length === 0) throw new RangeError("text has no words to search for");
     const matching = this.rows
       .filter((r) => r.projectId === projectId && r.receivedAt >= query.from && r.receivedAt < query.to)
       .filter((r) => !severities || severities.length === 0 || severities.includes(r.event.severity))
+      .filter((r) => !kinds || kinds.length === 0 || kinds.includes(r.event.kind))
+      .filter((r) => query.environment === undefined || r.event.environment === query.environment)
+      .filter((r) => query.release === undefined || r.event.release === query.release)
+      .filter((r) => query.fingerprint === undefined || r.event.fingerprint === query.fingerprint)
+      .filter((r) => {
+        if (!words) return true;
+        const have = new Set(searchWords(r.event.message));
+        return words.every((w) => have.has(w));
+      })
       .sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime() || (a.event.event_id < b.event.event_id ? 1 : -1))
       .filter(
         (r) =>
@@ -438,6 +453,15 @@ export class MemoryEventStore implements EventStore {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
+  }
+
+  async getEvent(projectId: string, eventId: string): Promise<StoredEvent | null> {
+    const found = this.rows
+      .filter((r) => r.projectId === projectId && r.event.event_id === eventId)
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime())[0];
+    if (!found) return null;
+    const { projectId: _, ...e } = found;
+    return structuredClone(e);
   }
 
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {

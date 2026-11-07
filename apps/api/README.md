@@ -18,7 +18,8 @@ Fastify was chosen over Hono because it is Node-native and mature, gives per-rou
 | `POST /api/v1/projects` | session + CSRF | Creates a project with built-in roles; the creator becomes its admin. |
 | `GET /api/v1/projects/:id` | session, `project.read` | One project. |
 | `POST /api/v1/projects/:id/keys` | session + CSRF, `keys.manage` | Creates an ingestion key and returns it once. |
-| `GET /api/v1/projects/:id/events` | session, `project.read` | Events by `from`, `to` (RFC 3339, on `received_at`), `severity` (comma list), `limit` (1 to 500), and `cursor`. |
+| `GET /api/v1/projects/:id/events` | session, `project.read` | Events, newest first, by `from`, `to` (RFC 3339, on `received_at`), `severity` and `kind` (comma lists), `environment`, `release`, and `fingerprint` (exact match), `q` (words of the message), `limit` (1 to 500), and `cursor`. |
+| `GET /api/v1/projects/:id/events/:event_id` | session, `project.read` | One event. `404` when the id is unknown or belongs to another project. |
 | `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md). |
 
 State-changing session requests need the `X-Jekimo-CSRF-Token` header. Session routes reject any `Authorization` header, so an ingestion key is never accepted there, and the ingest route ignores cookies. Projects the user cannot access answer `404`.

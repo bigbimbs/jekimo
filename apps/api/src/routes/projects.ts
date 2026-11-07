@@ -5,8 +5,25 @@
  */
 
 import { randomInt } from "node:crypto";
-import { normalizeRetentionDays, SEVERITIES, type Severity, TIMESTAMP_PATTERN } from "@jekimo/event-schema";
-import type { EventStore, MetadataRepository, ProjectRecord } from "@jekimo/storage-postgres";
+import {
+  EVENT_KINDS,
+  type EventKind,
+  LIMITS,
+  normalizeRetentionDays,
+  SEVERITIES,
+  type Severity,
+  TIMESTAMP_PATTERN,
+  ULID_PATTERN,
+} from "@jekimo/event-schema";
+import {
+  type EventPage,
+  type EventQuery,
+  type EventStore,
+  type MetadataRepository,
+  type ProjectRecord,
+  type StoredEvent,
+  searchWords,
+} from "@jekimo/storage-postgres";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../errors.js";
 import { generateIngestionKey } from "../keys.js";
@@ -15,6 +32,7 @@ import { actorOf, projectAccessOf } from "../session.js";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_EVENT_LIMIT = 100;
 const MAX_EVENT_LIMIT = 500;
+const MAX_SEARCH_CHARS = 256;
 const PROJECT_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 export interface ProjectRouteOptions {
@@ -51,6 +69,37 @@ function parseTime(value: unknown, name: string): Date | undefined {
     throw new ApiError(400, "invalid_request", `${name} must be an RFC 3339 timestamp`);
   }
   return new Date(value);
+}
+
+/** A comma-separated list of allowed values, or undefined when absent. */
+function parseList<T extends string>(value: unknown, name: string, allowed: readonly T[]): T[] | undefined {
+  if (value === undefined) return undefined;
+  const list = String(value)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (list.length === 0 || list.some((s) => !(allowed as readonly string[]).includes(s))) {
+    throw new ApiError(400, "invalid_request", `${name} must be a comma-separated list of ${allowed.join(", ")}`);
+  }
+  return list as T[];
+}
+
+/** One exact-match value no longer than the envelope allows for that field. */
+function parseExact(value: unknown, name: string, maxChars: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length < 1 || value.length > maxChars) {
+    throw new ApiError(400, "invalid_request", `${name} must be 1 to ${maxChars} characters`);
+  }
+  return value;
+}
+
+function publicEvent(e: StoredEvent) {
+  return {
+    received_at: e.receivedAt.toISOString(),
+    key_id: e.keyId,
+    ...(e.skewMs !== undefined && { skew_ms: e.skewMs }),
+    event: e.event,
+  };
 }
 
 export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOptions): Promise<void> {
@@ -127,47 +176,61 @@ export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOpti
       const to = parseTime(q.to, "to") ?? opts.clock();
       const from = parseTime(q.from, "from") ?? new Date(to.getTime() - DAY_MS);
       if (from >= to) throw new ApiError(400, "invalid_request", "from must be before to");
-      let severities: Severity[] | undefined;
-      if (q.severity !== undefined) {
-        const list = String(q.severity)
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const bad = list.find((s) => !(SEVERITIES as readonly string[]).includes(s));
-        if (bad !== undefined || list.length === 0)
-          throw new ApiError(
-            400,
-            "invalid_request",
-            `severity must be a comma-separated list of ${SEVERITIES.join(", ")}`,
-          );
-        severities = list as Severity[];
+      const severities = parseList<Severity>(q.severity, "severity", SEVERITIES);
+      const kinds = parseList<EventKind>(q.kind, "kind", EVENT_KINDS);
+      const environment = parseExact(q.environment, "environment", LIMITS.MAX_SHORT_STRING_CHARS);
+      const release = parseExact(q.release, "release", LIMITS.MAX_SHORT_STRING_CHARS);
+      const fingerprint = parseExact(q.fingerprint, "fingerprint", LIMITS.MAX_FINGERPRINT_CHARS);
+      const text = parseExact(q.q, "q", MAX_SEARCH_CHARS);
+      if (text !== undefined) {
+        if (!opts.events.capabilities.textSearch)
+          throw new ApiError(400, "invalid_request", "text search is not available on this event store");
+        if (searchWords(text).length === 0)
+          throw new ApiError(400, "invalid_request", "q must contain at least one letter or digit");
       }
       const limit = q.limit === undefined ? DEFAULT_EVENT_LIMIT : Number(q.limit);
       if (!Number.isInteger(limit) || limit < 1 || limit > MAX_EVENT_LIMIT) {
         throw new ApiError(400, "invalid_request", `limit must be a whole number from 1 to ${MAX_EVENT_LIMIT}`);
       }
       const cursor = q.cursor === undefined ? undefined : String(q.cursor);
+      const query: EventQuery = {
+        from,
+        to,
+        limit,
+        ...(severities && { severities }),
+        ...(kinds && { kinds }),
+        ...(environment !== undefined && { environment }),
+        ...(release !== undefined && { release }),
+        ...(fingerprint !== undefined && { fingerprint }),
+        ...(text !== undefined && { text }),
+        ...(cursor !== undefined && { cursor }),
+      };
+      let page: EventPage;
       try {
-        const page = await opts.events.queryEvents(projectAccessOf(request).projectId, {
-          from,
-          to,
-          limit,
-          ...(severities && { severities }),
-          ...(cursor !== undefined && { cursor }),
-        });
-        return {
-          events: page.events.map((e) => ({
-            received_at: e.receivedAt.toISOString(),
-            key_id: e.keyId,
-            ...(e.skewMs !== undefined && { skew_ms: e.skewMs }),
-            event: e.event,
-          })),
-          ...(page.nextCursor !== undefined && { next_cursor: page.nextCursor }),
-        };
+        page = await opts.events.queryEvents(projectAccessOf(request).projectId, query);
       } catch (err) {
         if (err instanceof RangeError) throw new ApiError(400, "invalid_request", "cursor is not valid");
         throw err;
       }
+      return {
+        events: page.events.map(publicEvent),
+        ...(page.nextCursor !== undefined && { next_cursor: page.nextCursor }),
+      };
+    },
+  );
+
+  app.get(
+    "/api/v1/projects/:id/events/:event_id",
+    { ...projectRoute, config: { permission: "project.read" } },
+    async (request) => {
+      const { event_id: eventId } = request.params as { event_id: string };
+      // The project comes from the access check, so an event_id from another
+      // project is simply not found here.
+      const found = ULID_PATTERN.test(eventId)
+        ? await opts.events.getEvent(projectAccessOf(request).projectId, eventId)
+        : null;
+      if (!found) throw new ApiError(404, "not_found", "event not found");
+      return publicEvent(found);
     },
   );
 }

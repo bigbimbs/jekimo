@@ -1,5 +1,5 @@
 import type { ProjectPermission } from "@jekimo/event-schema";
-import type { IngestJob } from "@jekimo/storage-postgres";
+import type { AppendEvent, IngestJob } from "@jekimo/storage-postgres";
 import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo/storage-postgres/memory";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
@@ -107,4 +107,15 @@ export function ingestEvent(overrides: Record<string, unknown> = {}): Record<str
     message: "synthetic test event",
     ...overrides,
   };
+}
+
+/** Writes one stored-form event straight into the event store, as the worker would. */
+export async function storeEvent(
+  h: Harness,
+  projectId: string,
+  overrides: Record<string, unknown> = {},
+  receivedAt: Date = h.now.value,
+): Promise<void> {
+  const event = { ...ingestEvent(), fingerprint: "fp-test", ...overrides, project_id: projectId };
+  await h.events.appendEvents(projectId, [{ receivedAt, keyId: "0123456789AB", event: event as AppendEvent["event"] }]);
 }
