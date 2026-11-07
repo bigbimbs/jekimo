@@ -1,10 +1,12 @@
 /**
- * The vertical slice against a real PostgreSQL: setup, sign in, create a
- * project and key, ingest, let the worker drain the queue, and read the
+ * The vertical slice against a real PostgreSQL: setup (first admin, project,
+ * and key), sign in, ingest, let the worker drain the queue, and read the
  * event back. Skipped unless DATABASE_URL is set.
  */
 
 import {
+  checkDatabase,
+  checkQueue,
   INGEST_QUEUE,
   type IngestJob,
   PostgresEventStore,
@@ -17,7 +19,7 @@ import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Worker } from "../../worker/src/worker.js";
 import { buildApp } from "../src/app.js";
-import { CSRF_HEADER, SESSION_COOKIE } from "../src/session.js";
+import { SESSION_COOKIE } from "../src/session.js";
 import { fakeHasher, ingestEvent, PASSWORD, SETUP_TOKEN } from "./helpers.js";
 
 describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
@@ -30,7 +32,14 @@ describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
     const metadata = new PostgresMetadataRepository(db.pool);
     const events = new PostgresEventStore(db.pool);
     const queue = new PostgresQueue<IngestJob>(db.pool, INGEST_QUEUE);
-    app = await buildApp({ metadata, events, queue, hasher: fakeHasher, setupToken: SETUP_TOKEN });
+    app = await buildApp({
+      metadata,
+      events,
+      queue,
+      hasher: fakeHasher,
+      setupToken: SETUP_TOKEN,
+      readiness: { database: () => checkDatabase(db.pool), queue: () => checkQueue(db.pool) },
+    });
     worker = new Worker({
       queue,
       metadata,
@@ -47,13 +56,27 @@ describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
     await db?.close();
   });
 
+  it("is ready once the database and queue are reachable", async () => {
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: "ok", checks: { database: "ok", queue: "ok" } });
+  });
+
   it("goes from setup to a stored, queryable event", async () => {
     const setup = await app.inject({
       method: "POST",
       url: "/api/v1/setup",
-      payload: { setup_token: SETUP_TOKEN, email: "admin@example.test", password: PASSWORD },
+      payload: { setup_token: SETUP_TOKEN, email: "admin@example.test", password: PASSWORD, project_name: "Billing" },
     });
     expect(setup.statusCode).toBe(201);
+    const projectId = setup.json().project.id as string;
+    const key = setup.json().ingestion_key.key as string;
+    const closed = await app.inject({
+      method: "POST",
+      url: "/api/v1/setup",
+      payload: { setup_token: SETUP_TOKEN, email: "again@example.test", password: PASSWORD, project_name: "Other" },
+    });
+    expect(closed.statusCode).toBe(404);
 
     const login = await app.inject({
       method: "POST",
@@ -62,25 +85,9 @@ describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
     });
     expect(login.statusCode).toBe(200);
     const cookie = `${SESSION_COOKIE}=${login.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
-    const headers = { cookie, [CSRF_HEADER]: login.json().csrf_token as string };
 
-    const project = await app.inject({
-      method: "POST",
-      url: "/api/v1/projects",
-      headers,
-      payload: { name: "Billing" },
-    });
-    expect(project.statusCode).toBe(201);
-    const projectId = project.json().project.id as string;
-
-    const keyRes = await app.inject({
-      method: "POST",
-      url: `/api/v1/projects/${projectId}/keys`,
-      headers,
-      payload: { name: "local" },
-    });
-    expect(keyRes.statusCode).toBe(201);
-    const key = keyRes.json().key as string;
+    const projects = await app.inject({ method: "GET", url: "/api/v1/projects", headers: { cookie } });
+    expect(projects.json().projects).toEqual([expect.objectContaining({ id: projectId, name: "Billing" })]);
 
     const now = new Date().toISOString();
     const body = {

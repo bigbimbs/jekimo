@@ -25,6 +25,11 @@ export interface AppDeps {
   setupToken?: string | null;
   hasher?: PasswordHasher;
   clock?: () => Date;
+  /**
+   * Dependency checks for `GET /readyz`, by name. Each resolves when the
+   * dependency is reachable. Defaults to a metadata read as "database".
+   */
+  readiness?: Record<string, () => Promise<unknown>>;
   /** Fastify logger options; false in tests. */
   logger?: FastifyServerOptions["logger"];
 }
@@ -53,6 +58,16 @@ export function loggerOptions(level: string): FastifyServerOptions["logger"] {
   };
 }
 
+const READY_TIMEOUT_MS = 2000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timed out")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const config: ApiConfig = { ...DEFAULT_API_CONFIG, ...deps.config };
   const clock = deps.clock ?? (() => new Date());
@@ -72,14 +87,34 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   // Health checks poll every few seconds; keep them out of info-level logs.
-  app.get("/healthz", { logLevel: "warn" }, async (_request, reply) => {
-    try {
-      await deps.metadata.countUsers();
-      return { status: "ok" };
-    } catch {
-      reply.status(503);
-      return { status: "unavailable" };
-    }
+  // Liveness: the process is up and serving. No dependency is touched.
+  app.get("/healthz", { logLevel: "warn" }, async () => ({ status: "ok" }));
+
+  // Readiness: every dependency answers within READY_TIMEOUT_MS.
+  const readiness = deps.readiness ?? { database: () => deps.metadata.countUsers() };
+  app.get("/readyz", { logLevel: "warn" }, async (request, reply) => {
+    const checks: Record<string, "ok" | "unavailable"> = {};
+    await Promise.all(
+      Object.entries(readiness).map(async ([name, check]) => {
+        try {
+          await withTimeout(check(), READY_TIMEOUT_MS);
+          checks[name] = "ok";
+        } catch (err) {
+          checks[name] = "unavailable";
+          // The error type and code only: driver messages can carry hostnames.
+          const e = err as { name?: unknown; code?: unknown };
+          request.log.warn({ check: name, err: { type: e?.name, code: e?.code } }, "readiness check failed");
+        }
+      }),
+    );
+    const failed = Object.keys(checks).filter((name) => checks[name] !== "ok");
+    if (failed.length === 0) return { status: "ok", checks };
+    reply.status(503);
+    return {
+      status: "unavailable",
+      checks,
+      error: { code: "not_ready", message: `not reachable: ${failed.sort().join(", ")}` },
+    };
   });
 
   // Ingest is registered in its own scope: no cookie parsing, no session
@@ -94,6 +129,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       hasher: deps.hasher ?? argon2Hasher,
       setup: new SetupGate(deps.setupToken ?? null),
       sessionMaxDays: config.sessionMaxDays,
+      retentionDefaultDays: config.retentionDefaultDays,
       clock,
       session,
     });

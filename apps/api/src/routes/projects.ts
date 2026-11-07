@@ -28,13 +28,13 @@ export interface ProjectRouteOptions {
   clock: () => Date;
 }
 
-function newProjectId(): string {
+export function newProjectId(): string {
   let id = "prj_";
   for (let i = 0; i < 16; i++) id += PROJECT_ID_ALPHABET[randomInt(PROJECT_ID_ALPHABET.length)];
   return id;
 }
 
-function publicProject(p: ProjectRecord) {
+export function publicProject(p: ProjectRecord) {
   return {
     id: p.id,
     name: p.name,

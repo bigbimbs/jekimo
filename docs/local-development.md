@@ -31,15 +31,17 @@ Check that everything is up:
 docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml ps -a
 ```
 
-`migrate` shows `Exited (0)`, `api` shows `healthy`, and:
+`migrate` shows `Exited (0)`, `api` shows `healthy` (its container health check calls `/readyz`), and:
 
 ```bash
-curl -s http://127.0.0.1:8080/healthz
+curl -s http://127.0.0.1:8080/readyz
 ```
 
 ```json
-{"status":"ok"}
+{"status":"ok","checks":{"database":"ok","queue":"ok"}}
 ```
+
+`GET /readyz` answers `503` with `{"status":"unavailable","checks":{...},"error":{"code":"not_ready",...}}` naming the unreachable dependency while PostgreSQL or the queue table cannot be reached. `GET /healthz` only reports that the API process is up and never touches the database.
 
 ## 2. Migrate
 
@@ -57,7 +59,7 @@ set -a; . ./.env; set +a; npm run migrate -w @jekimo/storage-postgres
 
 Each migration is applied once and recorded in `schema_migrations`.
 
-## 3. Create the first instance admin
+## 3. Run setup
 
 On first start, with no users in the database, the API prints a one-time setup token to its console:
 
@@ -65,19 +67,26 @@ On first start, with no users in the database, the API prints a one-time setup t
 docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml logs api | grep -A2 "setup token"
 ```
 
-The token is valid until setup completes or the API restarts. Use it to create the first admin (the password needs 12 to 128 characters):
+The token is valid until setup completes or the API restarts. Setup creates the first instance admin, the first project, and that project's first ingestion key in one request (the password needs 12 to 128 characters, the project name 1 to 128):
 
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/setup \
   -H 'content-type: application/json' \
-  -d '{"setup_token":"<token from the api logs>","email":"admin@example.test","password":"synthetic-password-123"}'
+  -d '{"setup_token":"<token from the api logs>","email":"admin@example.test","password":"synthetic-password-123","project_name":"Billing API"}'
 ```
 
 ```json
-{"user":{"id":"57d867a7-12ad-4cb6-8f17-4ca00904a91a","email":"admin@example.test","instance_role":"admin","created_at":"2026-11-06T14:06:21.528Z"}}
+{"user":{"id":"57d867a7-12ad-4cb6-8f17-4ca00904a91a","email":"admin@example.test","instance_role":"admin","created_at":"2026-11-06T14:06:21.528Z"},"project":{"id":"prj_isdkxqf9vy94reeg","name":"Billing API","retention_days":30,"sample_rate":1,"disabled":false,"created_at":"2026-11-06T14:06:21.656Z"},"ingestion_key":{"key_id":"ZEDH3RB37RV1","key":"jk_ZEDH3RB37RV1_<secret, shown once>","name":"setup","created_at":"2026-11-06T14:06:21.694Z"},"notice":"The ingestion key is shown once. Store it in your secret manager now."}
 ```
 
-A second attempt returns `410 setup_complete`.
+The full key is returned only here. The database keeps `key_id` and a SHA-256 hash of the key; the logs and the audit log (`ingestion_key.created`) record the `key_id` only.
+
+```bash
+PROJECT_ID='<project id from the response>'
+JEKIMO_KEY='<key from the response>'
+```
+
+Once setup has succeeded, `GET` and `POST /api/v1/setup` answer `404 not_found`, and the token no longer works. They also answer `404` on an API started against a database that already has users.
 
 ## 4. Sign in
 
@@ -97,41 +106,29 @@ The session lives in the `jekimo_session` cookie (`HttpOnly`, `Secure`, `SameSit
 CSRF='<csrf_token from the response>'
 ```
 
-## 5. Create a project
+## 5. More projects and keys (optional)
+
+Create another project and a key for it with the session:
 
 ```bash
 curl -s -b cookies.txt -X POST http://127.0.0.1:8080/api/v1/projects \
   -H "x-jekimo-csrf-token: $CSRF" -H 'content-type: application/json' \
-  -d '{"name":"Billing API"}'
-```
-
-```json
-{"project":{"id":"prj_isdkxqf9vy94reeg","name":"Billing API","retention_days":30,"sample_rate":1,"disabled":false,"created_at":"2026-11-06T14:06:21.656Z"}}
+  -d '{"name":"Checkout"}'
 ```
 
 ```bash
-PROJECT_ID='<project id from the response>'
-```
-
-## 6. Create an ingestion key
-
-```bash
-curl -s -b cookies.txt -X POST "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/keys" \
+curl -s -b cookies.txt -X POST "http://127.0.0.1:8080/api/v1/projects/<project id>/keys" \
   -H "x-jekimo-csrf-token: $CSRF" -H 'content-type: application/json' \
   -d '{"name":"local"}'
 ```
 
 ```json
-{"key_id":"ZEDH3RB37RV1","key":"jk_ZEDH3RB37RV1_<secret, shown once>","name":"local","created_at":"2026-11-06T14:06:21.694Z","notice":"This key is shown once. Store it in your secret manager now."}
+{"key_id":"Q7M2K9V4T1XH","key":"jk_Q7M2K9V4T1XH_<secret, shown once>","name":"local","created_at":"2026-11-06T14:07:02.113Z","notice":"This key is shown once. Store it in your secret manager now."}
 ```
 
-The full key is returned only here. The database keeps `key_id` and a SHA-256 hash of the key; the audit log records `ingestion_key.created` with the `key_id` only.
+The rest of this walkthrough uses the project and key from setup.
 
-```bash
-JEKIMO_KEY='<key from the response>'
-```
-
-## 7. Send events
+## 6. Send events
 
 Save a batch with one valid exception and one log event that is missing its required `message`:
 
@@ -184,7 +181,7 @@ content-type: application/json; charset=utf-8
 
 `202` means the accepted event is in the durable queue. Sending the same file again returns the same `accepted` list and stores nothing new, because events are deduplicated on `(project_id, event_id)`.
 
-## 8. Read it back
+## 7. Read it back
 
 The worker stores the event within a second or two:
 
@@ -224,7 +221,7 @@ curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/events
 
 The server set `project_id` from the key, derived a `fingerprint`, recorded `skew_ms` (`received_at` minus `sent_at`), and redacted `password` with the default key list. Query parameters: `from` and `to` (RFC 3339, on `received_at`, default the last 24 hours), `severity` (comma-separated), `limit` (1 to 500, default 100), and `cursor` (the `next_cursor` of the previous page).
 
-## 9. Check the isolation rules
+## 8. Check the isolation rules
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' -H "authorization: Bearer $JEKIMO_KEY" http://127.0.0.1:8080/api/v1/projects

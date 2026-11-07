@@ -1,14 +1,18 @@
 /**
  * Setup, sign-in, and sign-out (docs/access-model.md, "Setup flow",
- * "Passwords", "Sessions").
+ * "Passwords", "Sessions"). Setup creates the first instance admin and the
+ * first project with its ingestion key; once it completes, the setup routes
+ * answer 404 like any unknown route.
  */
 
 import { timingSafeEqual } from "node:crypto";
 import type { MetadataRepository, UserRecord } from "@jekimo/storage-postgres";
 import type { FastifyInstance, FastifyReply, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../errors.js";
+import { generateIngestionKey } from "../keys.js";
 import { type PasswordHasher, passwordProblem, TimingSafeVerifier } from "../passwords.js";
 import { hashSessionToken, newCsrfToken, newSessionToken, SESSION_COOKIE, sessionOf } from "../session.js";
+import { newProjectId, publicProject } from "./projects.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
@@ -40,6 +44,8 @@ export interface AuthRouteOptions {
   hasher: PasswordHasher;
   setup: SetupGate;
   sessionMaxDays: number;
+  /** Retention of the project created during setup. */
+  retentionDefaultDays: number;
   clock: () => Date;
   session: preHandlerHookHandler;
 }
@@ -59,22 +65,67 @@ function readCredentials(body: unknown): { email: string; password: string } {
 export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): Promise<void> {
   const verifier = new TimingSafeVerifier(opts.hasher);
 
-  app.get("/api/v1/setup", async () => ({
-    setup_required: opts.setup.open && (await opts.metadata.countUsers()) === 0,
-  }));
+  const setupGone = () => new ApiError(404, "not_found", "not found");
+
+  // True while this instance has no users. Closes the gate for good once
+  // a user exists, including one created through another API process.
+  const setupOpen = async (): Promise<boolean> => {
+    if (!opts.setup.open) return false;
+    if ((await opts.metadata.countUsers()) === 0) return true;
+    opts.setup.close();
+    return false;
+  };
+
+  app.get("/api/v1/setup", async () => {
+    if (!(await setupOpen())) throw setupGone();
+    return { setup_required: true };
+  });
 
   app.post("/api/v1/setup", async (request, reply) => {
+    if (!(await setupOpen())) throw setupGone();
     const body = (request.body ?? {}) as Record<string, unknown>;
-    if (!opts.setup.open) throw new ApiError(410, "setup_complete", "setup has already been completed");
     if (!opts.setup.check(body.setup_token)) throw new ApiError(401, "unauthorized", "setup token is missing or wrong");
     const { email, password } = readCredentials(body);
     const problem = passwordProblem(password);
     if (problem) throw new ApiError(400, "weak_password", problem);
+    const projectName = typeof body.project_name === "string" ? body.project_name.trim() : "";
+    if (projectName.length < 1 || projectName.length > 128)
+      throw new ApiError(400, "invalid_request", "project_name must be 1 to 128 characters");
+
     const user = await opts.metadata.createFirstAdmin({ email, passwordHash: await opts.hasher.hash(password) });
     opts.setup.close();
-    if (!user) throw new ApiError(410, "setup_complete", "setup has already been completed");
+    if (!user) throw setupGone();
     request.log.info({ user_id: user.id }, "first instance admin created");
-    reply.status(201).send({ user: publicUser(user) });
+
+    const actor = { userId: user.id, instanceRole: user.instanceRole };
+    const project = await opts.metadata.createProject(actor, {
+      id: newProjectId(),
+      name: projectName,
+      retentionDays: opts.retentionDefaultDays,
+      sourceIp: request.ip,
+    });
+    const access = await opts.metadata.resolveProjectAccess(actor, project.id);
+    if (!access) throw new Error("project created during setup is not accessible");
+    const generated = generateIngestionKey();
+    const key = await opts.metadata.createIngestionKey(access, {
+      keyId: generated.keyId,
+      keyHash: generated.keyHash,
+      name: "setup",
+      sourceIp: request.ip,
+    });
+    // key_id is safe to log; the key itself is returned once and never logged.
+    request.log.info({ project_id: project.id, key_id: key.keyId }, "first project and ingestion key created");
+    reply.status(201).send({
+      user: publicUser(user),
+      project: publicProject(project),
+      ingestion_key: {
+        key_id: key.keyId,
+        key: generated.key,
+        name: key.name,
+        created_at: key.createdAt.toISOString(),
+      },
+      notice: "The ingestion key is shown once. Store it in your secret manager now.",
+    });
   });
 
   app.post("/api/v1/auth/login", async (request, reply: FastifyReply) => {

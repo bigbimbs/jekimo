@@ -8,7 +8,7 @@ import { RETENTION } from "@jekimo/event-schema";
 export interface ApiConfig {
   host: string;
   port: number;
-  logLevel: string;
+  logLevel: LogLevel;
   /** Trust X-Forwarded-For from a reverse proxy for the client address. */
   trustProxy: boolean;
   membersCanCreateProjects: boolean;
@@ -17,6 +17,9 @@ export interface ApiConfig {
   retentionDefaultDays: number;
   retentionMaxDays: number;
 }
+
+export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace"] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
   host: "127.0.0.1",
@@ -46,6 +49,14 @@ function bool(env: NodeJS.ProcessEnv, name: string, fallback: boolean): boolean 
   throw new Error(`${name} must be true or false`);
 }
 
+function logLevel(env: NodeJS.ProcessEnv, fallback: LogLevel): LogLevel {
+  const raw = env.JEKIMO_LOG_LEVEL;
+  if (raw === undefined || raw === "") return fallback;
+  if ((LOG_LEVELS as readonly string[]).includes(raw)) return raw as LogLevel;
+  throw new Error(`JEKIMO_LOG_LEVEL must be one of ${LOG_LEVELS.join(", ")}`);
+}
+
+/** Throws an Error naming the first invalid variable. */
 export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const d = DEFAULT_API_CONFIG;
   const retentionMaxDays = int(
@@ -59,7 +70,7 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   return {
     host: env.JEKIMO_API_HOST || d.host,
     port: int(env, "JEKIMO_API_PORT", d.port, 1, 65535),
-    logLevel: env.JEKIMO_LOG_LEVEL || d.logLevel,
+    logLevel: logLevel(env, d.logLevel),
     trustProxy: bool(env, "JEKIMO_TRUST_PROXY", d.trustProxy),
     membersCanCreateProjects: bool(env, "JEKIMO_MEMBERS_CAN_CREATE_PROJECTS", d.membersCanCreateProjects),
     sessionIdleDays: int(env, "JEKIMO_SESSION_IDLE_DAYS", d.sessionIdleDays, 1, sessionMaxDays),
