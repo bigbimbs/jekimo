@@ -55,6 +55,10 @@ export interface IngestWarning extends ValidationIssue {
 
 /** Body of a 202 response. */
 export interface IngestResponse {
+  /**
+   * Queued event_ids, once each. Repeats of events accepted by an earlier
+   * request are listed too; the event store drops them at append.
+   */
   accepted: string[];
   rejected: IngestRejection[];
   warnings?: IngestWarning[];
@@ -120,7 +124,10 @@ export interface AcceptedEvent {
 export type IngestRequestResult =
   | {
       ok: true;
-      /** Events to enqueue, one per unique event_id, in request order. */
+      /**
+       * Events to enqueue, one per unique event_id, in request order. Not
+       * checked against earlier requests; the event store dedupes at append.
+       */
       accepted: AcceptedEvent[];
       /** Indices of events that repeated an earlier event_id in this request. */
       duplicates: number[];

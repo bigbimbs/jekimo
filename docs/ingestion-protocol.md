@@ -107,8 +107,8 @@ For each request the server:
 3. Checks rate limits. Failure: `429` with `Retry-After`.
 4. Parses the body and applies request-level limits. Failure: `400`, `413`, or `415`.
 5. Validates each event in ingest mode, drops unknown fields, and records warnings.
-6. Deduplicates by `event_id` within the request and against events already accepted for the project.
-7. Writes accepted events to the durable queue, stamped with `project_id`, `received_at`, and the key's `key_id`.
+6. Deduplicates by `event_id` within the request.
+7. Writes accepted events to the durable queue, stamped with `project_id`, `received_at`, and the key's `key_id`. Events already accepted by an earlier request are not filtered out here; they are dropped when the worker appends them to the event store (see Deduplication).
 8. Returns `202` with per-event results.
 
 If step 7 fails, nothing from the request is accepted and the server returns `503` with `Retry-After`. Partial writes MUST NOT be acknowledged.
@@ -119,7 +119,11 @@ The future-timestamp rule in the event format (reject events more than 5 minutes
 
 ### Deduplication
 
-`event_id` is unique per project. If an accepted event is sent again, for example because the SDK retried after a lost response, the server acknowledges it as accepted and stores nothing new. Duplicates within one request are accepted once. The deduplication window is at least 7 days.
+`event_id` is unique per project: the same `event_id` in two projects is two different events. If an accepted event is sent again, for example because the SDK retried after a lost response, the server acknowledges it as accepted and stores nothing new.
+
+- Duplicates within one request are accepted once and queued once (Processing, step 6).
+- Across requests, deduplication happens when the worker appends events to the event store, not when the API writes to the queue. The event store records each `(project_id, event_id)` it stores in a deduplication index, in the same transaction as the event itself, and skips any event whose id is already recorded. A repeat is therefore listed in `accepted`, MAY pass through the queue again, and is dropped at append. Appends MUST stay idempotent, so a redelivered queue job is also harmless.
+- The deduplication window is at least 7 days, measured from the `received_at` of the stored copy. The expiry pass removes older index entries ([retention.md](retention.md), "What is retained"). A repeat that arrives after its entry was removed is stored as a new event.
 
 ## Responses
 
@@ -147,7 +151,7 @@ Returned whenever the request was authenticated, parsed, and processed, **even i
 
 | Field | Meaning |
 | --- | --- |
-| `accepted` | `event_id`s that are now durably queued, including deduplicated repeats. Each id appears once. |
+| `accepted` | `event_id`s that are now durably queued, including repeats of events accepted earlier, which are dropped when stored (see Deduplication). Each id appears once. |
 | `rejected` | One entry per rejected event with its position in the request `events` array, its `event_id` when one could be read, and the validation issues from the event format. |
 | `warnings` | Issues that did not cause rejection, such as dropped unknown fields. Omitted when empty. |
 

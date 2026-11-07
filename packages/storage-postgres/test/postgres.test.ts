@@ -3,7 +3,7 @@
  * JEKIMO_DATABASE_URL (or the deprecated DATABASE_URL) is set; CI starts a PostgreSQL 16 service container so they run there.
  */
 
-import { utcDay } from "@jekimo/event-schema";
+import { RETENTION, utcDay } from "@jekimo/event-schema";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MESSAGE_VECTOR } from "../src/event-store.js";
 import {
@@ -87,6 +87,34 @@ describe.skipIf(!hasDatabase)("PostgreSQL storage", () => {
     expect(
       (await store.appendEvents("prj_other", [makeEvent("prj_other", "01JBQ4Z3H8X9T2K7M5N6P8R9SV", now)])).inserted,
     ).toHaveLength(1);
+  });
+
+  it("stores a repeat again once its deduplication entry has expired", async () => {
+    const now = new Date();
+    const expired = new Date(now.getTime() - (RETENTION.DEDUPE_WINDOW_DAYS + 1) * DAY_MS);
+    const recent = new Date(now.getTime() - DAY_MS);
+    await store.appendEvents("prj_window", [
+      makeEvent("prj_window", "01JBQ60000000000000000000A", expired),
+      makeEvent("prj_window", "01JBQ60000000000000000000B", recent),
+    ]);
+    // The expiry pass prunes entries older than the window (apps/worker).
+    expect(await store.pruneDedupe(new Date(now.getTime() - RETENTION.DEDUPE_WINDOW_DAYS * DAY_MS))).toBeGreaterThan(0);
+    const again = await store.appendEvents("prj_window", [
+      makeEvent("prj_window", "01JBQ60000000000000000000A", now),
+      makeEvent("prj_window", "01JBQ60000000000000000000B", now),
+    ]);
+    // Inside the window the repeat is still dropped; after it, it is a new event.
+    expect(again.inserted).toEqual(["01JBQ60000000000000000000A"]);
+    const page = await store.queryEvents("prj_window", {
+      from: new Date(expired.getTime() - 1000),
+      to: new Date(now.getTime() + 1000),
+      limit: 10,
+    });
+    expect(page.events.map((e) => e.event.event_id)).toEqual([
+      "01JBQ60000000000000000000A",
+      "01JBQ60000000000000000000B",
+      "01JBQ60000000000000000000A",
+    ]);
   });
 
   it("round-trips the stored envelope and scopes queries to one project", async () => {

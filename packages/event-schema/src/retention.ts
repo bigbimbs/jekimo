@@ -10,7 +10,10 @@ export const RETENTION = {
   MAX_DAYS: 3650,
   /** Retention applied to every project during emergency expiry. */
   EMERGENCY_DAYS: 7,
-  /** How long accepted event_ids are remembered for deduplication. */
+  /**
+   * Minimum time stored event_ids are remembered for deduplication, from
+   * received_at. Checked at append to the event store, not at enqueue.
+   */
   DEDUPE_WINDOW_DAYS: 7,
   /** Grace period in which a deleted project can be restored. */
   PROJECT_DELETE_GRACE_DAYS: 7,

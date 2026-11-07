@@ -24,6 +24,8 @@ Status: draft.
 | Deduplication index of accepted `event_id`s | Project | 7 days |
 | Users, projects, memberships, settings, key hashes | Instance | Until deleted |
 
+The deduplication index is checked and written when the worker appends events to the event store, not when the API queues them; entries older than 7 days are removed by the expiry pass. See [ingestion-protocol.md](ingestion-protocol.md), "Deduplication".
+
 Server metadata stored with every event: `project_id`, `received_at`, `key_id` of the ingestion key that sent it, and `skew_ms` when the client supplied `sent_at`.
 
 ## Project retention period
