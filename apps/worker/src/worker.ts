@@ -7,6 +7,7 @@
 import type { EventStore, IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
 import type { Logger } from "pino";
 import { processIngestJob, runExpiryPass } from "./process.js";
+import { RedactorCache } from "./redact.js";
 
 export interface WorkerOptions {
   queue: Queue<IngestJob>;
@@ -45,17 +46,33 @@ export class Worker {
   /** Claims one batch and processes it. Returns the number of jobs claimed. */
   async drainOnce(): Promise<number> {
     const jobs = await this.opts.queue.dequeue(this.opts.batchSize);
+    // Redaction rules are read once per project per batch, never kept longer.
+    const redactors = new RedactorCache(this.opts.metadata);
     for (const job of jobs) {
       const log = this.opts.log.child({ job_id: job.id, project_id: job.payload.project_id, attempt: job.attempts });
       try {
-        const result = await processIngestJob(job.payload, this.opts);
+        const result = await processIngestJob(job.payload, this.opts, { jobId: job.id, redactors });
         await this.opts.queue.ack(job);
-        if (!result.projectFound) log.warn("project no longer exists; dropped job");
-        else
-          log.info(
-            { received: result.received, inserted: result.inserted, sampled_out: result.sampledOut },
-            "job processed",
+        if (!result.projectFound) {
+          log.warn("project no longer exists; dropped job");
+          continue;
+        }
+        // Ids, paths, and codes only: never the event's content.
+        for (const d of result.dropped) {
+          log.warn(
+            { index: d.index, event_id: d.eventId, errors: d.errors },
+            "event failed stored validation; dropped",
           );
+        }
+        log.info(
+          {
+            received: result.received,
+            inserted: result.inserted,
+            sampled_out: result.sampledOut,
+            dropped: result.dropped.length,
+          },
+          "job processed",
+        );
       } catch (err) {
         const outcome = await this.opts.queue.fail(job, err);
         const e = err as Error;
@@ -75,7 +92,12 @@ export class Worker {
     try {
       const result = await runExpiryPass(this.opts, now, this.clock);
       this.opts.log.info(
-        { deleted_events: result.deletedEvents, projects: result.projectsTouched, dedupe_pruned: result.dedupePruned },
+        {
+          deleted_events: result.deletedEvents,
+          projects: result.projectsTouched,
+          dedupe_pruned: result.dedupePruned,
+          counters_pruned: result.countersPruned,
+        },
         "expiry pass done",
       );
     } catch (err) {
