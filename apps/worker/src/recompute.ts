@@ -7,11 +7,7 @@
  */
 
 import type { ProcessDeps } from "./process.js";
-
-export interface RecomputeResult {
-  projects: number;
-  fingerprints: number;
-}
+import type { RecomputeResult } from "./types/index.js";
 
 /** Recomputes one project's issues, or every project's when projectId is omitted. */
 export async function recomputeIssues(

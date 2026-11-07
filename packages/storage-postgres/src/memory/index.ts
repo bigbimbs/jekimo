@@ -15,10 +15,12 @@ import {
   utcDay,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
+import type { IssueStatus } from "../constants/index.js";
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
 import { decodeIssueCursor, encodeIssueCursor, issueStatusAction, mergeEnvironments } from "../issues.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
+import type { IssuePage, IssueQuery } from "../types/index.js";
 import type {
   Actor,
   AppendEvent,
@@ -32,10 +34,7 @@ import type {
   FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
-  IssuePage,
-  IssueQuery,
   IssueRecord,
-  IssueStatus,
   IssueSummary,
   Job,
   MetadataRepository,

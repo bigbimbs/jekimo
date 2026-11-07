@@ -16,6 +16,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { StackFrame } from "./types/index.js";
 import type { EventEnvelope } from "./types.js";
 
 const V8_FRAME = /^\s*at\s+(.+?)\s*$/;
@@ -26,12 +27,6 @@ const HEX_PREFIXED = /\b0x[0-9a-f]+\b/gi;
 const HEX_BARE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/gi;
 /** Digit runs not glued to a preceding letter, so "utf8" and "v2" survive. */
 const NUMBER = /(?<![a-z])\d+(?:\.\d+)?/gi;
-
-/** One V8 stack frame without line and column numbers, and whether it is in-app. */
-export interface StackFrame {
-  frame: string;
-  inApp: boolean;
-}
 
 /** `fn (path:1:2)` or `path:1:2` → the location, without line and column. */
 function splitFrame(frame: string): { prefix: string; path: string } {

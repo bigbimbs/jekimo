@@ -7,12 +7,11 @@
  */
 
 import type { ProjectAccess } from "./access.js";
+import { type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/index.js";
 import type { Pool, PoolClient } from "./pool.js";
 import { withTransaction } from "./pool.js";
-import type { AuditEntry, IssuePage, IssueQuery, IssueRecord, IssueStatus, IssueSummary } from "./types.js";
-
-/** At most this many environments are kept per issue. */
-export const MAX_ISSUE_ENVIRONMENTS = 32;
+import type { IssuePage, IssueQuery } from "./types/index.js";
+import type { AuditEntry, IssueRecord, IssueSummary } from "./types.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

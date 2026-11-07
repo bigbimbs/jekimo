@@ -11,6 +11,7 @@ import {
   type ProjectPermission,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
+import type { IssueStatus } from "./constants/index.js";
 import {
   findIngestionKey,
   listProjectRetention,
@@ -23,6 +24,7 @@ import { getIssue, listIssues, setIssueStatus, upsertIssues } from "./issues.js"
 import { type Pool, type PoolClient, withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
+import type { IssuePage, IssueQuery } from "./types/index.js";
 import type {
   Actor,
   AuditEntry,
@@ -31,10 +33,7 @@ import type {
   FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
-  IssuePage,
-  IssueQuery,
   IssueRecord,
-  IssueStatus,
   IssueSummary,
   MetadataRepository,
   ProjectRecord,

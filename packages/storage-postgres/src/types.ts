@@ -7,6 +7,8 @@
 
 import type { EventEnvelope, EventKind, ProjectPermission, Severity } from "@jekimo/event-schema";
 import type { ProjectAccess } from "./access.js";
+import type { IssueStatus } from "./constants/index.js";
+import type { IssuePage, IssueQuery } from "./types/index.js";
 
 export type InstanceRole = "admin" | "member";
 
@@ -85,8 +87,6 @@ export interface IssueSummary {
   /** Environments seen in these events; merged into the issue's list. */
   environments?: string[];
 }
-
-export type IssueStatus = "unresolved" | "resolved" | "ignored";
 
 export interface IssueRecord extends IssueSummary {
   /** Stable handle for the API; fingerprints can be long client strings. */
@@ -192,29 +192,6 @@ export interface MetadataRepository {
     status: IssueStatus,
     sourceIp?: string,
   ): Promise<IssueRecord | null>;
-}
-
-export interface IssueQuery {
-  /** Any of these statuses. */
-  statuses?: IssueStatus[];
-  /** Any of these kinds. */
-  kinds?: EventKind[];
-  /** Any of these severities, matched against the latest event's severity. */
-  severities?: Severity[];
-  /** Issues with at least one event in this environment. */
-  environment?: string;
-  /** Issues last seen at or after this time. */
-  from?: Date;
-  /** Issues first seen before this time. */
-  to?: Date;
-  limit: number;
-  /** Opaque cursor from a previous page's nextCursor. */
-  cursor?: string;
-}
-
-export interface IssuePage {
-  issues: IssueRecord[];
-  nextCursor?: string;
 }
 
 /** One event to append, already validated, stamped, and fingerprinted. */

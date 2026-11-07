@@ -10,19 +10,8 @@
  */
 
 import { isRedactedKey, normalizeKey, REDACTED_VALUE } from "./limits.js";
+import type { KeyRedactor, RedactOptions } from "./types/index.js";
 import type { AttributeValue, EventEnvelope } from "./types.js";
-
-export interface RedactOptions {
-  /** Extra key names, compared with normalizeKey like the defaults. */
-  extraKeys?: readonly string[];
-  /** Regular expressions tested against the original key name. */
-  patterns?: readonly RegExp[];
-  /** When true, drop `context` entirely. */
-  dropContext?: boolean;
-}
-
-/** True when the value under this key must be replaced. */
-export type KeyRedactor = (key: string) => boolean;
 
 /**
  * The key test for a set of options: the default list, the extra keys, then

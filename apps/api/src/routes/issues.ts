@@ -7,32 +7,19 @@
  */
 
 import { EVENT_KINDS, type EventKind, LIMITS, SEVERITIES, type Severity } from "@jekimo/event-schema";
-import type {
-  EventStore,
-  IssuePage,
-  IssueQuery,
-  IssueRecord,
-  IssueStatus,
-  MetadataRepository,
+import {
+  ISSUE_STATUSES,
+  type IssuePage,
+  type IssueQuery,
+  type IssueRecord,
+  type IssueStatus,
 } from "@jekimo/storage-postgres";
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import type { FastifyInstance } from "fastify";
+import { DEFAULT_ISSUE_LIMIT, ISSUE_ACTIONS, MAX_ISSUE_LIMIT } from "../constants/index.js";
 import { ApiError } from "../errors.js";
 import { projectAccessOf } from "../session.js";
+import type { IssueRouteOptions } from "../types/index.js";
 import { parseExact, parseList, parseTime, publicEvent } from "./projects.js";
-
-const DEFAULT_ISSUE_LIMIT = 50;
-const MAX_ISSUE_LIMIT = 200;
-const ISSUE_STATUSES: readonly IssueStatus[] = ["unresolved", "resolved", "ignored"];
-
-/** The status each action sets. */
-const ACTIONS: Record<string, IssueStatus> = { resolve: "resolved", ignore: "ignored", reopen: "unresolved" };
-
-export interface IssueRouteOptions {
-  metadata: MetadataRepository;
-  events: EventStore;
-  session: preHandlerHookHandler;
-  projectAccess: preHandlerHookHandler;
-}
 
 export function publicIssue(i: IssueRecord) {
   return {
@@ -111,7 +98,7 @@ export async function issueRoutes(app: FastifyInstance, opts: IssueRouteOptions)
     },
   );
 
-  for (const [action, status] of Object.entries(ACTIONS)) {
+  for (const [action, status] of Object.entries(ISSUE_ACTIONS)) {
     app.post(
       `/api/v1/projects/:id/issues/:issue_id/${action}`,
       { ...projectRoute, config: { permission: "issues.manage" } },
