@@ -80,11 +80,22 @@ export interface IssueSummary {
   eventCount: number;
   firstSeen: Date;
   lastSeen: Date;
+  /** The newest event of the issue; applied when lastSeen is the newest seen. */
+  lastEventId?: string;
+  /** Environments seen in these events; merged into the issue's list. */
+  environments?: string[];
 }
 
+export type IssueStatus = "unresolved" | "resolved" | "ignored";
+
 export interface IssueRecord extends IssueSummary {
+  /** Stable handle for the API; fingerprints can be long client strings. */
+  id: string;
   projectId: string;
-  status: "unresolved" | "resolved" | "ignored";
+  status: IssueStatus;
+  environments: string[];
+  /** When a person or a regression last changed the status. */
+  statusChangedAt?: Date;
 }
 
 export interface ProjectRetention {
@@ -163,6 +174,47 @@ export interface MetadataRepository {
   getRedactionRules(projectId: string): Promise<RedactionRules | null>;
   /** Requires settings.manage. Rules are normalized and validated; returns what was stored. */
   setRedactionRules(access: ProjectAccess, rules: RedactionRules, sourceIp?: string): Promise<RedactionRules>;
+
+  // Issues (docs/access-model.md, "Permission catalogue"). Counts come from
+  // the event store through upsertIssues and replaceIssueCounts.
+  /** Requires project.read. Newest last_seen first. Throws RangeError for an invalid cursor. */
+  listIssues(access: ProjectAccess, query: IssueQuery): Promise<IssuePage>;
+  /** Requires project.read. Null when the id is unknown or belongs to another project. */
+  getIssue(access: ProjectAccess, issueId: string): Promise<IssueRecord | null>;
+  /**
+   * Requires issues.manage. Sets the status and audit-logs the change; a
+   * status equal to the current one changes and logs nothing. Null when the
+   * id is unknown or belongs to another project.
+   */
+  setIssueStatus(
+    access: ProjectAccess,
+    issueId: string,
+    status: IssueStatus,
+    sourceIp?: string,
+  ): Promise<IssueRecord | null>;
+}
+
+export interface IssueQuery {
+  /** Any of these statuses. */
+  statuses?: IssueStatus[];
+  /** Any of these kinds. */
+  kinds?: EventKind[];
+  /** Any of these severities, matched against the latest event's severity. */
+  severities?: Severity[];
+  /** Issues with at least one event in this environment. */
+  environment?: string;
+  /** Issues last seen at or after this time. */
+  from?: Date;
+  /** Issues first seen before this time. */
+  to?: Date;
+  limit: number;
+  /** Opaque cursor from a previous page's nextCursor. */
+  cursor?: string;
+}
+
+export interface IssuePage {
+  issues: IssueRecord[];
+  nextCursor?: string;
 }
 
 /** One event to append, already validated, stamped, and fingerprinted. */

@@ -161,7 +161,7 @@ The repository is a TypeScript monorepo using npm workspaces.
 
 | Path | Contents | State |
 | --- | --- | --- |
-| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, and the event query API | Vertical slice |
+| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, the event query API, and the issue API | Vertical slice |
 | `apps/worker` | Queue consumer: sampling, redaction, fingerprinting, event storage, issue summaries, and expiry | Vertical slice |
 | `apps/web` | React dashboard | Not started |
 | `packages/event-schema` | Event envelope v1, ingestion protocol helpers, retention, sampling, and permission model | Implemented |

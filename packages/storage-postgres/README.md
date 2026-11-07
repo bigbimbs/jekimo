@@ -13,6 +13,10 @@ Owns PostgreSQL connections, schema migrations, and project-scoped persistence. 
 
 `setRedactionRules(access, { keys, patterns })` stores operator rules on top of the default key list, with `settings.manage`. Keys are normalized like the default list; patterns must compile as JavaScript regular expressions. The audit log records how many keys and patterns were set, not the rules. `getRedactionRules(projectId)` is for the worker.
 
+### Issues
+
+Issue queries live in `src/issues.ts`. `upsertIssues(projectId, summaries)` merges summaries derived from the event store: counts and `last_seen` only move forward, the latest event id follows the newest `last_seen`, and environments are merged (up to 32). In the same transaction it reopens `resolved` issues whose summary was last seen after the resolution and audit-logs `issue.regressed`. `replaceIssueCounts` sets exact counts and deletes issues with no events left, for the expiry pass and the recompute job. `listIssues(access, query)` and `getIssue(access, id)` need `project.read`; `setIssueStatus(access, id, status)` needs `issues.manage` and audit-logs `issue.resolved`, `issue.ignored`, or `issue.reopened` with the status before and after. An id from another project is not found.
+
 ## Schema
 
 Migrations are plain SQL in `migrations/`, applied in order, each in a transaction, and recorded in `schema_migrations`:
@@ -25,6 +29,7 @@ Migrations are plain SQL in `migrations/`, applied in order, each in a transacti
 | `0004_project_daily_counters.sql` | `project_daily_counters` (accepted, rejected, dropped, sampled per project per UTC day), `project_counter_increments` (idempotency keys) |
 | `0005_project_redaction_rules.sql` | `projects.redaction_rules` (`{"keys": [], "patterns": []}`) |
 | `0006_event_message_search.sql` | GIN index on `to_tsvector('simple', ...)` of `message`, with punctuation turned into word breaks |
+| `0009_issue_actions.sql` | `issues.id` (stable uuid), `last_event_id`, `environments`, `status_changed_at`, `status_changed_by` |
 
 Event indexes: BRIN on `received_at`; b-tree on `(project_id, received_at)`, `(project_id, fingerprint)`, and `(project_id, severity, received_at)`; GIN on the `message` search vector. `attributes` has no index.
 
