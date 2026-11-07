@@ -57,7 +57,7 @@ Read by [`deploy/docker-compose/docker-compose.dev.yml`](../deploy/docker-compos
 
 ## Planned settings
 
-These are specified but not implemented yet. Each spec lists its own variables:
+These are specified but not implemented yet. [`.env.example`](../.env.example) lists each one with its documented default, grouped by spec, and each spec lists its own variables:
 
 - Disk thresholds and audit log retention: [retention.md](retention.md)
 - Invitations and SMTP: [access-model.md](access-model.md)
