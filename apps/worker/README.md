@@ -27,7 +27,7 @@ Every event in a job counts as exactly one of `accepted`, `dropped`, or `sampled
 
 ## Expiry
 
-An expiry pass runs at start and then on an interval (15 minutes by default): it removes each project's UTC days whose last instant has passed the project's retention, recounts that project's issues, prunes deduplication entries and counter idempotency keys older than 7 days, deletes daily counters older than 13 months, and creates partitions for the coming week.
+An expiry pass runs at start and then on an interval (15 minutes by default): it removes each project's UTC days whose last instant has passed the project's retention, recounts that project's issues, prunes deduplication entries and counter idempotency keys older than 7 days, deletes daily counters older than 13 months, deletes audit log entries older than `JEKIMO_AUDIT_LOG_DAYS` (default 365, including entries about deleted projects, which are otherwise kept), and creates partitions for the coming week.
 
 ## Recomputing issues
 

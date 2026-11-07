@@ -1,4 +1,5 @@
 export { hasProjectPermission, type ProjectAccess } from "./access.js";
+export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
 export * from "./constants/index.js";
 export { daysFrom, PostgresEventStore, partitionName, searchWords } from "./event-store.js";
 export { checkDatabase, checkQueue } from "./health.js";

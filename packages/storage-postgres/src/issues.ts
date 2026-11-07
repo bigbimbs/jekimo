@@ -3,7 +3,7 @@
 // (docs/access-model.md, "Audit log").
 
 import type { ProjectAccess } from "./access.js";
-import { type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/index.js";
+import { type AuditAction, type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/index.js";
 import type { Pool, PoolClient } from "./pool.js";
 import { withTransaction } from "./pool.js";
 import type { IssuePage, IssueQuery } from "./types/index.js";
@@ -15,7 +15,7 @@ export function isIssueId(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
 
-export function issueStatusAction(status: IssueStatus): string {
+export function issueStatusAction(status: IssueStatus): AuditAction {
   return status === "unresolved" ? "issue.reopened" : `issue.${status}`;
 }
 

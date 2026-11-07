@@ -11,6 +11,7 @@ import {
   type ProjectPermission,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
+import { PostgresAccessRepository } from "./access-repository.js";
 import type { IssueStatus } from "./constants/index.js";
 import {
   findIngestionKey,
@@ -24,7 +25,8 @@ import { getIssue, listIssues, setIssueStatus, upsertIssues } from "./issues.js"
 import { type Pool, type PoolClient, withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
-import type { IssuePage, IssueQuery } from "./types/index.js";
+import { insertAudit, requirePermission, toUser, USER_COLUMNS } from "./sql-shared.js";
+import type { IssuePage, IssueQuery, UserRow } from "./types/index.js";
 import type {
   Actor,
   AuditEntry,
@@ -43,45 +45,7 @@ import type {
   UserRecord,
 } from "./types.js";
 
-interface UserRow {
-  id: string;
-  email: string;
-  instance_role: UserRecord["instanceRole"];
-  status: UserRecord["status"];
-  created_at: Date;
-}
-
-const USER_COLUMNS = "u.id, u.email, u.instance_role, u.status, u.created_at";
-
-function toUser(r: UserRow): UserRecord {
-  return { id: r.id, email: r.email, instanceRole: r.instance_role, status: r.status, createdAt: r.created_at };
-}
-
-async function insertAudit(db: Pool | PoolClient, entry: AuditEntry): Promise<void> {
-  await db.query(
-    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, project_id, source_ip, via_instance_admin, details)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-    [
-      entry.actorUserId ?? null,
-      entry.action,
-      entry.targetType ?? null,
-      entry.targetId ?? null,
-      entry.projectId ?? null,
-      entry.sourceIp ?? null,
-      entry.viaInstanceAdmin ?? false,
-      JSON.stringify(entry.details ?? {}),
-    ],
-  );
-}
-
-function requirePermission(access: ProjectAccess, permission: ProjectPermission): void {
-  assertProjectAccess(access);
-  if (!access.permissions.has(permission)) throw new Error(`missing permission ${permission}`);
-}
-
-export class PostgresMetadataRepository implements MetadataRepository {
-  constructor(private readonly pool: Pool) {}
-
+export class PostgresMetadataRepository extends PostgresAccessRepository implements MetadataRepository {
   async countUsers(): Promise<number> {
     const { rows } = await this.pool.query<{ n: string }>("SELECT count(*) AS n FROM users");
     return Number(firstRow(rows, "count users").n);

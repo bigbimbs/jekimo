@@ -17,6 +17,7 @@ export interface WorkerOptions {
   batchSize: number;
   pollMs: number;
   expiryIntervalMs: number;
+  auditLogDays?: number;
   clock?: () => Date;
 }
 
@@ -97,6 +98,7 @@ export class Worker {
           projects: result.projectsTouched,
           dedupe_pruned: result.dedupePruned,
           counters_pruned: result.countersPruned,
+          audit_pruned: result.auditPruned,
         },
         "expiry pass done",
       );

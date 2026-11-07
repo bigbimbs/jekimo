@@ -339,6 +339,19 @@ describe("runExpiryPass", () => {
     expect([...(metadata.counters.get("prj_test")?.keys() ?? [])]).toEqual(["2025-10-05"]);
   });
 
+  it("deletes audit entries older than the audit retention, including ones about deleted projects", async () => {
+    const now = new Date("2026-11-05T12:00:00.000Z");
+    metadata.audit.length = 0;
+    metadata.audit.push(
+      { action: "project.created", projectId: "prj_gone", occurredAt: new Date(now.getTime() - 400 * DAY_MS) },
+      { action: "project.created", projectId: "prj_gone", occurredAt: new Date(now.getTime() - 20 * DAY_MS) },
+      { action: "auth.login", occurredAt: new Date(now.getTime() - 5 * DAY_MS) },
+    );
+    expect((await runExpiryPass({ metadata, events }, now)).auditPruned).toBe(1);
+    expect((await runExpiryPass({ metadata, events, auditLogDays: 10 }, now)).auditPruned).toBe(1);
+    expect(metadata.audit.map((a) => a.action)).toEqual(["auth.login"]);
+  });
+
   it("keeps a day until its last instant has passed retention", async () => {
     const received = "2026-10-06T23:59:59.000Z";
     await processIngestJob(

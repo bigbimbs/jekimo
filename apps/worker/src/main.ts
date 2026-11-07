@@ -34,6 +34,7 @@ async function main(): Promise<void> {
     batchSize: config.batchSize,
     pollMs: config.pollMs,
     expiryIntervalMs: config.expiryIntervalMinutes * 60_000,
+    auditLogDays: config.auditLogDays,
   });
 
   const shutdown = async (signal: string) => {

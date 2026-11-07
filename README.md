@@ -170,7 +170,7 @@ The repository is a TypeScript monorepo using npm workspaces.
 | `deploy/docker-compose` | `docker-compose.dev.yml` for local development; the VPS deployment is still to come | Development only |
 | `docs` | Specifications and operating guides | |
 
-One thin path works end to end: create the first admin, sign in, create a project and an ingestion key, send an event, and read it back. [docs/local-development.md](docs/local-development.md) walks through it. Rate limits, the dashboard, invitations, and the production deployment are not implemented yet.
+One thin path works end to end: create the first admin, sign in, create a project and an ingestion key, send an event, and read it back. [docs/local-development.md](docs/local-development.md) walks through it. Invitations, password reset links, memberships, key rotation and revocation, and the audit log are available through the API. Rate limits, the dashboard, and the production deployment are not implemented yet.
 
 ## Contributing
 
