@@ -1,8 +1,3 @@
-/**
- * Worker entry point. Reads configuration from the environment and runs the
- * queue loop and expiry pass until SIGTERM or SIGINT.
- */
-
 import {
   createPool,
   DiskMonitor,

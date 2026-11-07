@@ -5,10 +5,11 @@
  * and survive restarts.
  */
 
-import { assertProjectAccess, type ProjectAccess } from "./access.js";
+import { assertProjectAccess } from "./access.js";
 import { INGEST_LIMIT_BOUNDS, type IngestChargeOutcome } from "./constants/ingest-limits.js";
-import { type Pool, withTransaction } from "./pool.js";
+import { withTransaction } from "./pool.js";
 import { insertAudit } from "./sql-shared.js";
+import type { Actor, ProjectAccess } from "./types/access.js";
 import type {
   IngestChargeResult,
   IngestLimitSettings,
@@ -17,7 +18,7 @@ import type {
   IngestUsage,
   IngestUsageRow,
 } from "./types/ingest-limits.js";
-import type { Actor } from "./types.js";
+import type { Pool } from "./types/pool.js";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -91,7 +92,6 @@ export function checkIngestLimitSettings(settings: IngestLimitSettings): IngestL
   };
 }
 
-/** Internal to this package. */
 export function requireInstanceAdmin(actor: Actor, access: ProjectAccess): void {
   assertProjectAccess(access);
   if (actor.instanceRole !== "admin" || actor.userId !== access.userId) {

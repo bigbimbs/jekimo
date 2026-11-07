@@ -2,8 +2,8 @@
 // splits issues: existing issues keep their stored fingerprint.
 
 import { createHash } from "node:crypto";
-import type { StackFrame } from "./types/index.js";
-import type { EventEnvelope } from "./types.js";
+import type { EventEnvelope } from "./types/envelope.js";
+import type { StackFrame } from "./types/fingerprint.js";
 
 const V8_FRAME = /^\s*at\s+(.+?)\s*$/;
 const LINE_COL = /:\d+(?::\d+)?$/;

@@ -1,6 +1,7 @@
+import type { IngestErrorCode } from "@jekimo/event-schema";
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 
-/** An error with a status and a stable code, rendered as `{ error: { code, message } }`. */
+/** Rendered as `{ error: { code, message } }`. */
 export class ApiError extends Error {
   constructor(
     readonly statusCode: number,
@@ -10,6 +11,17 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+/** An ingest refusal; its status comes from the protocol's error code (docs/ingestion-protocol.md). */
+export class IngestError extends Error {
+  constructor(
+    readonly code: IngestErrorCode,
+    message: string,
+    readonly retryAfter?: number,
+  ) {
+    super(message);
   }
 }
 

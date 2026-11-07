@@ -2,12 +2,13 @@
 // engines", rule 3); every status change is audit-logged
 // (docs/access-model.md, "Audit log").
 
-import type { ProjectAccess } from "./access.js";
-import { type AuditAction, type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/index.js";
-import type { Pool, PoolClient } from "./pool.js";
+import type { AuditAction } from "./constants/audit.js";
+import { type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/issues.js";
 import { withTransaction } from "./pool.js";
-import type { IssuePage, IssueQuery } from "./types/index.js";
-import type { AuditEntry, IssueRecord, IssueSummary } from "./types.js";
+import type { ProjectAccess } from "./types/access.js";
+import type { AuditEntry } from "./types/audit.js";
+import type { IssuePage, IssueQuery, IssueRecord, IssueSummary } from "./types/issues.js";
+import type { Pool, PoolClient } from "./types/pool.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -42,9 +43,7 @@ export function decodeIssueCursor(cursor: string): IssueCursor {
         return { lastSeen: new Date(ms), id: id.toLowerCase() };
       }
     }
-  } catch {
-    // fall through
-  }
+  } catch {}
   throw new RangeError("invalid issue cursor");
 }
 

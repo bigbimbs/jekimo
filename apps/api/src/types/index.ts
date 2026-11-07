@@ -1,4 +1,13 @@
 export type * from "./accounts.js";
+export type * from "./app.js";
+export type * from "./auth.js";
+export type * from "./config.js";
+export type * from "./events.js";
+export type * from "./fastify.js";
+export type * from "./ingest.js";
 export type * from "./issues.js";
+export type * from "./keys.js";
 export type * from "./limits.js";
-export type * from "./routes.js";
+export type * from "./members.js";
+export type * from "./projects.js";
+export type * from "./users.js";

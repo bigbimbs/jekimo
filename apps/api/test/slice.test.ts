@@ -20,7 +20,7 @@ import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Worker } from "../../worker/src/worker.js";
 import { buildApp } from "../src/app.js";
-import { SESSION_COOKIE } from "../src/session.js";
+import { SESSION_COOKIE } from "../src/constants/index.js";
 import { fakeHasher, ingestEvent, PASSWORD, SETUP_TOKEN } from "./helpers.js";
 
 describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {

@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { INGESTION_KEY_PATTERN, parseIngestionKey } from "@jekimo/event-schema";
 import { describe, expect, it } from "vitest";
+import { UNKNOWN_KEY_ID } from "../src/constants/index.js";
 import {
   generateIngestionKey,
   hashesEqual,
   hashIngestionKey,
   keyIdForLookup,
-  UNKNOWN_KEY_ID,
   verifyIngestionKey,
 } from "../src/keys.js";
 import { argon2Hasher, passwordProblem } from "../src/passwords.js";

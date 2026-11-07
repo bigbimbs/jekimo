@@ -1,35 +1,13 @@
-/**
- * One HTTP attempt against the ingestion endpoint, and the retry schedule.
- * Normative text: docs/ingestion-protocol.md, "Request", "Responses", and
- * "SDK requirements".
- */
+// Normative text: docs/ingestion-protocol.md, "Request", "Responses", and
+// "SDK requirements".
 
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import type { IngestResponse } from "@jekimo/event-schema";
-import type { Transport, TransportResponse } from "./index.js";
-import { USER_AGENT } from "./version.js";
+import { BACKOFF_BASE_MS, BACKOFF_CAP_MS, GZIP_THRESHOLD_BYTES, USER_AGENT } from "./constants/index.js";
+import type { AttemptResult, PreparedBody, Transport, TransportResponse } from "./types/index.js";
 
 const gzipAsync = promisify(gzip);
-
-/** Bodies larger than this are gzip-compressed. */
-export const GZIP_THRESHOLD_BYTES = 8 * 1024;
-/** Give up on a batch after this many attempts. */
-export const MAX_ATTEMPTS = 5;
-export const BACKOFF_BASE_MS = 1000;
-export const BACKOFF_CAP_MS = 60_000;
-/** Upper bound on one request, so a stalled connection cannot hold the sender forever. */
-export const REQUEST_TIMEOUT_MS = 10_000;
-
-export type AttemptResult =
-  | { outcome: "success"; response: IngestResponse | undefined }
-  | { outcome: "retry"; reason: string; status?: number; serverCode?: string; retryAfterMs?: number }
-  | { outcome: "fail"; reason: string; status: number; serverCode?: string };
-
-export interface PreparedBody {
-  body: string | Uint8Array;
-  gzip: boolean;
-}
 
 export async function prepareBody(json: string, rawBytes: number): Promise<PreparedBody> {
   if (rawBytes <= GZIP_THRESHOLD_BYTES) return { body: json, gzip: false };
@@ -108,7 +86,7 @@ async function readBody(response: TransportResponse): Promise<unknown> {
   }
 }
 
-/** Classifies one HTTP response by the rules in "Request-level errors". */
+/** Classifies one HTTP response by docs/ingestion-protocol.md, "Request-level errors". */
 export async function classifyResponse(response: TransportResponse): Promise<AttemptResult> {
   const { status } = response;
   const body = await readBody(response);
@@ -130,7 +108,7 @@ export async function classifyResponse(response: TransportResponse): Promise<Att
   return { outcome: "fail", reason: `HTTP ${status}${code ? ` ${code}` : ""}`, status, ...serverCode };
 }
 
-/** Sends one prepared body. Network errors and timeouts are retryable. */
+/** Never throws: network errors and timeouts become a `retry` result. */
 export async function attempt(
   transport: Transport,
   url: string,

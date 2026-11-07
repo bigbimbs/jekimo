@@ -3,26 +3,26 @@
 
 import { randomUUID } from "node:crypto";
 import { canAssignRole, DEFAULT_PROJECT_ROLES, type ProjectPermission } from "@jekimo/event-schema";
-import { assertProjectAccess, type ProjectAccess } from "../access.js";
-import type { AccountTokenPurpose } from "../constants/index.js";
+import { assertProjectAccess } from "../access.js";
+import type { AccountTokenPurpose } from "../constants/access.js";
 import type {
   AccessRepository,
-  AuditQuery,
-  AuditRecord,
+  Actor,
   IngestionKeySummary,
+  InstanceRole,
   InvitationRecord,
   MemberRecord,
-  MemoryAccountToken,
-  MemoryKey,
-  MemorySession,
-  MemoryUser,
   PasswordResetRecord,
+  ProjectAccess,
   ProjectSettingsChange,
   Result,
   RoleRecord,
   SessionSummary,
-} from "../types/index.js";
-import type { Actor, AuditEntry, InstanceRole, ProjectRecord, UserRecord } from "../types.js";
+  UserRecord,
+} from "../types/access.js";
+import type { AuditEntry, AuditQuery, AuditRecord } from "../types/audit.js";
+import type { MemoryAccountToken, MemoryKey, MemorySession, MemoryUser } from "../types/memory.js";
+import type { ProjectRecord } from "../types/projects.js";
 
 export function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);

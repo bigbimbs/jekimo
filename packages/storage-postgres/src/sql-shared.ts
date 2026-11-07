@@ -1,10 +1,9 @@
 import type { ProjectPermission } from "@jekimo/event-schema";
-import { assertProjectAccess, type ProjectAccess } from "./access.js";
-import type { Pool, PoolClient } from "./pool.js";
-import type { UserRow } from "./types/index.js";
-import type { AuditEntry, UserRecord } from "./types.js";
-
-export const USER_COLUMNS = "u.id, u.email, u.instance_role, u.status, u.created_at";
+import { assertProjectAccess } from "./access.js";
+import type { ProjectAccess, UserRecord } from "./types/access.js";
+import type { AuditEntry } from "./types/audit.js";
+import type { Pool, PoolClient } from "./types/pool.js";
+import type { UserRow } from "./types/rows.js";
 
 export function toUser(r: UserRow): UserRecord {
   return { id: r.id, email: r.email, instanceRole: r.instance_role, status: r.status, createdAt: r.created_at };

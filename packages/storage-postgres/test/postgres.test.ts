@@ -5,7 +5,7 @@
 
 import { RETENTION, utcDay } from "@jekimo/event-schema";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MESSAGE_VECTOR } from "../src/event-store.js";
+import { MESSAGE_VECTOR } from "../src/constants/sql.js";
 import {
   type AppendEvent,
   loadMigrations,

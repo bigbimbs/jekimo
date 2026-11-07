@@ -1,46 +1,15 @@
-/**
- * Project permissions and roles. Normative text: docs/access-model.md.
- *
- * Access inside a project is permission-based. A role is a named set of
- * permissions; three built-in roles exist in every project and custom roles
- * can be added by anyone holding `roles.manage`.
- */
+// Normative text: docs/access-model.md. Access inside a project is
+// permission-based; a role is only a named set of permissions.
 
-export const PROJECT_PERMISSIONS = [
-  "project.read",
-  "issues.manage",
-  "data.export",
-  "data.delete",
-  "keys.manage",
-  "settings.manage",
-  "members.manage",
-  "roles.manage",
-  "project.delete",
-] as const;
-
-export type ProjectPermission = (typeof PROJECT_PERMISSIONS)[number];
-
-/** Every role must include this permission. */
-export const REQUIRED_PERMISSION: ProjectPermission = "project.read";
-
-export const BUILT_IN_ROLE_NAMES = ["admin", "member", "viewer"] as const;
-export type BuiltInRoleName = (typeof BUILT_IN_ROLE_NAMES)[number];
-
-/** Permission sets of the built-in roles. `admin` always holds every permission. */
-export const DEFAULT_PROJECT_ROLES: Readonly<Record<BuiltInRoleName, ReadonlySet<ProjectPermission>>> = {
-  admin: new Set<ProjectPermission>(PROJECT_PERMISSIONS),
-  member: new Set<ProjectPermission>(["project.read", "issues.manage", "data.export"]),
-  viewer: new Set<ProjectPermission>(["project.read"]),
-};
-
-export const ROLE_NAME_MAX_CHARS = 40;
-
-export interface ProjectRole {
-  name: string;
-  permissions: ReadonlySet<ProjectPermission>;
-  /** True for admin, member, and viewer; they cannot be edited or deleted. */
-  builtIn: boolean;
-}
+import {
+  BUILT_IN_ROLE_NAMES,
+  type BuiltInRoleName,
+  PROJECT_PERMISSIONS,
+  type ProjectPermission,
+  REQUIRED_PERMISSION,
+  ROLE_NAME_MAX_CHARS,
+} from "./constants/permissions.js";
+import type { ProjectRole, RoleIssue, RoleValidation } from "./types/permissions.js";
 
 export function isProjectPermission(value: unknown): value is ProjectPermission {
   return typeof value === "string" && (PROJECT_PERMISSIONS as readonly string[]).includes(value);
@@ -53,23 +22,6 @@ export function isBuiltInRoleName(name: string): name is BuiltInRoleName {
 export function hasPermission(role: Pick<ProjectRole, "permissions">, permission: ProjectPermission): boolean {
   return role.permissions.has(permission);
 }
-
-export type RoleIssueCode =
-  | "name_empty"
-  | "name_too_long"
-  | "name_reserved"
-  | "unknown_permission"
-  | "missing_required_permission"
-  | "escalation";
-
-export interface RoleIssue {
-  code: RoleIssueCode;
-  message: string;
-  /** The permission concerned, for permission-related codes. */
-  permission?: string;
-}
-
-export type RoleValidation = { ok: true; role: ProjectRole } | { ok: false; issues: RoleIssue[] };
 
 /**
  * Validates a custom role definition as submitted by a user holding

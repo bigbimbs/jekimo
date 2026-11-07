@@ -1,5 +1,5 @@
-import type { AccountTokenPurpose } from "../constants/index.js";
-import type { IngestionKeyLookup, InstanceRole, UserRecord } from "../types.js";
+import type { AccountTokenPurpose } from "../constants/access.js";
+import type { IngestionKeyLookup, InstanceRole, UserRecord } from "./access.js";
 
 export interface MemoryUser extends UserRecord {
   passwordHash: string;

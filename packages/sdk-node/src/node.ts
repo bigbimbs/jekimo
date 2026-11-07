@@ -10,22 +10,25 @@
  * reports and lets those handlers decide.
  */
 
-import type { JekimoClient } from "./index.js";
+import { UNHANDLED_REJECTIONS_MODES, type UnhandledRejectionsMode } from "./constants/index.js";
+import type { JekimoClient } from "./types/index.js";
 
-type Mode = "throw" | "strict" | "warn" | "none" | "warn-with-error-code";
+function isUnhandledRejectionsMode(value: string | undefined): value is UnhandledRejectionsMode {
+  return (UNHANDLED_REJECTIONS_MODES as readonly (string | undefined)[]).includes(value);
+}
 
 /** The effective `--unhandled-rejections` mode. Node's default is `throw`. */
 export function unhandledRejectionsMode(
   execArgv: readonly string[] = process.execArgv,
   nodeOptions: string | undefined = process.env.NODE_OPTIONS,
-): Mode {
+): UnhandledRejectionsMode {
   const args = [...(nodeOptions?.split(/\s+/) ?? []), ...execArgv];
   let mode: string | undefined;
   args.forEach((arg, i) => {
     if (arg.startsWith("--unhandled-rejections=")) mode = arg.slice("--unhandled-rejections=".length);
     else if (arg === "--unhandled-rejections") mode = args[i + 1];
   });
-  return mode === "strict" || mode === "warn" || mode === "none" || mode === "warn-with-error-code" ? mode : "throw";
+  return isUnhandledRejectionsMode(mode) ? mode : "throw";
 }
 
 function isObject(value: unknown): value is object {

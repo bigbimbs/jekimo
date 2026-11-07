@@ -1,20 +1,14 @@
-/**
- * Turns one queued ingest job into stored events, issue summaries, and daily
- * counts.
- *
- * Steps are separate and idempotent, event store first (docs/architecture.md,
- * "Storage engines", rules 2 and 3): sample, redact, validate in stored form,
- * fingerprint, append, derive issue counts from the event store and merge
- * them into metadata, then add the job's counts to the project's daily
- * counters under the job's id. A retry after any failure converges on the
- * same state, and a redelivered job is counted once.
- */
+// Steps are separate and idempotent, event store first, with no transaction
+// spanning the event store and metadata (docs/architecture.md, "Storage
+// engines", rules 2 and 3): append, then merge issue counts derived from the
+// event store, then add the job's counts to the daily counters under the
+// job's id. A retry after any failure converges on the same state, and a
+// redelivered job is counted once.
 
 import {
   deriveFingerprint,
   type EventEnvelope,
   effectiveRetentionDays,
-  type IssueCode,
   isExpired,
   normalizeRetentionDays,
   RETENTION,
@@ -26,47 +20,21 @@ import {
   type AppendEvent,
   DAILY_COUNTER_RETENTION_MONTHS,
   daysFrom,
-  type EventStore,
   type IngestJob,
   type IssueSummary,
-  type MetadataRepository,
 } from "@jekimo/storage-postgres";
+import { DAY_MS, PREPARE_PARTITION_DAYS } from "./constants/index.js";
 import { issueTitle } from "./issue.js";
 import { RedactorCache } from "./redact.js";
-import type { ExpiryOptions } from "./types/expiry.js";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export interface ProcessDeps {
-  metadata: MetadataRepository;
-  events: EventStore;
-  /** Audit log retention (JEKIMO_AUDIT_LOG_DAYS). Defaults to RETENTION.AUDIT_LOG_DAYS. */
-  auditLogDays?: number;
-}
-
-export interface ProcessContext {
-  /** Queue job id; the counters step uses `job:<id>` as its idempotency key. */
-  jobId: string;
-  /** Shared by the jobs of one batch. A fresh cache is used when omitted. */
-  redactors?: RedactorCache;
-}
-
-/** An event that failed stored-form validation. Carries no event content. */
-export interface DroppedEvent {
-  index: number;
-  eventId: string;
-  errors: { path: string; code: IssueCode }[];
-}
-
-export interface ProcessResult {
-  /** False when the project no longer exists; the job is dropped. */
-  projectFound: boolean;
-  received: number;
-  sampledOut: number;
-  /** Events that failed stored-form validation and were not stored. */
-  dropped: DroppedEvent[];
-  inserted: number;
-}
+import type {
+  DroppedEvent,
+  ExpiryOptions,
+  ExpiryResult,
+  ProcessContext,
+  ProcessDeps,
+  ProcessResult,
+  ProjectExpiry,
+} from "./types/index.js";
 
 export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: ProcessContext): Promise<ProcessResult> {
   const settings = await deps.metadata.getProjectSettings(job.project_id);
@@ -88,8 +56,8 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
       sampledOut++;
       return;
     }
-    // Validate before fingerprinting, which assumes a well-formed event. A
-    // derived fingerprint is always a valid one.
+    // Fingerprinting assumes a well-formed event, so validate first. A derived
+    // fingerprint is always a valid one.
     const result = validateEvent(
       { ...redactEvent(e, redact), project_id: job.project_id },
       { mode: "stored", now: sentAt },
@@ -102,7 +70,6 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
       });
       return;
     }
-    // The validator returns the canonical envelope without unknown fields.
     const event = { ...result.event, project_id: job.project_id };
     const stored: AppendEvent = {
       receivedAt,
@@ -134,7 +101,7 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
   const summaries: IssueSummary[] = [];
   for (const d of derived) {
     const e = latest.get(d.fingerprint);
-    if (!e) continue; // only fingerprints from this job were requested
+    if (!e) continue;
     summaries.push({
       ...d,
       title: issueTitle(e),
@@ -170,15 +137,6 @@ export function counterRetentionStart(now: Date): string {
   return new Date(Date.UTC(year, month, Math.min(now.getUTCDate(), lastDay))).toISOString().slice(0, 10);
 }
 
-export interface ExpiryResult {
-  deletedEvents: number;
-  projectsTouched: number;
-  dedupePruned: number;
-  countersPruned: number;
-  perProject: { projectId: string; deleted: number; retentionDays: number }[];
-  auditPruned: number;
-}
-
 /** docs/retention.md, "Project retention period". */
 export function projectRetentionDays(
   stored: number,
@@ -192,9 +150,10 @@ export function projectRetentionDays(
 /**
  * One expiry pass (docs/retention.md, "Expiry mechanics"): drop each
  * project's days whose newest possible event has passed retention, oldest
- * day first, recount the issues of each project that lost events, prune the deduplication index, drop daily counters older than
- * 13 months with counter idempotency keys older than the deduplication
- * window, and create the next week's partitions.
+ * day first, recount the issues of each project that lost events, prune the
+ * deduplication index, drop daily counters older than 13 months and counter
+ * idempotency keys older than the deduplication window, and create the next
+ * week's partitions.
  */
 export async function runExpiryPass(
   deps: ProcessDeps,
@@ -213,7 +172,6 @@ export async function runExpiryPass(
   }));
   const deleted = new Map<string, number>();
   for (const day of days) {
-    // The last instant of the day is the newest event it can hold.
     const endOfDay = new Date(Date.parse(`${day}T00:00:00.000Z`) + DAY_MS);
     for (const { projectId, retentionDays } of projects) {
       if (!isExpired(endOfDay, retentionDays, now)) continue;
@@ -222,7 +180,7 @@ export async function runExpiryPass(
     }
   }
   let deletedEvents = 0;
-  const perProject: ExpiryResult["perProject"] = [];
+  const perProject: ProjectExpiry[] = [];
   for (const { projectId, retentionDays } of projects) {
     const n = deleted.get(projectId) ?? 0;
     if (n === 0 && !options.recountAll) continue;
@@ -240,7 +198,7 @@ export async function runExpiryPass(
   const auditPruned = await deps.metadata.pruneAudit(
     new Date(now.getTime() - (deps.auditLogDays ?? RETENTION.AUDIT_LOG_DAYS) * DAY_MS),
   );
-  await deps.events.prepareDays(daysFrom(new Date(now.getTime() - DAY_MS), 9));
+  await deps.events.prepareDays(daysFrom(new Date(now.getTime() - DAY_MS), PREPARE_PARTITION_DAYS));
   return {
     deletedEvents,
     projectsTouched: perProject.length,

@@ -1,57 +1,34 @@
-/**
- * Builds the API server from its dependencies, so tests can run it against
- * in-memory storage with `app.inject` and production runs it against
- * PostgreSQL.
- */
-
 import { randomUUID } from "node:crypto";
 import cookie from "@fastify/cookie";
-import type {
-  DiskMonitor,
-  EventStore,
-  IngestJob,
-  IngestLimitStore,
-  MetadataRepository,
-  Queue,
-} from "@jekimo/storage-postgres";
+import type { IngestLimits } from "@jekimo/storage-postgres";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
-import { type ApiConfig, DEFAULT_API_CONFIG } from "./config.js";
+import { DEFAULT_API_CONFIG } from "./constants/index.js";
 import { apiErrorHandler } from "./errors.js";
-import { argon2Hasher, type PasswordHasher } from "./passwords.js";
-import { accountRoutes } from "./routes/account.js";
-import { authRoutes, SetupGate } from "./routes/auth.js";
-import { ingestRoutes } from "./routes/ingest.js";
-import { issueRoutes } from "./routes/issues.js";
-import { keyRoutes } from "./routes/keys.js";
-import { limitRoutes } from "./routes/limits.js";
-import { memberRoutes } from "./routes/members.js";
-import { projectRoutes } from "./routes/projects.js";
-import { userRoutes } from "./routes/users.js";
+import { accountRoutes } from "./modules/account/routes.js";
+import { AccountService } from "./modules/account/service.js";
+import { authRoutes } from "./modules/auth/routes.js";
+import { AuthService, SetupGate } from "./modules/auth/service.js";
+import { eventRoutes } from "./modules/events/routes.js";
+import { EventService } from "./modules/events/service.js";
+import { ingestRoutes } from "./modules/ingest/routes.js";
+import { IngestService } from "./modules/ingest/service.js";
+import { issueRoutes } from "./modules/issues/routes.js";
+import { IssueService } from "./modules/issues/service.js";
+import { keyRoutes } from "./modules/keys/routes.js";
+import { KeyService } from "./modules/keys/service.js";
+import { limitRoutes } from "./modules/limits/routes.js";
+import { LimitService } from "./modules/limits/service.js";
+import { memberRoutes } from "./modules/members/routes.js";
+import { MemberService } from "./modules/members/service.js";
+import { projectRoutes } from "./modules/projects/routes.js";
+import { ProjectService } from "./modules/projects/service.js";
+import { userRoutes } from "./modules/users/routes.js";
+import { UserService } from "./modules/users/service.js";
+import { argon2Hasher } from "./passwords.js";
 import { rejectAuthorizationHeader, requireProjectPermission, requireSession } from "./session.js";
+import type { ApiConfig, AppDeps } from "./types/index.js";
 
-export interface AppDeps {
-  metadata: MetadataRepository;
-  events: EventStore;
-  queue: Queue<IngestJob>;
-  /** Absent only in tests: ingest is then not limited. */
-  limits?: IngestLimitStore;
-  /** Absent only in tests: disk space is then not checked. */
-  disk?: DiskMonitor;
-  config?: Partial<ApiConfig>;
-  /** The one-time setup token, or null when setup is closed. */
-  setupToken?: string | null;
-  hasher?: PasswordHasher;
-  clock?: () => Date;
-  /**
-   * Dependency checks for `GET /readyz`, by name. Each resolves when the
-   * dependency is reachable. Defaults to a metadata read as "database".
-   */
-  readiness?: Record<string, () => Promise<unknown>>;
-  /** Fastify logger options; false in tests. */
-  logger?: FastifyServerOptions["logger"];
-  /** Called for every route as it is registered, so tests can enumerate them. */
-  onRoute?: (route: { method: string | string[]; url: string }) => void;
-}
+const READY_TIMEOUT_MS = 2000;
 
 /**
  * Logger options that keep credentials and payloads out of logs. Fastify's
@@ -77,8 +54,6 @@ export function loggerOptions(level: string): FastifyServerOptions["logger"] {
   };
 }
 
-const READY_TIMEOUT_MS = 2000;
-
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -87,9 +62,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/** Tests run this against in-memory storage with `app.inject`; production against PostgreSQL. */
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const config: ApiConfig = { ...DEFAULT_API_CONFIG, ...deps.config };
   const clock = deps.clock ?? (() => new Date());
+  const { metadata, events } = deps;
+  const limitDefaults: IngestLimits = {
+    ratePerMinute: config.rateLimitPerMinute,
+    eventsPerDay: config.quotaEventsPerDay,
+  };
   const app = Fastify({
     logger: deps.logger ?? false,
     trustProxy: config.trustProxy,
@@ -109,11 +90,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   // Health checks poll every few seconds; keep them out of info-level logs.
-  // Liveness: the process is up and serving. No dependency is touched.
+  // Liveness touches no dependency.
   app.get("/healthz", { logLevel: "warn" }, async () => ({ status: "ok" }));
 
-  // Readiness: every dependency answers within READY_TIMEOUT_MS.
-  const readiness = deps.readiness ?? { database: () => deps.metadata.countUsers() };
+  const readiness = deps.readiness ?? { database: () => metadata.countUsers() };
   app.get("/readyz", { logLevel: "warn" }, async (request, reply) => {
     const checks: Record<string, "ok" | "unavailable"> = {};
     await Promise.all(
@@ -139,75 +119,72 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     };
   });
 
-  // Ingest is registered in its own scope: no cookie parsing, no session
+  // Ingest stays outside the dashboard scope: no cookie parsing, no session
   // middleware, its own body parser and error format.
   await app.register(ingestRoutes, {
-    metadata: deps.metadata,
-    queue: deps.queue,
-    clock,
-    limitDefaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
-    ...(deps.limits && { limits: deps.limits }),
-    ...(deps.disk && { disk: deps.disk }),
+    service: new IngestService({
+      metadata,
+      queue: deps.queue,
+      clock,
+      limitDefaults,
+      ...(deps.limits && { limits: deps.limits }),
+      ...(deps.disk && { disk: deps.disk }),
+    }),
   });
 
   await app.register(async (dashboard) => {
     dashboard.addHook("onRequest", rejectAuthorizationHeader);
     await dashboard.register(cookie);
-    const session = requireSession({ metadata: deps.metadata, idleDays: config.sessionIdleDays, clock });
+    const session = requireSession({ metadata, idleDays: config.sessionIdleDays, clock });
+    const projectAccess = requireProjectPermission(metadata);
     const hasher = deps.hasher ?? argon2Hasher;
-    const projectAccess = requireProjectPermission(deps.metadata);
+
     await dashboard.register(authRoutes, {
-      metadata: deps.metadata,
-      hasher,
-      setup: new SetupGate(deps.setupToken ?? null),
+      service: new AuthService({
+        metadata,
+        hasher,
+        setup: new SetupGate(deps.setupToken ?? null),
+        sessionMaxDays: config.sessionMaxDays,
+        retentionDefaultDays: config.retentionDefaultDays,
+        clock,
+      }),
+      session,
       sessionMaxDays: config.sessionMaxDays,
-      retentionDefaultDays: config.retentionDefaultDays,
-      clock,
+    });
+    await dashboard.register(accountRoutes, { service: new AccountService({ metadata, hasher, clock }), session });
+    await dashboard.register(userRoutes, {
+      service: new UserService({
+        metadata,
+        inviteExpiryDays: config.inviteExpiryDays,
+        publicUrl: config.publicUrl,
+        clock,
+      }),
       session,
     });
     await dashboard.register(projectRoutes, {
-      metadata: deps.metadata,
-      events: deps.events,
+      service: new ProjectService({
+        metadata,
+        membersCanCreateProjects: config.membersCanCreateProjects,
+        retentionDefaultDays: config.retentionDefaultDays,
+        retentionMaxDays: config.retentionMaxDays,
+      }),
       session,
       projectAccess,
-      membersCanCreateProjects: config.membersCanCreateProjects,
-      retentionDefaultDays: config.retentionDefaultDays,
-      retentionMaxDays: config.retentionMaxDays,
-      clock,
     });
-    await dashboard.register(accountRoutes, { metadata: deps.metadata, hasher, clock, session });
-    await dashboard.register(userRoutes, {
-      metadata: deps.metadata,
-      session,
-      inviteExpiryDays: config.inviteExpiryDays,
-      publicUrl: config.publicUrl,
-      clock,
-    });
-    await dashboard.register(memberRoutes, {
-      metadata: deps.metadata,
-      session,
-      projectAccess,
-      retentionMaxDays: config.retentionMaxDays,
-    });
+    await dashboard.register(eventRoutes, { service: new EventService({ events, clock }), session, projectAccess });
+    await dashboard.register(memberRoutes, { service: new MemberService({ metadata }), session, projectAccess });
     await dashboard.register(keyRoutes, {
-      metadata: deps.metadata,
+      service: new KeyService({ metadata, clock }),
       session,
       projectAccess,
       rotationGraceHours: config.keyRotationGraceHours,
-      clock,
     });
-    await dashboard.register(issueRoutes, {
-      metadata: deps.metadata,
-      events: deps.events,
-      session,
-      projectAccess,
-    });
+    await dashboard.register(issueRoutes, { service: new IssueService({ metadata, events }), session, projectAccess });
     if (deps.limits) {
       await dashboard.register(limitRoutes, {
-        limits: deps.limits,
+        service: new LimitService({ limits: deps.limits, defaults: limitDefaults }),
         session,
-        projectAccess: requireProjectPermission(deps.metadata),
-        defaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
+        projectAccess,
       });
     }
   });

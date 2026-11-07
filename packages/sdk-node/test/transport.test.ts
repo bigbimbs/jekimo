@@ -1,7 +1,8 @@
 import { INGEST_PATH } from "@jekimo/event-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GZIP_THRESHOLD_BYTES } from "../src/constants/index.js";
 import { init, SDK_VERSION } from "../src/index.js";
-import { GZIP_THRESHOLD_BYTES, parseRetryAfter, retryDelay } from "../src/transport.js";
+import { parseRetryAfter, retryDelay } from "../src/transport.js";
 import { acceptAll, BASE_URL, type Harness, harness, KEY, response, SECRET, tick } from "./helpers.js";
 
 let h: Harness;
@@ -94,7 +95,7 @@ describe("queue", () => {
   });
 
   it("uses the spec defaults", async () => {
-    const { DEFAULTS } = await import("../src/client.js");
+    const { DEFAULTS } = await import("../src/constants/index.js");
     expect(DEFAULTS).toEqual({
       maxQueueSize: 1000,
       flushIntervalMs: 2000,

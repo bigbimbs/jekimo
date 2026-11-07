@@ -7,8 +7,8 @@
 import { statfs } from "node:fs/promises";
 import { DISK_THRESHOLDS, type DiskThresholds, diskLevel } from "@jekimo/event-schema";
 import { DEFAULT_DISK_CONFIG } from "./constants/disk.js";
-import type { Pool } from "./pool.js";
 import type { DiskConfig, DiskMonitorOptions, DiskProbe, DiskStatus } from "./types/disk.js";
+import type { Pool } from "./types/pool.js";
 
 export function statfsDiskProbe(path: string): DiskProbe {
   return async () => {

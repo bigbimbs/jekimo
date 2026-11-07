@@ -1,27 +1,18 @@
-/**
- * Plain-SQL migration runner. Files in migrations/ are named
- * `NNNN_description.sql` and applied in numeric order, each in its own
- * transaction, and recorded in schema_migrations. Applied files are never
- * edited; a change is a new file.
- */
+// Migrations are applied in numeric order, each in its own transaction, and
+// recorded in schema_migrations. Applied files are never edited; a change is a
+// new file.
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { daysFrom, PostgresEventStore } from "./event-store.js";
-import type { Pool } from "./pool.js";
+import type { Migration } from "./types/migrate.js";
+import type { Pool } from "./types/pool.js";
 
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/;
-/** Arbitrary constant so concurrent runners wait for each other. */
-const MIGRATION_LOCK_KEY = 0x6a656b69; // "jeki"
-/** Event partitions are created this many days ahead of today. */
+/** Advisory lock key ("jeki") so concurrent runners wait for each other. */
+const MIGRATION_LOCK_KEY = 0x6a656b69;
 const PARTITION_DAYS_AHEAD = 7;
-
-export interface Migration {
-  version: number;
-  name: string;
-  sql: string;
-}
 
 /** Defaults to JEKIMO_MIGRATIONS_DIR, else this package's migrations/ directory. */
 export function defaultMigrationsDir(): string {

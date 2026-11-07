@@ -1,26 +1,19 @@
-/**
- * Integration test helper: a throwaway schema in the database named by
- * JEKIMO_DATABASE_URL (or the deprecated DATABASE_URL), migrated from
- * scratch, dropped afterwards. Tests that use it are skipped when neither is
- * set.
- */
+// Integration tests get a throwaway schema in the database named by
+// JEKIMO_DATABASE_URL (or the deprecated DATABASE_URL), dropped afterwards;
+// tests that use it are skipped when neither is set.
 
 import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { migrate } from "./migrate.js";
-import type { Pool } from "./pool.js";
+import type { TestDatabase } from "./types/testing.js";
 
 const testDatabaseUrl = process.env.JEKIMO_DATABASE_URL || process.env.DATABASE_URL;
 
 export const hasDatabase = Boolean(testDatabaseUrl);
 
-export interface TestDatabase {
-  pool: Pool;
-  schema: string;
-  close(): Promise<void>;
-}
-
 /** A fresh schema. Pass `migrate: false` to get it empty, without migrations. */
+export type { TestDatabase };
+
 export async function createTestDatabase(options: { migrate?: boolean } = {}): Promise<TestDatabase> {
   const connectionString = testDatabaseUrl;
   if (!connectionString) throw new Error("JEKIMO_DATABASE_URL is not set");

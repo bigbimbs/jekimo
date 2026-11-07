@@ -1,14 +1,11 @@
-/**
- * PostgreSQL implementation of the EventStore boundary.
- *
- * Rules from docs/architecture.md ("Storage engines") that this file keeps:
- * appends are idempotent on (project_id, event_id) without relying on an
- * insert failing; every operation takes project_id; no metadata table is
- * touched here, so no transaction spans the two stores.
- */
+// docs/architecture.md, "Storage engines": appends are idempotent on
+// (project_id, event_id) without relying on an insert failing; every operation
+// takes project_id; no metadata table is touched here, so no transaction spans
+// the two stores.
 
 import { EVENT_KINDS, type EventEnvelope, SEVERITIES, type Severity, utcDay } from "@jekimo/event-schema";
-import { type Pool, withTransaction } from "./pool.js";
+import { MESSAGE_VECTOR } from "./constants/sql.js";
+import { withTransaction } from "./pool.js";
 import type {
   AppendEvent,
   EventPage,
@@ -17,7 +14,8 @@ import type {
   EventStoreCapabilities,
   FingerprintSummary,
   StoredEvent,
-} from "./types.js";
+} from "./types/event-store.js";
+import type { Pool } from "./types/pool.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PARTITION_NAME = /^events_(\d{4})(\d{2})(\d{2})$/;
@@ -32,13 +30,6 @@ const NO_PARTITION = "23514";
 export function searchWords(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }
-
-/**
- * Must match the expression of events_message_search_idx (migration 0006)
- * exactly, or PostgreSQL will not use the index.
- */
-export const MESSAGE_VECTOR =
-  "to_tsvector('simple', regexp_replace(message, '[[:punct:][:space:][:cntrl:]]+', ' ', 'g'))";
 
 export function partitionName(day: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new RangeError("day must be YYYY-MM-DD");
@@ -184,7 +175,7 @@ export class PostgresEventStore implements EventStore {
       return await this.insert(projectId, events);
     } catch (err) {
       if ((err as { code?: string }).code !== NO_PARTITION) throw err;
-      // Another process dropped a day we had cached. Re-check and try once more.
+      // Another process dropped a cached day: prepare it again and retry once.
       for (const d of days) this.preparedDays.delete(d);
       await this.prepareDays(days);
       return this.insert(projectId, events);

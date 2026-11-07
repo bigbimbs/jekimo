@@ -8,9 +8,9 @@ import {
 } from "@jekimo/storage-postgres/memory";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
+import { CSRF_HEADER, SESSION_COOKIE } from "../src/constants/index.js";
 import { generateIngestionKey } from "../src/keys.js";
-import type { PasswordHasher } from "../src/passwords.js";
-import { CSRF_HEADER, SESSION_COOKIE } from "../src/session.js";
+import type { PasswordHasher } from "../src/types/index.js";
 
 /** Fast stand-in for Argon2id in unit tests. One test exercises the real hasher. */
 export const fakeHasher: PasswordHasher = {
