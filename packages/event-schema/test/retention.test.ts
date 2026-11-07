@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DISK_THRESHOLDS,
-  RETENTION,
   diskLevel,
   effectiveRetentionDays,
   isExpired,
   normalizeRetentionDays,
+  RETENTION,
   retentionExpiry,
 } from "../src/index.js";
 
@@ -19,7 +19,17 @@ describe("normalizeRetentionDays", () => {
   });
 
   it("rejects out-of-range, fractional, and non-numeric values", () => {
-    for (const bad of [0, -1, RETENTION.MAX_DAYS + 1, 1.5, "30", null, undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const bad of [
+      0,
+      -1,
+      RETENTION.MAX_DAYS + 1,
+      1.5,
+      "30",
+      null,
+      undefined,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]) {
       expect(normalizeRetentionDays(bad), String(bad)).toBeNull();
     }
   });

@@ -75,7 +75,9 @@ describe("shouldKeepEvent", () => {
   });
 
   it("samples debug, info, and warning logs and events at the configured rate", () => {
-    const kept = ids.filter((event_id) => shouldKeepEvent({ event_id, kind: "event", severity: "warning" }, 0.5)).length / ids.length;
+    const kept =
+      ids.filter((event_id) => shouldKeepEvent({ event_id, kind: "event", severity: "warning" }, 0.5)).length /
+      ids.length;
     expect(kept).toBeGreaterThan(0.45);
     expect(kept).toBeLessThan(0.55);
   });

@@ -30,14 +30,13 @@ function assertProjectId(projectId: string): void {
 }
 
 function splitDay(day: string): [string, string, string] {
-  const m = DAY_PATTERN.exec(day);
-  if (!m) throw new RangeError("day must be YYYY-MM-DD");
-  const [, y, mo, d] = m;
+  const [, y, mo, d] = DAY_PATTERN.exec(day) ?? [];
+  if (y === undefined || mo === undefined || d === undefined) throw new RangeError("day must be YYYY-MM-DD");
   const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
   if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() !== Number(mo) - 1 || date.getUTCDate() !== Number(d)) {
     throw new RangeError("day is not a valid calendar date");
   }
-  return [y!, mo!, d!];
+  return [y, mo, d];
 }
 
 /** Formats a Date as the UTC day it falls on. */
@@ -57,8 +56,14 @@ export function archiveDayPrefix(projectId: string, day: string): string {
   return `${projectPrefix(projectId)}events/${y}/${m}/${d}/`;
 }
 
-export function archivePartKey(projectId: string, day: string, part: number, format: ArchiveFormat = "ndjson.zst"): string {
-  if (!Number.isInteger(part) || part < 0 || part > 99999) throw new RangeError("part must be an integer from 0 to 99999");
+export function archivePartKey(
+  projectId: string,
+  day: string,
+  part: number,
+  format: ArchiveFormat = "ndjson.zst",
+): string {
+  if (!Number.isInteger(part) || part < 0 || part > 99999)
+    throw new RangeError("part must be an integer from 0 to 99999");
   return `${archiveDayPrefix(projectId, day)}part-${String(part).padStart(5, "0")}.${format}`;
 }
 
@@ -75,9 +80,8 @@ const ARCHIVE_KEY_PATTERN =
 
 /** Parses an archive key back into its parts, or returns null for anything else. Never throws. */
 export function parseArchiveKey(key: string): ParsedArchiveKey | null {
-  const m = ARCHIVE_KEY_PATTERN.exec(key);
-  if (!m) return null;
-  const [, projectId, y, mo, d, part, format] = m;
+  const [, projectId, y, mo, d, part, format] = ARCHIVE_KEY_PATTERN.exec(key) ?? [];
+  if (projectId === undefined) return null;
   const day = `${y}-${mo}-${d}`;
   try {
     splitDay(day);
@@ -85,9 +89,9 @@ export function parseArchiveKey(key: string): ParsedArchiveKey | null {
     return null;
   }
   if (part !== undefined) {
-    return { kind: "part", projectId: projectId!, day, part: Number(part), format: format as ArchiveFormat };
+    return { kind: "part", projectId, day, part: Number(part), format: format as ArchiveFormat };
   }
-  return { kind: "manifest", projectId: projectId!, day };
+  return { kind: "manifest", projectId, day };
 }
 
 export interface RetentionSplitInput {

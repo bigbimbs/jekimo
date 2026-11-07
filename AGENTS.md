@@ -32,7 +32,7 @@ The repository is a scaffold. The only implemented code is the contract-level he
 
 ## Conventions
 
-- TypeScript with `strict` enabled; see the root `tsconfig.json`.
+- TypeScript with `strict`, `exactOptionalPropertyTypes`, and `noUncheckedIndexedAccess` enabled; shared options live in `tsconfig.base.json`.
 - npm workspaces; run commands from the repository root.
 - Conventional Commits for commit messages.
 - Update `CHANGELOG.md` under "Unreleased" for user-visible changes.
@@ -43,12 +43,15 @@ The repository is a scaffold. The only implemented code is the contract-level he
 
 ```bash
 npm install        # install workspace dependencies
-npm run typecheck  # TypeScript type check across apps and packages
+npm run lint       # Biome lint, format, and import-order check (no writes)
+npm run lint:fix   # apply Biome's safe fixes and formatting
+npm run format     # format every file with Biome
+npm run typecheck  # tsc -b over the solution tsconfig and its project references
 npm test           # Vitest unit tests
-npm run check      # both of the above
+npm run check      # lint, typecheck, then test; CI runs the same three steps
 ```
 
-Lint and build commands will be added here as they are introduced.
+Biome (`biome.json`) is the only linter and formatter; do not add ESLint or Prettier. Run `npm run lint:fix` before committing. Each package with source has its own `tsconfig.json` that extends `tsconfig.base.json` and is listed in the root `tsconfig.json` references; see "TypeScript configuration" in [CONTRIBUTING.md](CONTRIBUTING.md). A build command will be added here when the first package needs one.
 
 ## Local agent configuration
 

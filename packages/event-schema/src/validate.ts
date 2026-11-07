@@ -1,16 +1,16 @@
 import { LIMITS } from "./limits.js";
 import {
-  EVENT_KINDS,
-  SCHEMA_VERSION,
-  SEVERITIES,
-  TIMESTAMP_PATTERN,
-  ULID_PATTERN,
   type AttributeValue,
+  EVENT_KINDS,
   type EventEnvelope,
   type EventKind,
   type ExceptionInfo,
+  SCHEMA_VERSION,
   type SdkInfo,
+  SEVERITIES,
   type Severity,
+  TIMESTAMP_PATTERN,
+  ULID_PATTERN,
 } from "./types.js";
 
 /**
@@ -128,11 +128,7 @@ class Collector {
     return value;
   }
 
-  enumValue<T extends string>(
-    path: string,
-    value: unknown,
-    allowed: readonly T[],
-  ): T | undefined {
+  enumValue<T extends string>(path: string, value: unknown, allowed: readonly T[]): T | undefined {
     if (value === undefined) {
       this.error(path, "required", `${path} is required`);
       return undefined;
@@ -147,7 +143,11 @@ class Collector {
   unknownFields(path: string, obj: Record<string, unknown>, known: Set<string>): void {
     for (const key of Object.keys(obj)) {
       if (!known.has(key)) {
-        this.warn(`${path}/${key}`, "unknown_field", `${path}/${key} is not part of schema version ${SCHEMA_VERSION} and was dropped`);
+        this.warn(
+          `${path}/${key}`,
+          "unknown_field",
+          `${path}/${key} is not part of schema version ${SCHEMA_VERSION} and was dropped`,
+        );
       }
     }
   }
@@ -337,7 +337,14 @@ export function validateEvent(input: unknown, options: ValidateOptions = {}): Va
   const context = validateContext(c, input.context);
   const attributes = validateAttributes(c, input.attributes);
 
-  if (c.errors.length > 0 || event_id === undefined || timestamp === undefined || kind === undefined || severity === undefined || message === undefined) {
+  if (
+    c.errors.length > 0 ||
+    event_id === undefined ||
+    timestamp === undefined ||
+    kind === undefined ||
+    severity === undefined ||
+    message === undefined
+  ) {
     return { ok: false, errors: c.errors, warnings: c.warnings };
   }
 

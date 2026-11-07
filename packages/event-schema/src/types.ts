@@ -19,8 +19,7 @@ export type Severity = (typeof SEVERITIES)[number];
 export const ULID_PATTERN = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 
 /** RFC 3339 timestamp with optional fractional seconds and a Z or numeric offset. */
-export const TIMESTAMP_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+export const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 
 export interface ExceptionInfo {
   /** Exception class or type name, for example "DatabaseError". */
@@ -39,13 +38,7 @@ export interface SdkInfo {
 }
 
 /** A JSON value permitted inside `attributes`. */
-export type AttributeValue =
-  | string
-  | number
-  | boolean
-  | null
-  | AttributeValue[]
-  | { [key: string]: AttributeValue };
+export type AttributeValue = string | number | boolean | null | AttributeValue[] | { [key: string]: AttributeValue };
 
 export interface EventEnvelope {
   schema_version: typeof SCHEMA_VERSION;

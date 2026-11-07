@@ -1,5 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EventEnvelope } from "../src/index.js";
 
@@ -34,12 +34,14 @@ export function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mutation tests deliberately write values the envelope type forbids
 export type Mutable = Record<string, any>;
 
 /**
  * Invalid variations of a valid stored-form event. `schemaDetects` is false
  * for rules that JSON Schema cannot express and only the validator enforces.
  */
+// biome-ignore format: one case per line keeps the cases readable as a table
 export const invalidCases: Array<{
   name: string;
   mutate: (e: Mutable) => void;
