@@ -50,6 +50,17 @@ With those rules, offering ClickHouse is an additional implementation of one int
 
 Engines considered and not chosen for the core: Elasticsearch and OpenSearch (best full-text search, heaviest operational footprint), Loki (cheap and object-storage native, weak at structured search), VictoriaLogs (lightweight and promising, still young).
 
+## Dashboard
+
+The dashboard in `apps/web` is a single-page app built with:
+
+- **Vite**, **React**, and **TypeScript**, under the shared `tsconfig.base.json` settings.
+- **Tailwind CSS** for styling.
+- **shadcn/ui** for components. Its components are copied into `apps/web` as source and maintained there, so they are linted and formatted by Biome like the rest of the repository and there is no runtime UI dependency to track. They are built on Radix UI primitives for accessibility.
+- **TanStack Query** for calls to the query API.
+
+The built dashboard is static files served by the instance. Every script, stylesheet, font, and icon is bundled into the build; the dashboard loads nothing from a CDN or other third-party host, so it works on private networks and a user's browser contacts only the Jekimo instance.
+
 ## Deployment
 
 Docker Compose will run the app on one VPS. Setup will connect an existing PostgreSQL datasource or provision PostgreSQL locally. Provisioning credentials are one-time setup secrets; runtime services use a restricted application account.
