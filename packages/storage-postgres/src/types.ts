@@ -7,7 +7,8 @@
 
 import type { EventEnvelope, EventKind, ProjectPermission, Severity } from "@jekimo/event-schema";
 import type { ProjectAccess } from "./access.js";
-import type { AccessRepository, AuditAction } from "./access-types.js";
+import type { AuditAction } from "./constants/index.js";
+import type { AccessRepository } from "./types/index.js";
 
 export type InstanceRole = "admin" | "member";
 

@@ -1,5 +1,6 @@
 export { hasProjectPermission, type ProjectAccess } from "./access.js";
-export * from "./access-types.js";
+export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
+export * from "./constants/index.js";
 export { daysFrom, PostgresEventStore, partitionName, searchWords } from "./event-store.js";
 export { checkDatabase, checkQueue } from "./health.js";
 export { PostgresMetadataRepository } from "./metadata.js";
@@ -28,4 +29,5 @@ export {
   type QueuePolicy,
   queuePolicyFromEnv,
 } from "./queue.js";
+export type * from "./types/access.js";
 export * from "./types.js";

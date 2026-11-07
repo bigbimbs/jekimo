@@ -1,16 +1,13 @@
-/**
- * PostgreSQL implementation of AccessRepository: users, sessions,
- * invitations and reset links, the audit log listing, project settings,
- * memberships, and ingestion key management (docs/access-model.md).
- * PostgresMetadataRepository extends this class.
- *
- * Rules that depend on more than one row (the last instance admin, the last
- * project admin) are checked inside a transaction that locks the rows the
- * decision depends on, so two concurrent requests cannot both pass.
- */
+// Rules that depend on more than one row (the last instance admin, the last
+// project admin, docs/access-model.md) are checked in a transaction that locks
+// the rows the decision depends on, so two concurrent requests cannot both pass.
 
 import { canAssignRole, isProjectPermission, type ProjectPermission } from "@jekimo/event-schema";
 import type { ProjectAccess } from "./access.js";
+import { PROJECT_COLUMNS, type ProjectRow, toProject } from "./cross-project.js";
+import { type Pool, type PoolClient, withTransaction } from "./pool.js";
+import { firstRow } from "./rows.js";
+import { insertAudit, isUuid, requirePermission, toUser, USER_COLUMNS } from "./sql-shared.js";
 import type {
   AccessRepository,
   AuditQuery,
@@ -23,11 +20,8 @@ import type {
   Result,
   RoleRecord,
   SessionSummary,
-} from "./access-types.js";
-import { PROJECT_COLUMNS, type ProjectRow, toProject } from "./cross-project.js";
-import { type Pool, type PoolClient, withTransaction } from "./pool.js";
-import { firstRow } from "./rows.js";
-import { insertAudit, isUuid, requirePermission, toUser, USER_COLUMNS, type UserRow } from "./sql-shared.js";
+  UserRow,
+} from "./types/index.js";
 import type { Actor, InstanceRole, ProjectRecord, UserRecord } from "./types.js";
 
 function requireInstanceAdmin(actor: Actor | null): void {
@@ -131,8 +125,6 @@ function isPending(r: TokenRow, now: Date): boolean {
 export class PostgresAccessRepository implements AccessRepository {
   constructor(protected readonly pool: Pool) {}
 
-  // Users.
-
   async findUserByEmail(email: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
       `SELECT ${USER_COLUMNS} FROM users u WHERE lower(u.email) = lower($1)`,
@@ -194,8 +186,6 @@ export class PostgresAccessRepository implements AccessRepository {
       return { ok: true, user: toUser(firstRow(updated.rows, "update user")) };
     });
   }
-
-  // Sessions.
 
   async listSessions(userId: string, now: Date): Promise<SessionSummary[]> {
     const { rows } = await this.pool.query<{
@@ -283,8 +273,6 @@ export class PostgresAccessRepository implements AccessRepository {
       });
     });
   }
-
-  // Invitations and password reset links.
 
   createInvitation(
     actor: Actor,
@@ -457,8 +445,6 @@ export class PostgresAccessRepository implements AccessRepository {
     });
   }
 
-  // Audit log.
-
   async listAudit(actor: Actor, query: AuditQuery): Promise<AuditRecord[]> {
     requireInstanceAdmin(actor);
     const where: string[] = [];
@@ -515,8 +501,6 @@ export class PostgresAccessRepository implements AccessRepository {
     const { rowCount } = await this.pool.query("DELETE FROM audit_log WHERE occurred_at < $1", [before.toISOString()]);
     return rowCount ?? 0;
   }
-
-  // Project settings, roles, and memberships.
 
   updateProject(access: ProjectAccess, change: ProjectSettingsChange, sourceIp?: string): Promise<ProjectRecord> {
     requirePermission(access, "settings.manage");
@@ -684,8 +668,6 @@ export class PostgresAccessRepository implements AccessRepository {
     });
   }
 
-  // Ingestion key management.
-
   async listIngestionKeys(access: ProjectAccess): Promise<IngestionKeySummary[]> {
     requirePermission(access, "keys.manage");
     const { rows } = await this.pool.query<KeyRow>(
@@ -791,7 +773,6 @@ async function revokePendingResets(client: PoolClient, userId: string, now: Date
   );
 }
 
-/** Serializes membership changes within one project. */
 async function lockProject(client: PoolClient, projectId: string): Promise<void> {
   const { rowCount } = await client.query("SELECT 1 FROM projects WHERE id = $1 FOR UPDATE", [projectId]);
   if (rowCount !== 1) throw new Error("project no longer exists");

@@ -16,11 +16,9 @@ export interface ApiConfig {
   sessionMaxDays: number;
   retentionDefaultDays: number;
   retentionMaxDays: number;
-  /** Lifetime of invitation and password reset links. */
   inviteExpiryDays: number;
-  /** How long a rotated ingestion key keeps working. */
   keyRotationGraceHours: number;
-  /** Origin the dashboard is served from, for invitation and reset links. Null: links are paths. */
+  /** Null: invitation and reset links are paths, not URLs. */
   publicUrl: string | null;
 }
 

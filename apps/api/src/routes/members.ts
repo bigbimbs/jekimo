@@ -1,24 +1,14 @@
-/**
- * Project settings, roles, and memberships (docs/access-model.md, "Project
- * permissions and roles" and "Membership rules"). Each route declares its
- * permission in its config; requireProjectPermission enforces it. The
- * no-escalation and last-admin rules are enforced by the storage layer in
- * the same transaction as the change.
- */
+// The no-escalation and last-admin rules (docs/access-model.md, "Membership
+// rules") are enforced by the storage layer in the same transaction as the
+// change, not here, so concurrent requests cannot both pass them.
 
 import { normalizeRetentionDays } from "@jekimo/event-schema";
-import type { MemberRecord, MetadataRepository, ProjectSettingsChange, RoleRecord } from "@jekimo/storage-postgres";
-import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
+import type { MemberRecord, ProjectSettingsChange, RoleRecord } from "@jekimo/storage-postgres";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { ApiError } from "../errors.js";
 import { actorOf, projectAccessOf } from "../session.js";
+import type { MemberRouteOptions } from "../types/index.js";
 import { publicProject } from "./projects.js";
-
-export interface MemberRouteOptions {
-  metadata: MetadataRepository;
-  session: preHandlerHookHandler;
-  projectAccess: preHandlerHookHandler;
-  retentionMaxDays: number;
-}
 
 function body(request: { body: unknown }): Record<string, unknown> {
   return (typeof request.body === "object" && request.body !== null ? request.body : {}) as Record<string, unknown>;
@@ -50,10 +40,8 @@ function roleName(value: unknown): string {
   return value.trim();
 }
 
-/**
- * `?force=true` lets an instance admin remove the project's last admin on
- * purpose (docs/access-model.md, "Membership rules"). Nobody else may.
- */
+// docs/access-model.md, "Membership rules": only an instance admin may
+// remove a project's last admin, on purpose.
 function force(request: FastifyRequest): boolean {
   const { force: raw } = request.query as { force?: unknown };
   if (raw === undefined || raw === "false") return false;

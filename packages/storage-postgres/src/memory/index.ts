@@ -18,6 +18,7 @@ import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../a
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
+import type { MemoryUser } from "../types/index.js";
 import type {
   Actor,
   AppendEvent,
@@ -43,7 +44,7 @@ import type {
   StoredEvent,
   UserRecord,
 } from "../types.js";
-import { MemoryAccessRepository, type MemoryUser, sameBytes } from "./access.js";
+import { MemoryAccessRepository, sameBytes } from "./access.js";
 
 export class MemoryMetadataRepository extends MemoryAccessRepository implements MetadataRepository {
   readonly issues: IssueRecord[] = [];

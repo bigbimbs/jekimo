@@ -17,7 +17,6 @@ export interface WorkerOptions {
   batchSize: number;
   pollMs: number;
   expiryIntervalMs: number;
-  /** Audit log retention (JEKIMO_AUDIT_LOG_DAYS). */
   auditLogDays?: number;
   clock?: () => Date;
 }

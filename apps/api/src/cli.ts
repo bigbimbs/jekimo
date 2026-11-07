@@ -1,8 +1,3 @@
-/**
- * The `jekimo` command for operators on the server. Reads the same
- * environment as the API. See src/admin-command.ts.
- */
-
 import { createPool, PostgresMetadataRepository } from "@jekimo/storage-postgres";
 import { runAdminCommand } from "./admin-command.js";
 import { loadApiConfig } from "./config.js";

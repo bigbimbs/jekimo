@@ -1,23 +1,10 @@
-/**
- * The signed-in user's own account (docs/access-model.md, "Sessions"):
- * password change and session listing and revocation. Also the two routes
- * that redeem single-use links without a session: accepting an invitation
- * and resetting a password.
- */
-
-import type { MetadataRepository, SessionSummary, UserRecord } from "@jekimo/storage-postgres";
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import type { SessionSummary, UserRecord } from "@jekimo/storage-postgres";
+import type { FastifyInstance } from "fastify";
 import { hashAccountToken, readAccountToken } from "../account-links.js";
 import { ApiError } from "../errors.js";
-import { type PasswordHasher, passwordProblem } from "../passwords.js";
+import { passwordProblem } from "../passwords.js";
 import { SESSION_COOKIE, sessionOf } from "../session.js";
-
-export interface AccountRouteOptions {
-  metadata: MetadataRepository;
-  hasher: PasswordHasher;
-  clock: () => Date;
-  session: preHandlerHookHandler;
-}
+import type { AccountRouteOptions } from "../types/index.js";
 
 export function publicAccountUser(u: UserRecord) {
   return {

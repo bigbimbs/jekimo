@@ -1,19 +1,8 @@
-/**
- * Row mapping and helpers shared by the PostgreSQL repositories.
- */
-
 import type { ProjectPermission } from "@jekimo/event-schema";
 import { assertProjectAccess, type ProjectAccess } from "./access.js";
 import type { Pool, PoolClient } from "./pool.js";
+import type { UserRow } from "./types/index.js";
 import type { AuditEntry, UserRecord } from "./types.js";
-
-export interface UserRow {
-  id: string;
-  email: string;
-  instance_role: UserRecord["instanceRole"];
-  status: UserRecord["status"];
-  created_at: Date;
-}
 
 export const USER_COLUMNS = "u.id, u.email, u.instance_role, u.status, u.created_at";
 
@@ -45,7 +34,7 @@ export function requirePermission(access: ProjectAccess, permission: ProjectPerm
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** True for a UUID string; ids from requests are checked before they reach a uuid column. */
+// Ids from requests are checked before they reach a uuid column, where a malformed one is a query error.
 export function isUuid(value: string): boolean {
   return UUID.test(value);
 }

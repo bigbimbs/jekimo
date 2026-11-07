@@ -1,8 +1,5 @@
--- Invitations and password reset links (docs/access-model.md, "Invitations
--- and recovery without email"), and indexes for the audit log listing.
-
--- Single-use account links. Only a SHA-256 hash of the token is stored.
--- An invitation names an email and an instance role; a reset names a user.
+-- docs/access-model.md, "Invitations and recovery without email". Only a
+-- SHA-256 hash of each single-use token is stored.
 CREATE TABLE account_tokens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   purpose text NOT NULL CHECK (purpose IN ('invitation', 'password_reset')),

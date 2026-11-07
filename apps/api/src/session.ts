@@ -140,7 +140,6 @@ export function requireProjectPermission(metadata: MetadataRepository) {
   };
 }
 
-/** preHandler for instance-level administration, after requireSession. */
 export async function requireInstanceAdmin(request: FastifyRequest): Promise<void> {
   if (actorOf(request).instanceRole !== "admin") {
     throw new ApiError(403, "forbidden", "this action needs an instance admin");

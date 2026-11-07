@@ -1,22 +1,16 @@
-/**
- * Instance administration (docs/access-model.md, "Instance roles"): users,
- * invitations, password reset links, other users' sessions, and the audit
- * log. Every route needs a session of an instance admin.
- */
-
 import { TIMESTAMP_PATTERN } from "@jekimo/event-schema";
 import {
   type AuditRecord,
   type InstanceRole,
   type InvitationRecord,
   isAuditAction,
-  type MetadataRepository,
   type UserRecord,
 } from "@jekimo/storage-postgres";
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { accountLink, newAccountToken } from "../account-links.js";
 import { ApiError } from "../errors.js";
 import { actorOf, requireInstanceAdmin } from "../session.js";
+import type { UserRouteOptions } from "../types/index.js";
 import { publicAccountUser } from "./account.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -24,14 +18,6 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_AUDIT_LIMIT = 100;
 const MAX_AUDIT_LIMIT = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export interface UserRouteOptions {
-  metadata: MetadataRepository;
-  session: preHandlerHookHandler;
-  inviteExpiryDays: number;
-  publicUrl: string | null;
-  clock: () => Date;
-}
 
 function body(request: { body: unknown }): Record<string, unknown> {
   return (typeof request.body === "object" && request.body !== null ? request.body : {}) as Record<string, unknown>;

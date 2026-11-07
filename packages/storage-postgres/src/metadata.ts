@@ -23,7 +23,8 @@ import {
 import { withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
-import { insertAudit, requirePermission, toUser, USER_COLUMNS, type UserRow } from "./sql-shared.js";
+import { insertAudit, requirePermission, toUser, USER_COLUMNS } from "./sql-shared.js";
+import type { UserRow } from "./types/index.js";
 import type {
   Actor,
   AuditEntry,

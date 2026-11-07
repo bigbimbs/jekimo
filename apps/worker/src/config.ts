@@ -13,7 +13,6 @@ export interface WorkerConfig {
   pollMs: number;
   /** docs/retention.md requires an expiry pass at least every 15 minutes. */
   expiryIntervalMinutes: number;
-  /** docs/retention.md: audit log entries older than this are deleted. */
   auditLogDays: number;
 }
 

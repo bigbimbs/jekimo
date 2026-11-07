@@ -1,62 +1,32 @@
-/**
- * In-memory AccessRepository, the base of MemoryMetadataRepository. Follows
- * the same rules as PostgresAccessRepository (no escalation, last instance
- * admin, last project admin, single-use tokens) for unit tests of the API.
- */
+// Test double for PostgresAccessRepository: it must enforce the same rules,
+// or API unit tests pass against behaviour production does not have.
 
 import { randomUUID } from "node:crypto";
 import { canAssignRole, DEFAULT_PROJECT_ROLES, type ProjectPermission } from "@jekimo/event-schema";
 import { assertProjectAccess, type ProjectAccess } from "../access.js";
+import type { AccountTokenPurpose } from "../constants/index.js";
 import type {
   AccessRepository,
-  AccountTokenPurpose,
   AuditQuery,
   AuditRecord,
   IngestionKeySummary,
   InvitationRecord,
   MemberRecord,
+  MemoryAccountToken,
+  MemoryKey,
+  MemorySession,
+  MemoryUser,
   PasswordResetRecord,
   ProjectSettingsChange,
   Result,
   RoleRecord,
   SessionSummary,
-} from "../access-types.js";
-import type { Actor, AuditEntry, IngestionKeyLookup, InstanceRole, ProjectRecord, UserRecord } from "../types.js";
+} from "../types/index.js";
+import type { Actor, AuditEntry, InstanceRole, ProjectRecord, UserRecord } from "../types.js";
 
 export function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
-
-export interface MemoryUser extends UserRecord {
-  passwordHash: string;
-}
-
-export interface MemorySession {
-  id: string;
-  userId: string;
-  tokenHash: Uint8Array;
-  csrfToken: string;
-  createdAt: Date;
-  lastSeenAt: Date;
-  expiresAt: Date;
-  revokedAt: Date | null;
-}
-
-export interface MemoryAccountToken {
-  id: string;
-  purpose: AccountTokenPurpose;
-  tokenHash: Uint8Array;
-  email: string | null;
-  instanceRole: InstanceRole | null;
-  userId: string | null;
-  createdBy: string | null;
-  createdAt: Date;
-  expiresAt: Date;
-  usedAt: Date | null;
-  revokedAt: Date | null;
-}
-
-export type MemoryKey = IngestionKeyLookup & { name: string; createdAt: Date; createdBy?: string | null };
 
 function publicUser(u: MemoryUser): UserRecord {
   const { passwordHash: _, ...user } = u;
@@ -109,8 +79,6 @@ export class MemoryAccessRepository implements AccessRepository {
     this.audit.push({ ...entry, occurredAt: this.clock(), id: ++this.auditSeq });
   }
 
-  // Users.
-
   async findUserByEmail(email: string): Promise<UserRecord | null> {
     const u = this.users.find((x) => x.email.toLowerCase() === email.toLowerCase());
     return u ? publicUser(u) : null;
@@ -156,8 +124,6 @@ export class MemoryAccessRepository implements AccessRepository {
     }
     return { ok: true, user: publicUser(u) };
   }
-
-  // Sessions.
 
   private revokeAll(userId: string, now: Date, exceptSessionId?: string): number {
     let n = 0;
@@ -235,8 +201,6 @@ export class MemoryAccessRepository implements AccessRepository {
       ...ip(meta.sourceIp),
     });
   }
-
-  // Invitations and password reset links.
 
   private pending(purpose: AccountTokenPurpose, tokenHash: Uint8Array, now: Date): MemoryAccountToken | undefined {
     return this.tokens.find(
@@ -416,8 +380,6 @@ export class MemoryAccessRepository implements AccessRepository {
     return { ok: true, user: publicUser(u) };
   }
 
-  // Audit log.
-
   async listAudit(actor: Actor, query: AuditQuery): Promise<AuditRecord[]> {
     requireInstanceAdmin(actor);
     const out: AuditRecord[] = [];
@@ -453,8 +415,6 @@ export class MemoryAccessRepository implements AccessRepository {
     this.audit.splice(0, this.audit.length, ...kept);
     return pruned;
   }
-
-  // Project settings, roles, and memberships.
 
   async updateProject(access: ProjectAccess, change: ProjectSettingsChange, sourceIp?: string): Promise<ProjectRecord> {
     requirePermission(access, "settings.manage");
@@ -607,8 +567,6 @@ export class MemoryAccessRepository implements AccessRepository {
     });
     return { ok: true, member };
   }
-
-  // Ingestion key management.
 
   async listIngestionKeys(access: ProjectAccess): Promise<IngestionKeySummary[]> {
     requirePermission(access, "keys.manage");

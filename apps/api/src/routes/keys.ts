@@ -1,27 +1,12 @@
-/**
- * Ingestion key listing, rotation, and revocation (docs/ingestion-protocol.md,
- * "Authentication"). Keys are created in projects.ts. Responses carry
- * key_id, never a hash; the full key appears only in the rotation response,
- * once, and is never logged.
- */
-
-import { type IngestionKeySummary, ingestionKeyStatus, type MetadataRepository } from "@jekimo/storage-postgres";
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import { type IngestionKeySummary, ingestionKeyStatus } from "@jekimo/storage-postgres";
+import type { FastifyInstance } from "fastify";
 import { ApiError } from "../errors.js";
 import { generateIngestionKey } from "../keys.js";
 import { projectAccessOf } from "../session.js";
+import type { KeyRouteOptions } from "../types/index.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_GRACE_HOURS = 720;
-
-export interface KeyRouteOptions {
-  metadata: MetadataRepository;
-  session: preHandlerHookHandler;
-  projectAccess: preHandlerHookHandler;
-  /** Default grace period for a rotated key. */
-  rotationGraceHours: number;
-  clock: () => Date;
-}
 
 function publicKey(k: IngestionKeySummary, now: Date) {
   return {
@@ -82,7 +67,6 @@ export async function keyRoutes(app: FastifyInstance, opts: KeyRouteOptions): Pr
           );
         throw keyNotFound();
       }
-      // key_ids are safe to log; the new key itself is returned once and never logged.
       request.log.info(
         { project_id: projectAccessOf(request).projectId, key_id: keyId, new_key_id: result.created.keyId },
         "ingestion key rotated",

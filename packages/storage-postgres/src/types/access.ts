@@ -1,69 +1,8 @@
-/**
- * Types for users, invitations, memberships, ingestion key management, and
- * the audit log (docs/access-model.md). MetadataRepository extends
- * AccessRepository, so both storage implementations provide these.
- */
-
 import type { ProjectPermission } from "@jekimo/event-schema";
-import type { ProjectAccess } from "./access.js";
-import type { Actor, InstanceRole, ProjectRecord, UserRecord } from "./types.js";
+import type { ProjectAccess } from "../access.js";
+import type { Actor, InstanceRole, ProjectRecord, UserRecord } from "../types.js";
 
-/**
- * Every action the audit log records (docs/access-model.md, "Audit log").
- * Some have no route yet (project deletion, custom roles, bulk deletion,
- * instance settings); they are listed so the vocabulary is fixed up front.
- */
-export const AUDIT_ACTIONS = [
-  // Sign-in and sessions.
-  "auth.login",
-  "auth.login_failed",
-  "auth.login_locked",
-  "auth.logout",
-  "session.revoked",
-  "user.password_changed",
-  // Users.
-  "user.created",
-  "user.invited",
-  "user.invitation_revoked",
-  "user.activated",
-  "user.deactivated",
-  "user.reactivated",
-  "user.role_changed",
-  "user.password_reset_link_created",
-  "user.password_reset",
-  // Projects. Retention and sample rate changes are project.settings_updated
-  // with the before and after values.
-  "project.created",
-  "project.settings_updated",
-  "project.redaction_rules_updated",
-  "project.deleted",
-  "project.restored",
-  // Memberships.
-  "member.added",
-  "member.role_changed",
-  "member.removed",
-  // Custom roles.
-  "role.created",
-  "role.updated",
-  "role.deleted",
-  // Ingestion keys.
-  "ingestion_key.created",
-  "ingestion_key.rotated",
-  "ingestion_key.revoked",
-  // Data and instance.
-  "data.bulk_deleted",
-  "instance.settings_updated",
-] as const;
-
-export type AuditAction = (typeof AUDIT_ACTIONS)[number];
-
-export function isAuditAction(value: unknown): value is AuditAction {
-  return typeof value === "string" && (AUDIT_ACTIONS as readonly string[]).includes(value);
-}
-
-/** One stored audit entry, as listed to instance admins. */
 export interface AuditRecord {
-  /** Increasing; also the paging cursor. */
   id: string;
   occurredAt: Date;
   actorUserId: string | null;
@@ -99,8 +38,6 @@ export interface SessionSummary {
   userAgent: string | null;
 }
 
-export type AccountTokenPurpose = "invitation" | "password_reset";
-
 export interface InvitationRecord {
   id: string;
   email: string;
@@ -130,12 +67,9 @@ export interface MemberRecord {
   email: string;
   status: UserRecord["status"];
   role: string;
-  /** True when the role is the built-in admin role. */
   isAdmin: boolean;
   createdAt: Date;
 }
-
-export type IngestionKeyStatus = "active" | "rotating" | "expired" | "revoked";
 
 export interface IngestionKeySummary {
   keyId: string;
@@ -157,7 +91,6 @@ export interface ProjectSettingsChange {
 }
 
 export interface AccessRepository {
-  // Users (instance-level).
   findUserByEmail(email: string): Promise<UserRecord | null>;
   /** Instance admins only. */
   listUsers(actor: Actor): Promise<UserRecord[]>;
@@ -172,7 +105,6 @@ export interface AccessRepository {
     meta: { now: Date; sourceIp?: string },
   ): Promise<Result<{ user: UserRecord }, "not_found" | "last_admin">>;
 
-  // Sessions.
   listSessions(userId: string, now: Date): Promise<SessionSummary[]>;
   /** Revokes one of the user's own sessions. False when it is not theirs or not live. */
   revokeOwnSession(userId: string, sessionId: string, meta: { now: Date; sourceIp?: string }): Promise<boolean>;
@@ -185,7 +117,7 @@ export interface AccessRepository {
     meta: { now: Date; keepSessionId: string; sourceIp?: string },
   ): Promise<void>;
 
-  // Invitations and password reset links. Tokens are stored as SHA-256 hashes.
+  // Tokens are stored as SHA-256 hashes, never in plain text.
   /**
    * Instance admins only. Replaces any pending invitation for the same email.
    * `email_taken` when a user with that email exists.
@@ -218,13 +150,10 @@ export interface AccessRepository {
     meta: { now: Date; sourceIp?: string },
   ): Promise<Result<{ user: UserRecord }, "invalid_token">>;
 
-  // Audit log.
   /** Instance admins only. Newest first. */
   listAudit(actor: Actor, query: AuditQuery): Promise<AuditRecord[]>;
-  /** Deletes entries that occurred before `before`; returns how many. */
   pruneAudit(before: Date): Promise<number>;
 
-  // Project settings, roles, and memberships.
   /** Requires settings.manage. Audit-logs changed fields with before and after values. */
   updateProject(access: ProjectAccess, change: ProjectSettingsChange, sourceIp?: string): Promise<ProjectRecord>;
   listRoles(access: ProjectAccess): Promise<RoleRecord[]>;
@@ -252,7 +181,6 @@ export interface AccessRepository {
     input: { userId: string; force?: boolean; sourceIp?: string },
   ): Promise<Result<{ member: MemberRecord }, "not_member" | "escalation" | "last_admin">>;
 
-  // Ingestion key management.
   /** Requires keys.manage. Never returns hashes or secrets. */
   listIngestionKeys(access: ProjectAccess): Promise<IngestionKeySummary[]>;
   /**
@@ -275,11 +203,4 @@ export interface AccessRepository {
     access: ProjectAccess,
     input: { keyId: string; now: Date; sourceIp?: string },
   ): Promise<Result<{ key: IngestionKeySummary }, "not_found" | "already_revoked">>;
-}
-
-/** Status of a key at `now`. */
-export function ingestionKeyStatus(key: IngestionKeySummary, now: Date): IngestionKeyStatus {
-  if (key.revokedAt !== null) return "revoked";
-  if (key.expiresAt === null) return "active";
-  return key.expiresAt > now ? "rotating" : "expired";
 }

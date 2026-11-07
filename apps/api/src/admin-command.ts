@@ -1,27 +1,13 @@
-/**
- * Commands for the operator on the server (docs/access-model.md,
- * "Invitations and recovery without email"). `jekimo admin reset-password
- * <email>` prints a single-use reset link; it is how an instance admin
- * recovers their own account, and there is no other back door.
- */
+// docs/access-model.md, "Invitations and recovery without email": this is how
+// an instance admin recovers their own account, and there is no other back door.
 
-import type { MetadataRepository } from "@jekimo/storage-postgres";
 import { accountLink, newAccountToken } from "./account-links.js";
+import type { AdminCommandDeps } from "./types/index.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const ADMIN_USAGE = "usage: jekimo admin reset-password <email>";
+const ADMIN_USAGE = "usage: jekimo admin reset-password <email>";
 
-export interface AdminCommandDeps {
-  metadata: MetadataRepository;
-  inviteExpiryDays: number;
-  publicUrl: string | null;
-  clock: () => Date;
-  out: (line: string) => void;
-  err: (line: string) => void;
-}
-
-/** Runs one command; returns the process exit code. */
 export async function runAdminCommand(args: readonly string[], deps: AdminCommandDeps): Promise<number> {
   const [group, command, email, ...rest] = args;
   if (group !== "admin" || command !== "reset-password" || !email || rest.length > 0) {
