@@ -31,11 +31,13 @@ Tags are created by a maintainer on a commit that is already on `main` and green
 1. Runs `npm ci`, `npm run check`, and `npm run build` when a build script exists.
 2. Fails unless the root `package.json` version equals the tag without its `v`.
 3. Extracts the `## [X.Y.Z]` section from `CHANGELOG.md` and fails with a clear message when the section is missing or empty.
-4. Creates the GitHub Release with that text as the notes. Tags containing a hyphen are marked as pre-releases.
-5. Attaches:
-   - `event-envelope.v1.json`: the event envelope JSON Schema from `packages/event-schema/schema/`.
+4. Fails unless `packages/event-schema/schema/event-envelope.v1.json` parses as JSON and its `$schema` is draft 2020-12.
+5. Creates the GitHub Release with that text as the notes. Tags containing a hyphen are marked as pre-releases.
+6. Attaches:
+   - `event-envelope.v1.json`: the event envelope JSON Schema from `packages/event-schema/schema/`, byte-identical to the tagged commit. The latest stable copy is always at `https://github.com/bigbimbs/jekimo/releases/latest/download/event-envelope.v1.json`.
+   - `event-envelope.v1.json.sha256`: its SHA-256 in `sha256sum` format.
    - `jekimo-docs-X.Y.Z.tar.gz`: the `docs/` directory as it was at the tag.
-   - `SHA256SUMS`: checksums for both.
+   - `SHA256SUMS`: checksums for all three.
 
 It needs `contents: write`, granted to that job only.
 
@@ -115,7 +117,7 @@ These steps are done once, by a maintainer, outside the repository.
    git push origin vX.Y.Z
    ```
 
-8. Watch the Release and Images workflows. Check that the GitHub Release has the notes and three assets, and that `ghcr.io/bigbimbs/jekimo-api:X.Y.Z` and `ghcr.io/bigbimbs/jekimo-worker:X.Y.Z` exist for both architectures.
+8. Watch the Release and Images workflows. Check that the GitHub Release has the notes and four assets, and that `ghcr.io/bigbimbs/jekimo-api:X.Y.Z` and `ghcr.io/bigbimbs/jekimo-worker:X.Y.Z` exist for both architectures.
 
 ### SDK release
 

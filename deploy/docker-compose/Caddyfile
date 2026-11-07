@@ -1,0 +1,23 @@
+# See docs/install-vps.md.
+
+{$JEKIMO_DOMAIN} {
+	encode zstd gzip
+
+	# Ingestion bodies are limited to 1 MiB (docs/ingestion-protocol.md).
+	request_body {
+		max_size 2MB
+	}
+
+	# Readiness names internal dependencies; keep it off the internet.
+	respond /readyz 404
+
+	# Once the dashboard image exists (issue #31):
+	#   handle /api/* {
+	#   	reverse_proxy api:8080
+	#   }
+	#   handle {
+	#   	reverse_proxy web:8080
+	#   }
+
+	reverse_proxy api:8080
+}

@@ -75,6 +75,6 @@ The API does not translate. Every error carries a stable `code` alongside an Eng
 
 ## Deployment
 
-Docker Compose will run the app on one VPS. Setup will connect an existing PostgreSQL datasource or provision PostgreSQL locally. Provisioning credentials are one-time setup secrets; runtime services use a restricted application account.
+Docker Compose runs the app on one VPS behind Caddy ([install-vps.md](install-vps.md), [`deploy/docker-compose/docker-compose.yml`](../deploy/docker-compose/docker-compose.yml)). Setup connects an existing PostgreSQL datasource or provisions PostgreSQL locally. Provisioning credentials are one-time setup secrets; runtime services use a restricted application account. The flows, checks, rollback, and credential handling are specified in [database-setup.md](database-setup.md).
 
 This document describes the intended design. A first vertical slice of the API, worker, and PostgreSQL storage follows it; [local-development.md](local-development.md) shows it running.
