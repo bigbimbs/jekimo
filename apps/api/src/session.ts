@@ -81,6 +81,17 @@ export function projectAccessOf(request: FastifyRequest): ProjectAccess {
   return request.projectAccess;
 }
 
+/**
+ * onRequest hook for every dashboard route, including those without a
+ * session (setup, sign-in, invitation and reset links): an Authorization
+ * header is rejected, so an ingestion key never reaches anything but ingest.
+ */
+export async function rejectAuthorizationHeader(request: FastifyRequest): Promise<void> {
+  if (request.headers.authorization !== undefined) {
+    throw new ApiError(401, "unauthorized", "this endpoint accepts session cookies only");
+  }
+}
+
 /** preHandler that requires a live session and, for state changes, the CSRF header. */
 export function requireSession(opts: SessionOptions) {
   return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
@@ -127,4 +138,11 @@ export function requireProjectPermission(metadata: MetadataRepository) {
       throw new ApiError(403, "forbidden", `this action needs the ${permission} permission`);
     request.projectAccess = access;
   };
+}
+
+/** preHandler for instance-level administration, after requireSession. */
+export async function requireInstanceAdmin(request: FastifyRequest): Promise<void> {
+  if (actorOf(request).instanceRole !== "admin") {
+    throw new ApiError(403, "forbidden", "this action needs an instance admin");
+  }
 }

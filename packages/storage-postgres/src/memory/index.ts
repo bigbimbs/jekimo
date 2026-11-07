@@ -21,7 +21,6 @@ import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, typ
 import type {
   Actor,
   AppendEvent,
-  AuditEntry,
   DailyCounterIncrement,
   DailyCounters,
   EventPage,
@@ -44,36 +43,9 @@ import type {
   StoredEvent,
   UserRecord,
 } from "../types.js";
+import { MemoryAccessRepository, type MemoryUser, sameBytes } from "./access.js";
 
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
-}
-
-interface MemoryUser extends UserRecord {
-  passwordHash: string;
-}
-
-interface MemorySession {
-  id: string;
-  userId: string;
-  tokenHash: Uint8Array;
-  csrfToken: string;
-  createdAt: Date;
-  lastSeenAt: Date;
-  expiresAt: Date;
-  revokedAt: Date | null;
-}
-
-export class MemoryMetadataRepository implements MetadataRepository {
-  readonly users: MemoryUser[] = [];
-  readonly sessions: MemorySession[] = [];
-  readonly projects: ProjectRecord[] = [];
-  /** project id -> user id -> role name */
-  readonly members = new Map<string, Map<string, string>>();
-  /** project id -> role name -> permissions */
-  readonly roles = new Map<string, Map<string, Set<ProjectPermission>>>();
-  readonly keys: (IngestionKeyLookup & { name: string; createdAt: Date })[] = [];
-  readonly audit: (AuditEntry & { occurredAt: Date })[] = [];
+export class MemoryMetadataRepository extends MemoryAccessRepository implements MetadataRepository {
   readonly issues: IssueRecord[] = [];
   /** project id -> day -> counts */
   readonly counters = new Map<string, Map<string, DailyCounters>>();
@@ -81,8 +53,6 @@ export class MemoryMetadataRepository implements MetadataRepository {
   readonly counterKeys = new Map<string, Map<string, Date>>();
   /** project id -> redaction rules */
   readonly redactionRules = new Map<string, RedactionRules>();
-
-  constructor(private readonly clock: () => Date = () => new Date()) {}
 
   async countUsers(): Promise<number> {
     return this.users.length;
@@ -180,10 +150,6 @@ export class MemoryMetadataRepository implements MetadataRepository {
     if (s && s.revokedAt === null) s.revokedAt = now;
   }
 
-  async appendAudit(entry: AuditEntry): Promise<void> {
-    this.audit.push({ ...entry, occurredAt: this.clock() });
-  }
-
   async createProject(
     actor: Actor,
     input: { id: string; name: string; retentionDays: number; sourceIp?: string },
@@ -253,6 +219,7 @@ export class MemoryMetadataRepository implements MetadataRepository {
       projectDisabled: false,
       name: input.name,
       createdAt,
+      createdBy: access.userId,
     });
     await this.appendAudit({
       actorUserId: access.userId,

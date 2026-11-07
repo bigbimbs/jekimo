@@ -7,6 +7,7 @@
 
 import type { EventEnvelope, EventKind, ProjectPermission, Severity } from "@jekimo/event-schema";
 import type { ProjectAccess } from "./access.js";
+import type { AccessRepository, AuditAction } from "./access-types.js";
 
 export type InstanceRole = "admin" | "member";
 
@@ -62,7 +63,7 @@ export interface IngestionKeyLookup {
 
 export interface AuditEntry {
   actorUserId?: string | null;
-  action: string;
+  action: AuditAction;
   targetType?: string;
   targetId?: string;
   projectId?: string;
@@ -92,7 +93,7 @@ export interface ProjectRetention {
   retentionDays: number;
 }
 
-export interface MetadataRepository {
+export interface MetadataRepository extends AccessRepository {
   // Setup and authentication. These are instance-level, not project data.
   countUsers(): Promise<number>;
   /** Creates the first instance admin. Returns null when any user already exists. */

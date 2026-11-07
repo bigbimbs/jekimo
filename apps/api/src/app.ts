@@ -11,10 +11,14 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastif
 import { type ApiConfig, DEFAULT_API_CONFIG } from "./config.js";
 import { apiErrorHandler } from "./errors.js";
 import { argon2Hasher, type PasswordHasher } from "./passwords.js";
+import { accountRoutes } from "./routes/account.js";
 import { authRoutes, SetupGate } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { keyRoutes } from "./routes/keys.js";
+import { memberRoutes } from "./routes/members.js";
 import { projectRoutes } from "./routes/projects.js";
-import { requireProjectPermission, requireSession } from "./session.js";
+import { userRoutes } from "./routes/users.js";
+import { rejectAuthorizationHeader, requireProjectPermission, requireSession } from "./session.js";
 
 export interface AppDeps {
   metadata: MetadataRepository;
@@ -32,6 +36,8 @@ export interface AppDeps {
   readiness?: Record<string, () => Promise<unknown>>;
   /** Fastify logger options; false in tests. */
   logger?: FastifyServerOptions["logger"];
+  /** Called for every route as it is registered, so tests can enumerate them. */
+  onRoute?: (route: { method: string | string[]; url: string }) => void;
 }
 
 /**
@@ -78,6 +84,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     bodyLimit: 64 * 1024,
   });
 
+  const onRoute = deps.onRoute;
+  if (onRoute) app.addHook("onRoute", (route) => onRoute({ method: route.method, url: route.url }));
+
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-jekimo-request-id", request.id);
   });
@@ -122,11 +131,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(ingestRoutes, { metadata: deps.metadata, queue: deps.queue, clock });
 
   await app.register(async (dashboard) => {
+    dashboard.addHook("onRequest", rejectAuthorizationHeader);
     await dashboard.register(cookie);
     const session = requireSession({ metadata: deps.metadata, idleDays: config.sessionIdleDays, clock });
+    const hasher = deps.hasher ?? argon2Hasher;
+    const projectAccess = requireProjectPermission(deps.metadata);
     await dashboard.register(authRoutes, {
       metadata: deps.metadata,
-      hasher: deps.hasher ?? argon2Hasher,
+      hasher,
       setup: new SetupGate(deps.setupToken ?? null),
       sessionMaxDays: config.sessionMaxDays,
       retentionDefaultDays: config.retentionDefaultDays,
@@ -137,10 +149,31 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       metadata: deps.metadata,
       events: deps.events,
       session,
-      projectAccess: requireProjectPermission(deps.metadata),
+      projectAccess,
       membersCanCreateProjects: config.membersCanCreateProjects,
       retentionDefaultDays: config.retentionDefaultDays,
       retentionMaxDays: config.retentionMaxDays,
+      clock,
+    });
+    await dashboard.register(accountRoutes, { metadata: deps.metadata, hasher, clock, session });
+    await dashboard.register(userRoutes, {
+      metadata: deps.metadata,
+      session,
+      inviteExpiryDays: config.inviteExpiryDays,
+      publicUrl: config.publicUrl,
+      clock,
+    });
+    await dashboard.register(memberRoutes, {
+      metadata: deps.metadata,
+      session,
+      projectAccess,
+      retentionMaxDays: config.retentionMaxDays,
+    });
+    await dashboard.register(keyRoutes, {
+      metadata: deps.metadata,
+      session,
+      projectAccess,
+      rotationGraceHours: config.keyRotationGraceHours,
       clock,
     });
   });

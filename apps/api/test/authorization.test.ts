@@ -7,27 +7,139 @@
 
 import { PROJECT_PERMISSIONS, type ProjectPermission } from "@jekimo/event-schema";
 import { beforeAll, describe, expect, it } from "vitest";
+import { generateIngestionKey } from "../src/keys.js";
 import { type Harness, harness, projectWithKey, type SignedIn, setRole, signIn, storeEvent } from "./helpers.js";
 
 interface Route {
-  method: "GET" | "POST";
-  url: (id: string) => string;
+  name: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
   permission: ProjectPermission;
   ok: number;
+  /** Puts the project in the state the route needs and returns the request. Runs before every call. */
+  request: (id: string) => Promise<{ url: string; payload?: Record<string, unknown> }>;
 }
 
 const MATRIX_EVENT_ID = "01JBQ4Z3H8X9T2K7M5N6P8R9SV";
 
+let h: Harness;
+let owner: SignedIn;
+let projectId: string;
+let key: string;
+/** A viewer the membership routes add, change, and remove. */
+let target: SignedIn;
+const principals: { name: string; user: SignedIn; permissions: ProjectPermission[] | "none" }[] = [];
+
+/** A fresh active key, created directly in storage with instance authority. */
+async function freshKey(id: string): Promise<string> {
+  const access = await h.metadata.resolveProjectAccess({ userId: owner.userId, instanceRole: "admin" }, id);
+  const k = generateIngestionKey();
+  await h.metadata.createIngestionKey(access!, { keyId: k.keyId, keyHash: k.keyHash, name: "matrix" });
+  return k.keyId;
+}
+
+const at = (url: string, payload?: Record<string, unknown>) => async () => ({ url, ...(payload && { payload }) });
+
 const ROUTES: Route[] = [
-  { method: "GET", url: (id) => `/api/v1/projects/${id}`, permission: "project.read", ok: 200 },
-  { method: "GET", url: (id) => `/api/v1/projects/${id}/events`, permission: "project.read", ok: 200 },
   {
+    name: "GET project",
     method: "GET",
-    url: (id) => `/api/v1/projects/${id}/events/${MATRIX_EVENT_ID}`,
     permission: "project.read",
     ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}`)(),
   },
-  { method: "POST", url: (id) => `/api/v1/projects/${id}/keys`, permission: "keys.manage", ok: 201 },
+  {
+    name: "PATCH project",
+    method: "PATCH",
+    permission: "settings.manage",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}`, { name: "Matrix project" })(),
+  },
+  {
+    name: "GET events",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/events`)(),
+  },
+  {
+    name: "GET event",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/events/${MATRIX_EVENT_ID}`)(),
+  },
+  {
+    name: "POST keys",
+    method: "POST",
+    permission: "keys.manage",
+    ok: 201,
+    request: (id) => at(`/api/v1/projects/${id}/keys`, {})(),
+  },
+  {
+    name: "GET keys",
+    method: "GET",
+    permission: "keys.manage",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/keys`)(),
+  },
+  {
+    name: "POST rotate key",
+    method: "POST",
+    permission: "keys.manage",
+    ok: 201,
+    request: async (id) => ({ url: `/api/v1/projects/${id}/keys/${await freshKey(id)}/rotate`, payload: {} }),
+  },
+  {
+    name: "POST revoke key",
+    method: "POST",
+    permission: "keys.manage",
+    ok: 200,
+    request: async (id) => ({ url: `/api/v1/projects/${id}/keys/${await freshKey(id)}/revoke`, payload: {} }),
+  },
+  {
+    name: "GET roles",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/roles`)(),
+  },
+  {
+    name: "GET members",
+    method: "GET",
+    permission: "project.read",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/members`)(),
+  },
+  {
+    name: "POST member",
+    method: "POST",
+    permission: "members.manage",
+    ok: 201,
+    request: async (id) => {
+      h.metadata.members.get(id)!.delete(target.userId);
+      return { url: `/api/v1/projects/${id}/members`, payload: { user_id: target.userId, role: "viewer" } };
+    },
+  },
+  {
+    name: "PATCH member",
+    method: "PATCH",
+    permission: "members.manage",
+    ok: 200,
+    request: async (id) => {
+      setRole(h, id, target.userId, "viewer");
+      return { url: `/api/v1/projects/${id}/members/${target.userId}`, payload: { role: "reader" } };
+    },
+  },
+  {
+    name: "DELETE member",
+    method: "DELETE",
+    permission: "members.manage",
+    ok: 204,
+    request: async (id) => {
+      setRole(h, id, target.userId, "viewer");
+      return { url: `/api/v1/projects/${id}/members/${target.userId}` };
+    },
+  },
 ];
 
 const BUILT_IN: Record<string, ProjectPermission[]> = {
@@ -36,17 +148,15 @@ const BUILT_IN: Record<string, ProjectPermission[]> = {
   viewer: ["project.read"],
 };
 
-let h: Harness;
-let owner: SignedIn;
-let projectId: string;
-let key: string;
-const principals: { name: string; user: SignedIn; permissions: ProjectPermission[] | "none" }[] = [];
-
 beforeAll(async () => {
   h = await harness();
   owner = await signIn(h, "owner@example.test");
   ({ projectId, key } = await projectWithKey(h, owner, "prj_matrix"));
   await storeEvent(h, projectId, { event_id: MATRIX_EVENT_ID });
+  // A custom role every principal with members.manage may assign (it grants only project.read).
+  h.metadata.defineRole(projectId, "reader", ["project.read"]);
+  target = await signIn(h, "target@example.test");
+  setRole(h, projectId, target.userId, "viewer");
   for (const [role, permissions] of Object.entries(BUILT_IN)) {
     const user = await signIn(h, `${role}@example.test`);
     setRole(h, projectId, user.userId, role);
@@ -66,16 +176,17 @@ beforeAll(async () => {
   principals.push({ name: "user with no access", user: await signIn(h, "outsider@example.test"), permissions: "none" });
 });
 
-describe.each(ROUTES)("$method $permission route", (route) => {
+describe.each(ROUTES)("$name ($permission)", (route) => {
   it.each(Array.from({ length: 2 + Object.keys(BUILT_IN).length + PROJECT_PERMISSIONS.length }, (_, i) => i))(
     "principal %#",
     async (i) => {
       const p = principals[i]!;
+      const { url, payload } = await route.request(projectId);
       const res = await h.app.inject({
         method: route.method,
-        url: route.url(projectId),
+        url,
         headers: p.user.headers,
-        ...(route.method === "POST" && { payload: {} }),
+        ...(payload && { payload }),
       });
       const expected = p.permissions === "none" ? 404 : p.permissions.includes(route.permission) ? route.ok : 403;
       expect({ principal: p.name, status: res.statusCode }).toEqual({ principal: p.name, status: expected });
@@ -130,8 +241,24 @@ describe("isolation", () => {
 
   it("requires a session for every project route", async () => {
     for (const route of ROUTES) {
-      const res = await h.app.inject({ method: route.method, url: route.url(projectId) });
-      expect(res.statusCode).toBe(401);
+      const { url } = await route.request(projectId);
+      const res = await h.app.inject({ method: route.method, url });
+      expect({ route: route.name, status: res.statusCode }).toEqual({ route: route.name, status: 401 });
+    }
+  });
+
+  it("answers 404 when a member guesses another project's id, on every project route", async () => {
+    const other = await signIn(h, "other-owner@example.test");
+    await projectWithKey(h, other, "prj_other");
+    for (const route of ROUTES) {
+      const { url, payload } = await route.request("prj_other");
+      const res = await h.app.inject({
+        method: route.method,
+        url,
+        headers: owner.headers,
+        ...(payload && { payload }),
+      });
+      expect({ route: route.name, status: res.statusCode }).toEqual({ route: route.name, status: 404 });
     }
   });
 

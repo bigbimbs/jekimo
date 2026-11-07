@@ -33,6 +33,9 @@ The first release uses one database role for migrations and runtime. A restricte
 | `JEKIMO_SESSION_MAX_DAYS` | `30` | Session absolute lifetime. |
 | `JEKIMO_RETENTION_DEFAULT_DAYS` | `30` | Retention for new projects. |
 | `JEKIMO_RETENTION_MAX_DAYS` | `3650` | Upper bound for a project's retention. |
+| `JEKIMO_INVITE_EXPIRY_DAYS` | `7` | Lifetime of invitation and password reset links, 1 to 90 days. |
+| `JEKIMO_KEY_ROTATION_GRACE_HOURS` | `24` | How long a rotated ingestion key keeps working, 0 to 720 hours. A rotation request can set its own `grace_hours`. |
+| `JEKIMO_PUBLIC_URL` | unset | Address the dashboard is served on, for example `https://jekimo.example.com`, used to build invitation and reset links. Unset, the links are paths such as `/invite#token=...`. |
 
 The API terminates plain HTTP. In production put it behind a TLS-terminating reverse proxy; session cookies are always marked `Secure`. Plain HTTP is only acceptable on the loopback interface for local development.
 
@@ -46,6 +49,7 @@ The API terminates plain HTTP. In production put it behind a TLS-terminating rev
 | `JEKIMO_WORKER_BATCH_SIZE` | worker | `10` | Jobs claimed per poll. Each job is one ingest request of up to 100 events. |
 | `JEKIMO_WORKER_POLL_MS` | worker | `1000` | Wait between polls when the queue is empty. |
 | `JEKIMO_EXPIRY_INTERVAL_MINUTES` | worker | `15` | Interval of the expiry pass, 1 to 15 ([retention.md](retention.md) requires at least every 15 minutes). |
+| `JEKIMO_AUDIT_LOG_DAYS` | worker | `365` | Audit log retention, 1 to 3650 days. The expiry pass deletes older entries, including those about deleted projects. |
 | `JEKIMO_LOG_LEVEL` | worker | `info` | As for the API. |
 
 Dead-lettered jobs stay in the `queue_jobs` table with `status = 'dead'` and a payload-free `last_error` for inspection. `PostgresQueue.stats()` reports queue depth, the age of the oldest pending or running job, and the dead-lettered count for health checks.
@@ -64,8 +68,8 @@ Read by [`deploy/docker-compose/docker-compose.dev.yml`](../deploy/docker-compos
 
 These are specified but not implemented yet. [`.env.example`](../.env.example) lists each one with its documented default, grouped by spec, and each spec lists its own variables:
 
-- Disk thresholds and audit log retention: [retention.md](retention.md)
-- Invitations and SMTP: [access-model.md](access-model.md)
+- Disk thresholds: [retention.md](retention.md)
+- SMTP for invitations and resets: [access-model.md](access-model.md)
 - Ingestion rate limits and quotas: [ingestion-protocol.md](ingestion-protocol.md)
 - Object storage, cold tier, restores, and backups: [object-storage.md](object-storage.md)
 
