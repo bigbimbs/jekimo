@@ -15,6 +15,8 @@ describe("loadApiConfig", () => {
       sessionMaxDays: 30,
       retentionDefaultDays: RETENTION.DEFAULT_DAYS,
       retentionMaxDays: RETENTION.MAX_DAYS,
+      rateLimitPerMinute: 1000,
+      quotaEventsPerDay: null,
     });
   });
 
@@ -36,6 +38,8 @@ describe("loadApiConfig", () => {
         JEKIMO_SESSION_MAX_DAYS: "60",
         JEKIMO_RETENTION_DEFAULT_DAYS: "14",
         JEKIMO_RETENTION_MAX_DAYS: "60",
+        JEKIMO_RATE_LIMIT_PER_MINUTE: "250",
+        JEKIMO_QUOTA_EVENTS_PER_DAY: "50000",
       }),
     ).toEqual({
       host: "0.0.0.0",
@@ -47,6 +51,8 @@ describe("loadApiConfig", () => {
       sessionMaxDays: 60,
       retentionDefaultDays: 14,
       retentionMaxDays: 60,
+      rateLimitPerMinute: 250,
+      quotaEventsPerDay: 50000,
     });
   });
 
@@ -70,6 +76,8 @@ describe("loadApiConfig", () => {
       "JEKIMO_RETENTION_DEFAULT_DAYS must be an integer from 1 to 30",
     ],
     [{ JEKIMO_RETENTION_MAX_DAYS: String(RETENTION.MAX_DAYS + 1) }, "JEKIMO_RETENTION_MAX_DAYS must be an integer"],
+    [{ JEKIMO_RATE_LIMIT_PER_MINUTE: "99" }, "JEKIMO_RATE_LIMIT_PER_MINUTE must be an integer from 100 to 1000000"],
+    [{ JEKIMO_QUOTA_EVENTS_PER_DAY: "0" }, "JEKIMO_QUOTA_EVENTS_PER_DAY must be an integer from 1"],
   ])("rejects %o", (env, message) => {
     expect(() => loadApiConfig(env)).toThrow(message);
   });

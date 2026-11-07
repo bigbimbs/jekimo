@@ -4,6 +4,7 @@
  */
 
 import { RETENTION } from "@jekimo/event-schema";
+import { DEFAULT_RATE_LIMIT_PER_MINUTE, INGEST_LIMIT_BOUNDS } from "@jekimo/storage-postgres";
 
 export interface ApiConfig {
   host: string;
@@ -16,6 +17,10 @@ export interface ApiConfig {
   sessionMaxDays: number;
   retentionDefaultDays: number;
   retentionMaxDays: number;
+  /** Instance-wide rate limit for projects without their own, events per minute. */
+  rateLimitPerMinute: number;
+  /** Instance-wide daily quota for projects without their own; null for none. */
+  quotaEventsPerDay: number | null;
 }
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace"] as const;
@@ -31,6 +36,8 @@ export const DEFAULT_API_CONFIG: ApiConfig = {
   sessionMaxDays: 30,
   retentionDefaultDays: RETENTION.DEFAULT_DAYS,
   retentionMaxDays: RETENTION.MAX_DAYS,
+  rateLimitPerMinute: DEFAULT_RATE_LIMIT_PER_MINUTE,
+  quotaEventsPerDay: null,
 };
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
@@ -83,5 +90,16 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       retentionMaxDays,
     ),
     retentionMaxDays,
+    rateLimitPerMinute: int(
+      env,
+      "JEKIMO_RATE_LIMIT_PER_MINUTE",
+      d.rateLimitPerMinute,
+      INGEST_LIMIT_BOUNDS.MIN_PER_MINUTE,
+      INGEST_LIMIT_BOUNDS.MAX_PER_MINUTE,
+    ),
+    quotaEventsPerDay:
+      env.JEKIMO_QUOTA_EVENTS_PER_DAY === undefined || env.JEKIMO_QUOTA_EVENTS_PER_DAY === ""
+        ? d.quotaEventsPerDay
+        : int(env, "JEKIMO_QUOTA_EVENTS_PER_DAY", 0, INGEST_LIMIT_BOUNDS.MIN_PER_DAY, INGEST_LIMIT_BOUNDS.MAX_PER_DAY),
   };
 }

@@ -9,10 +9,15 @@ import {
   checkDatabase,
   checkQueue,
   createPool,
+  type DiskConfig,
+  DiskMonitor,
+  diskConfigFromEnv,
+  diskProbeFor,
   INGEST_QUEUE,
   type IngestJob,
   migrateOnStart,
   PostgresEventStore,
+  PostgresIngestLimitStore,
   PostgresMetadataRepository,
   PostgresQueue,
   queuePolicyFromEnv,
@@ -23,8 +28,10 @@ import { type ApiConfig, loadApiConfig } from "./config.js";
 
 async function main(): Promise<void> {
   let config: ApiConfig;
+  let disk: DiskConfig;
   try {
     config = loadApiConfig();
+    disk = diskConfigFromEnv();
   } catch (err) {
     throw new Error(`invalid configuration: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -59,6 +66,13 @@ async function main(): Promise<void> {
     metadata,
     events: new PostgresEventStore(pool),
     queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE, queuePolicyFromEnv()),
+    limits: new PostgresIngestLimitStore(pool),
+    disk: new DiskMonitor({
+      probe: diskProbeFor(disk, pool),
+      thresholds: disk.thresholds,
+      // Ingest refuses while the probe fails; say why in the logs.
+      onError: (err) => app.log.error({ err }, "disk probe failed; refusing ingestion"),
+    }),
     config,
     setupToken,
     readiness: { database: () => checkDatabase(pool), queue: () => checkQueue(pool) },

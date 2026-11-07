@@ -32,7 +32,18 @@ The first release uses one database role for migrations and runtime. A restricte
 | `JEKIMO_SESSION_IDLE_DAYS` | `14` | Session idle timeout. At most `JEKIMO_SESSION_MAX_DAYS`. |
 | `JEKIMO_SESSION_MAX_DAYS` | `30` | Session absolute lifetime. |
 | `JEKIMO_RETENTION_DEFAULT_DAYS` | `30` | Retention for new projects. |
-| `JEKIMO_RETENTION_MAX_DAYS` | `3650` | Upper bound for a project's retention. |
+| `JEKIMO_RETENTION_MAX_DAYS` | `3650` | Upper bound for a project's retention. The worker reads it too and never keeps a project's events longer. |
+| `JEKIMO_RATE_LIMIT_PER_MINUTE` | `1000` | Instance-wide rate limit, in events per minute per project, 100 to 1,000,000. A project's own `rate_limit_per_minute` setting overrides it. |
+| `JEKIMO_QUOTA_EVENTS_PER_DAY` | unset (no quota) | Instance-wide daily quota, in events per project per UTC day. A project's own `events_per_day` setting overrides it. |
+
+Rate limits and quotas ([ingestion-protocol.md](ingestion-protocol.md), "Rate limits and quotas"):
+
+- Both count every event in a request that passed the request-level checks, including events rejected individually in the `202`. A request is admitted only if all of its events fit, so a minute admits exactly the limit.
+- The rate limit is a fixed window per UTC minute; the quota resets at midnight UTC. Over the limit, ingest answers `429 rate_limited` with `Retry-After` set to the seconds left in the minute. Over the quota it answers `429 quota_exceeded` with `Retry-After` set to the seconds until midnight UTC, and the request's events are dropped and added to the project's daily `dropped` counter.
+- Usage is kept in PostgreSQL (`project_ingest_usage`, one row per project), so the limits hold across several API processes and survive restarts.
+- A project whose minute is used up is refused before its body is read. A project over quota is still read, to count what it drops, while its minute has room; after that its requests are refused unread and not counted.
+- Every authenticated ingest response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A `401` has none, since no project is known.
+- Instance admins set a project's limits with `PUT /api/v1/projects/:id/limits` and `{"rate_limit_per_minute": <n or null>, "events_per_day": <n or null>}`; `null` inherits the instance default. Members with `project.read` can read them with `GET`.
 
 The API terminates plain HTTP. In production put it behind a TLS-terminating reverse proxy; session cookies are always marked `Secure`. Plain HTTP is only acceptable on the loopback interface for local development.
 
@@ -45,10 +56,26 @@ The API terminates plain HTTP. In production put it behind a TLS-terminating rev
 | `JEKIMO_QUEUE_VISIBILITY_SECONDS` | worker | `60` | How long a claimed job is hidden from other workers before it is redelivered. |
 | `JEKIMO_WORKER_BATCH_SIZE` | worker | `10` | Jobs claimed per poll. Each job is one ingest request of up to 100 events. |
 | `JEKIMO_WORKER_POLL_MS` | worker | `1000` | Wait between polls when the queue is empty. |
-| `JEKIMO_EXPIRY_INTERVAL_MINUTES` | worker | `15` | Interval of the expiry pass, 1 to 15 ([retention.md](retention.md) requires at least every 15 minutes). |
+| `JEKIMO_EXPIRY_INTERVAL_MINUTES` | worker | `15` | Interval of the expiry pass, 1 to 15 ([retention.md](retention.md) requires at least every 15 minutes). At the critical disk level the pass runs every minute regardless. |
+| `JEKIMO_RETENTION_DEFAULT_DAYS` | worker | `30` | As for the API. The worker applies it to a project whose stored retention is not a valid period. |
+| `JEKIMO_RETENTION_MAX_DAYS` | worker | `3650` | As for the API. A project whose stored retention is longer is expired at this bound. |
 | `JEKIMO_LOG_LEVEL` | worker | `info` | As for the API. |
 
 Dead-lettered jobs stay in the `queue_jobs` table with `status = 'dead'` and a payload-free `last_error` for inspection. `PostgresQueue.stats()` reports queue depth, the age of the oldest pending or running job, and the dead-lettered count for health checks.
+
+## Disk safety
+
+Read by the API and the worker ([retention.md](retention.md), "Disk safety"). Both measure free space on the database volume: the API refuses ingestion at the full level, and the worker warns and runs emergency expiry.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `JEKIMO_DISK_WARN_PERCENT` | `20` | Free space at or below which the worker logs a warning and writes an `instance.disk_level_changed` audit entry. |
+| `JEKIMO_DISK_CRITICAL_PERCENT` | `10` | Free space at or below which the expiry pass runs every minute with every project's retention cut to at most 7 days, oldest days first, until free space is back above the warning level. Each project's removed event count is logged. |
+| `JEKIMO_DISK_FULL_PERCENT` | `5` | Free space at or below which `POST /api/v1/ingest` answers `503 unavailable` with `Retry-After: 60`. The dashboard API keeps working. |
+| `JEKIMO_DISK_PATH` | `/` | A path on the filesystem that holds the PostgreSQL data directory, as this process sees it. Free space is read with `statfs`. In containers, mount the database volume read-only into the API and worker and point this at it; the default `/` measures the container's own filesystem, which on a single Docker host is usually, but not always, the same disk. |
+| `JEKIMO_DISK_BUDGET_BYTES` | unset | For PostgreSQL on another host or a managed service, whose disk this process cannot see: the database size you allow. Free space is then `1 - pg_database_size / budget`, and `JEKIMO_DISK_PATH` is ignored. Space freed by row deletes is reused by PostgreSQL but not returned, so keep the budget below the real disk. |
+
+The thresholds must satisfy warn >= critical >= full. The API reads free space at most every 5 seconds; the worker every minute. If free space cannot be read, the API fails closed and refuses ingestion with `503`, while the worker does not delete anything early on an unknown reading.
 
 ## Local development stack
 
@@ -64,9 +91,8 @@ Read by [`deploy/docker-compose/docker-compose.dev.yml`](../deploy/docker-compos
 
 These are specified but not implemented yet. [`.env.example`](../.env.example) lists each one with its documented default, grouped by spec, and each spec lists its own variables:
 
-- Disk thresholds and audit log retention: [retention.md](retention.md)
+- Audit log retention: [retention.md](retention.md)
 - Invitations and SMTP: [access-model.md](access-model.md)
-- Ingestion rate limits and quotas: [ingestion-protocol.md](ingestion-protocol.md)
 - Object storage, cold tier, restores, and backups: [object-storage.md](object-storage.md)
 
 All Jekimo variables are prefixed `JEKIMO_`, except the deprecated `DATABASE_URL` and the PostgreSQL container's `POSTGRES_PASSWORD`.

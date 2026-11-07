@@ -10,6 +10,7 @@ import {
   INGEST_QUEUE,
   type IngestJob,
   PostgresEventStore,
+  PostgresIngestLimitStore,
   PostgresMetadataRepository,
   PostgresQueue,
 } from "@jekimo/storage-postgres";
@@ -36,6 +37,7 @@ describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
       metadata,
       events,
       queue,
+      limits: new PostgresIngestLimitStore(db.pool),
       hasher: fakeHasher,
       setupToken: SETUP_TOKEN,
       readiness: { database: () => checkDatabase(db.pool), queue: () => checkQueue(db.pool) },
@@ -115,6 +117,8 @@ describe.skipIf(!hasDatabase)("vertical slice on PostgreSQL", () => {
     });
     expect(ingest.statusCode).toBe(202);
     expect(ingest.json().accepted).toHaveLength(2);
+    expect(ingest.headers["x-ratelimit-limit"]).toBe("1000");
+    expect(Number(ingest.headers["x-ratelimit-remaining"])).toBeLessThanOrEqual(998);
     // A retry of the same request is acknowledged and stores nothing new.
     const retry = await app.inject({
       method: "POST",

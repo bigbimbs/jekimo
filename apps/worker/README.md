@@ -20,16 +20,20 @@ The steps are separate and idempotent, event store first, with no transaction ac
 | --- | --- | --- |
 | `accepted` | worker | Events that passed stored validation and were kept after sampling. Repeats of events stored earlier count again, as they are listed in `accepted` in the `202`. |
 | `rejected` | API | Per-event rejections in the `202` response. |
-| `dropped` | worker | Events that failed stored validation. Over-quota drops will be added with quotas. |
+| `dropped` | worker, API | Events that failed stored validation (worker), and events in requests refused with `429 quota_exceeded` (API). |
 | `sampled` | worker | Events dropped by the project sample rate. |
 
 Every event in a job counts as exactly one of `accepted`, `dropped`, or `sampled`. Counter idempotency keys are kept for the 7-day deduplication window.
 
 ## Expiry
 
-An expiry pass runs at start and then on an interval (15 minutes by default): it removes each project's UTC days whose last instant has passed the project's retention, recounts that project's issues, prunes deduplication entries and counter idempotency keys older than 7 days, deletes daily counters older than 13 months, and creates partitions for the coming week.
+An expiry pass runs at start and then on an interval (15 minutes by default): it removes each project's UTC days whose last instant has passed the project's retention, oldest day first, recounts the issues of each project that lost events, prunes deduplication entries and counter idempotency keys older than 7 days, deletes daily counters older than 13 months, and creates partitions for the coming week. A project's retention is its stored setting, or `JEKIMO_RETENTION_DEFAULT_DAYS` when that is not valid, and never more than `JEKIMO_RETENTION_MAX_DAYS`.
 
-Not yet implemented: disk-pressure emergency expiry and archiving to object storage. There is no API endpoint yet to set redaction rules or read counters; the storage methods are `setRedactionRules` and `listDailyCounters`.
+The pass is idempotent and safe to interrupt: expiring a day twice removes nothing the second time, and the first pass after a start or after a failed pass recounts every project's issues, so a pass stopped between removing events and recounting leaves no stale counts.
+
+Every minute the worker reads free space on the database volume (`JEKIMO_DISK_PATH` or `JEKIMO_DISK_BUDGET_BYTES`, [docs/configuration.md](../../docs/configuration.md#disk-safety)). A change of level is logged and, at the warning level or worse, written to the audit log as `instance.disk_level_changed`. From the critical level until free space is back above the warning level, the pass runs every minute with each project's retention cut to at most 7 days, and logs `emergency expiry removed events` with the project id and count for each project that lost events. A reading that fails changes nothing: the worker never deletes data early on an unknown level.
+
+Not yet implemented: archiving to object storage instead of deleting. There is no API endpoint yet to set redaction rules or read counters; the storage methods are `setRedactionRules` and `listDailyCounters`.
 
 ## Development
 

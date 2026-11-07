@@ -53,7 +53,7 @@ function toUser(r: UserRow): UserRecord {
   return { id: r.id, email: r.email, instanceRole: r.instance_role, status: r.status, createdAt: r.created_at };
 }
 
-async function insertAudit(db: Pool | PoolClient, entry: AuditEntry): Promise<void> {
+export async function insertAudit(db: Pool | PoolClient, entry: AuditEntry): Promise<void> {
   await db.query(
     `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, project_id, source_ip, via_instance_admin, details)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,

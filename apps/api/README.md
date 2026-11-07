@@ -21,11 +21,13 @@ Fastify was chosen over Hono because it is Node-native and mature, gives per-rou
 | `POST /api/v1/projects/:id/keys` | session + CSRF, `keys.manage` | Creates an ingestion key and returns it once. |
 | `GET /api/v1/projects/:id/events` | session, `project.read` | Events, newest first, by `from`, `to` (RFC 3339, on `received_at`), `severity` and `kind` (comma lists), `environment`, `release`, and `fingerprint` (exact match), `q` (words of the message), `limit` (1 to 500), and `cursor`. |
 | `GET /api/v1/projects/:id/events/:event_id` | session, `project.read` | One event. `404` when the id is unknown or belongs to another project. |
-| `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md). |
+| `GET /api/v1/projects/:id/limits` | session, `project.read` | The project's rate limit and daily quota settings (`null` inherits the instance default) and the effective values. |
+| `PUT /api/v1/projects/:id/limits` | session + CSRF, instance admin | Sets `rate_limit_per_minute` (100 to 1,000,000) and `events_per_day`, each a number or `null`. Audited. |
+| `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md), with rate limits, quotas, and disk-full refusal as described in [docs/configuration.md](../../docs/configuration.md). |
 
 State-changing session requests need the `X-Jekimo-CSRF-Token` header. Session routes reject any `Authorization` header, so an ingestion key is never accepted there, and the ingest route ignores cookies. Projects the user cannot access answer `404`.
 
-Not yet implemented: rate limits and quotas (a TODO in `src/routes/ingest.ts` cites the protocol), invitations, password reset, key rotation and revocation endpoints, and custom role management.
+Not yet implemented: invitations, password reset, key rotation and revocation endpoints, and custom role management.
 
 ## Development
 

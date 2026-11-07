@@ -6,13 +6,21 @@
 
 import { randomUUID } from "node:crypto";
 import cookie from "@fastify/cookie";
-import type { EventStore, IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
+import type {
+  DiskMonitor,
+  EventStore,
+  IngestJob,
+  IngestLimitStore,
+  MetadataRepository,
+  Queue,
+} from "@jekimo/storage-postgres";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { type ApiConfig, DEFAULT_API_CONFIG } from "./config.js";
 import { apiErrorHandler } from "./errors.js";
 import { argon2Hasher, type PasswordHasher } from "./passwords.js";
 import { authRoutes, SetupGate } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { limitRoutes } from "./routes/limits.js";
 import { projectRoutes } from "./routes/projects.js";
 import { requireProjectPermission, requireSession } from "./session.js";
 
@@ -20,6 +28,10 @@ export interface AppDeps {
   metadata: MetadataRepository;
   events: EventStore;
   queue: Queue<IngestJob>;
+  /** Per-project rate limits and quotas. Absent: ingest is not limited, for tests only. */
+  limits?: IngestLimitStore;
+  /** Free space on the database volume. Absent: not checked, for tests only. */
+  disk?: DiskMonitor;
   config?: Partial<ApiConfig>;
   /** The one-time setup token, or null when setup is closed. */
   setupToken?: string | null;
@@ -119,7 +131,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // Ingest is registered in its own scope: no cookie parsing, no session
   // middleware, its own body parser and error format.
-  await app.register(ingestRoutes, { metadata: deps.metadata, queue: deps.queue, clock });
+  await app.register(ingestRoutes, {
+    metadata: deps.metadata,
+    queue: deps.queue,
+    clock,
+    limitDefaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
+    ...(deps.limits && { limits: deps.limits }),
+    ...(deps.disk && { disk: deps.disk }),
+  });
 
   await app.register(async (dashboard) => {
     await dashboard.register(cookie);
@@ -143,6 +162,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       retentionMaxDays: config.retentionMaxDays,
       clock,
     });
+    if (deps.limits) {
+      await dashboard.register(limitRoutes, {
+        limits: deps.limits,
+        session,
+        projectAccess: requireProjectPermission(deps.metadata),
+        defaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
+      });
+    }
   });
 
   return app;

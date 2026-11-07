@@ -54,7 +54,7 @@ Local backups are compressed dumps of the whole database and are kept for 14 day
 
 ### What happens when the disk fills
 
-Jekimo watches free space on the database volume ([retention.md](retention.md)):
+Jekimo watches free space on the database volume ([retention.md](retention.md)). Point `JEKIMO_DISK_PATH` at that volume in the API and worker containers (mount it read-only), or, when PostgreSQL runs elsewhere, set `JEKIMO_DISK_BUDGET_BYTES` to the database size you allow ([configuration.md](configuration.md#disk-safety)). If free space cannot be read, ingestion is refused rather than risk the database.
 
 | Free space | What Jekimo does |
 | --- | --- |
@@ -191,6 +191,10 @@ All have safe defaults. Change them only when you need to.
 | `JEKIMO_DISK_WARN_PERCENT` | `20` | Free space warning level | [retention.md](retention.md) |
 | `JEKIMO_DISK_CRITICAL_PERCENT` | `10` | Emergency expiry level | [retention.md](retention.md) |
 | `JEKIMO_DISK_FULL_PERCENT` | `5` | Ingestion refusal level | [retention.md](retention.md) |
+| `JEKIMO_DISK_PATH` | `/` | A path on the database volume, as the API and worker see it | [configuration.md](configuration.md#disk-safety) |
+| `JEKIMO_DISK_BUDGET_BYTES` | unset | Database size budget, for remote PostgreSQL | [configuration.md](configuration.md#disk-safety) |
+| `JEKIMO_RATE_LIMIT_PER_MINUTE` | `1000` | Default events per minute per project | [ingestion-protocol.md](ingestion-protocol.md) |
+| `JEKIMO_QUOTA_EVENTS_PER_DAY` | unset | Default events per project per UTC day | [retention.md](retention.md) |
 | `JEKIMO_AUDIT_LOG_DAYS` | `365` | Audit log retention | [retention.md](retention.md) |
 | `JEKIMO_MEMBERS_CAN_CREATE_PROJECTS` | `true` | Whether instance members may create projects | [access-model.md](access-model.md) |
 | `JEKIMO_SESSION_IDLE_DAYS` | `14` | Session idle timeout | [access-model.md](access-model.md) |
@@ -268,6 +272,8 @@ After setup the token stops working and `/setup` is closed.
 
 - Invite users from the instance admin area. Without SMTP, Jekimo gives you a single-use link to hand over; it expires after 7 days.
 - Every project starts with a rate limit of 1,000 events a minute and no quota. The rate limit absorbs bursts; it does not cap the total (1,000 a minute sustained would be 43 million events a month). To keep the reference VPS within its 1,000,000 events a month, give each project an `events_per_day` quota that adds up to your budget, for example 20,000 a day each for a handful of projects. Over-quota requests get `429 quota_exceeded` until midnight UTC ([retention.md](retention.md)).
+- Size the rate limit to what the worker can store: the sum of all projects' limits should stay below the worker's measured throughput (`npm run bench -w @jekimo/worker`), so a burst from every project at once drains instead of filling the queue. Size quotas from the storage formula above: `events_per_day × 30 × 4 KiB × (retention days ÷ 30)` per project, with a safety factor of 2, must fit the disk below the 20% warning level.
+- Set the instance defaults with `JEKIMO_RATE_LIMIT_PER_MINUTE` and `JEKIMO_QUOTA_EVENTS_PER_DAY`, and one project's limits, as an instance admin, with `PUT /api/v1/projects/<id>/limits` and `{"rate_limit_per_minute": 2000, "events_per_day": 20000}` (`null` inherits the default). There is no dashboard screen for this yet.
 - An instance admin who loses their password resets it on the VPS: `docker compose exec api jekimo admin reset-password <email>` prints a reset link. **To confirm when the slice lands:** the CLI's location inside the image.
 
 ## 9. Verify ingestion

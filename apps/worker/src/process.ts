@@ -12,8 +12,10 @@
 
 import {
   type EventEnvelope,
+  effectiveRetentionDays,
   type IssueCode,
   isExpired,
+  normalizeRetentionDays,
   RETENTION,
   shouldKeepEvent,
   validateEvent,
@@ -149,42 +151,100 @@ export interface ExpiryResult {
   projectsTouched: number;
   dedupePruned: number;
   countersPruned: number;
+  /** Projects that lost events in this pass, with the retention applied. */
+  perProject: { projectId: string; deleted: number; retentionDays: number }[];
+}
+
+export interface ExpiryOptions {
+  /**
+   * Disk at the critical level (docs/retention.md, "Disk safety"): every
+   * project's retention is min(configured, 7 days) for this pass.
+   */
+  emergency?: boolean;
+  /**
+   * Recount every project's issues, not only those that lost events here.
+   * Set for the first pass after a start and after a failed pass, so events
+   * an interrupted pass removed are reflected in issue counts.
+   */
+  recountAll?: boolean;
+  /** JEKIMO_RETENTION_DEFAULT_DAYS: for a stored period that is not valid. */
+  retentionDefaultDays?: number;
+  /** JEKIMO_RETENTION_MAX_DAYS: longer stored periods are cut to it. */
+  retentionMaxDays?: number;
+}
+
+/**
+ * The retention period the expiry pass applies to a project: its stored
+ * setting when valid, else the instance default, and never more than the
+ * instance maximum (docs/retention.md, "Project retention period").
+ */
+export function projectRetentionDays(
+  stored: number,
+  defaultDays: number = RETENTION.DEFAULT_DAYS,
+  maxDays: number = RETENTION.MAX_DAYS,
+): number {
+  const days = normalizeRetentionDays(stored) ?? defaultDays;
+  return Math.min(days, maxDays);
 }
 
 /**
  * One expiry pass (docs/retention.md, "Expiry mechanics"): drop each
- * project's days whose newest possible event has passed retention, recount
- * that project's issues from the event store, prune the deduplication index,
- * drop daily counters older than 13 months with counter idempotency keys
- * older than the deduplication window, and create the next week's partitions.
+ * project's days whose newest possible event has passed retention, oldest
+ * day first, recount the issues of each project that lost events from the
+ * event store, prune the deduplication index, drop daily counters older than
+ * 13 months with counter idempotency keys older than the deduplication
+ * window, and create the next week's partitions.
+ *
+ * Idempotent and safe to interrupt: expireDay is, an expired day yields
+ * nothing the second time, and a pass that stopped before recounting is
+ * followed by one with `recountAll`.
  */
 export async function runExpiryPass(
   deps: ProcessDeps,
   now: Date,
   clock: () => Date = () => new Date(),
+  options: ExpiryOptions = {},
 ): Promise<ExpiryResult> {
   const days = await deps.events.listDays();
-  const projects = await deps.metadata.listProjectRetention();
-  let deletedEvents = 0;
-  let projectsTouched = 0;
-  for (const { projectId, retentionDays } of projects) {
-    let deleted = 0;
-    for (const day of days) {
-      // The last instant of the day is the newest event it can hold.
-      const endOfDay = new Date(Date.parse(`${day}T00:00:00.000Z`) + DAY_MS);
+  const level = options.emergency ? "critical" : "ok";
+  const projects = (await deps.metadata.listProjectRetention()).map(({ projectId, retentionDays }) => ({
+    projectId,
+    retentionDays: effectiveRetentionDays(
+      projectRetentionDays(retentionDays, options.retentionDefaultDays, options.retentionMaxDays),
+      level,
+    ),
+  }));
+  const deleted = new Map<string, number>();
+  for (const day of days) {
+    // The last instant of the day is the newest event it can hold.
+    const endOfDay = new Date(Date.parse(`${day}T00:00:00.000Z`) + DAY_MS);
+    for (const { projectId, retentionDays } of projects) {
       if (!isExpired(endOfDay, retentionDays, now)) continue;
-      deleted += (await deps.events.expireDay(projectId, day)).deleted;
+      const n = (await deps.events.expireDay(projectId, day)).deleted;
+      deleted.set(projectId, (deleted.get(projectId) ?? 0) + n);
     }
-    if (deleted > 0) {
-      const asOf = clock();
-      await deps.metadata.replaceIssueCounts(projectId, await deps.events.summarizeFingerprints(projectId), asOf);
-      deletedEvents += deleted;
-      projectsTouched++;
+  }
+  let deletedEvents = 0;
+  const perProject: ExpiryResult["perProject"] = [];
+  for (const { projectId, retentionDays } of projects) {
+    const n = deleted.get(projectId) ?? 0;
+    if (n === 0 && !options.recountAll) continue;
+    const asOf = clock();
+    await deps.metadata.replaceIssueCounts(projectId, await deps.events.summarizeFingerprints(projectId), asOf);
+    if (n > 0) {
+      deletedEvents += n;
+      perProject.push({ projectId, deleted: n, retentionDays });
     }
   }
   const dedupeCutoff = new Date(now.getTime() - RETENTION.DEDUPE_WINDOW_DAYS * DAY_MS);
   const dedupePruned = await deps.events.pruneDedupe(dedupeCutoff);
   const counters = await deps.metadata.pruneDailyCounters(counterRetentionStart(now), dedupeCutoff);
   await deps.events.prepareDays(daysFrom(new Date(now.getTime() - DAY_MS), 9));
-  return { deletedEvents, projectsTouched, dedupePruned, countersPruned: counters.counters };
+  return {
+    deletedEvents,
+    projectsTouched: perProject.length,
+    dedupePruned,
+    countersPruned: counters.counters,
+    perProject,
+  };
 }

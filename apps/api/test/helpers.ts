@@ -1,6 +1,11 @@
 import type { ProjectPermission } from "@jekimo/event-schema";
-import type { AppendEvent, IngestJob } from "@jekimo/storage-postgres";
-import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo/storage-postgres/memory";
+import type { AppendEvent, DiskMonitor, IngestJob } from "@jekimo/storage-postgres";
+import {
+  MemoryEventStore,
+  MemoryIngestLimitStore,
+  MemoryMetadataRepository,
+  MemoryQueue,
+} from "@jekimo/storage-postgres/memory";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { generateIngestionKey } from "../src/keys.js";
@@ -21,6 +26,7 @@ export interface Harness {
   metadata: MemoryMetadataRepository;
   events: MemoryEventStore;
   queue: MemoryQueue<IngestJob>;
+  limits: MemoryIngestLimitStore;
   now: { value: Date };
 }
 
@@ -29,6 +35,7 @@ export async function harness(
     setupToken?: string | null;
     config?: Parameters<typeof buildApp>[0]["config"];
     queueMaxDepth?: number;
+    disk?: DiskMonitor;
   } = {},
 ): Promise<Harness> {
   const now = { value: new Date("2026-11-05T09:15:00.000Z") };
@@ -37,16 +44,19 @@ export async function harness(
   const queue = new MemoryQueue<IngestJob>(
     options.queueMaxDepth === undefined ? {} : { maxDepth: options.queueMaxDepth },
   );
+  const limits = new MemoryIngestLimitStore(metadata);
   const app = await buildApp({
     metadata,
     events,
     queue,
+    limits,
+    ...(options.disk && { disk: options.disk }),
     hasher: fakeHasher,
     setupToken: options.setupToken ?? null,
     clock: () => now.value,
     ...(options.config && { config: options.config }),
   });
-  return { app, metadata, events, queue, now };
+  return { app, metadata, events, queue, limits, now };
 }
 
 export interface SignedIn {
