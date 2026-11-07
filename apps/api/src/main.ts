@@ -37,7 +37,8 @@ async function main(): Promise<void> {
         '  POST /api/v1/setup with {"setup_token", "email", "password"}. See docs/local-development.md.',
         "  The token is valid until setup completes or the API restarts.",
         "",
-      ].join("\n") + "\n",
+        "",
+      ].join("\n"),
     );
   }
 

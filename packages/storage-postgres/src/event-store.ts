@@ -210,8 +210,8 @@ export class PostgresEventStore implements EventStore {
       params,
     );
     const page: EventPage = { events: rows.slice(0, query.limit).map(fromRow) };
-    if (rows.length > query.limit) {
-      const last = page.events[page.events.length - 1]!;
+    const last = page.events.at(-1);
+    if (rows.length > query.limit && last) {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;

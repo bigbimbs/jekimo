@@ -59,6 +59,28 @@ export interface SessionOptions {
   clock: () => Date;
 }
 
+/**
+ * Accessors for values that a preHandler attached to the request. A missing
+ * value is a route wiring bug (the preHandler was not declared), not a client
+ * error, so they throw a plain Error that surfaces as a 500.
+ */
+export function actorOf(request: FastifyRequest): Actor {
+  if (!request.actor) throw new Error(`route ${request.routeOptions.url} is missing the session preHandler`);
+  return request.actor;
+}
+
+export function sessionOf(request: FastifyRequest): SessionRecord {
+  if (!request.session) throw new Error(`route ${request.routeOptions.url} is missing the session preHandler`);
+  return request.session;
+}
+
+export function projectAccessOf(request: FastifyRequest): ProjectAccess {
+  if (!request.projectAccess) {
+    throw new Error(`route ${request.routeOptions.url} is missing the project access preHandler`);
+  }
+  return request.projectAccess;
+}
+
 /** preHandler that requires a live session and, for state changes, the CSRF header. */
 export function requireSession(opts: SessionOptions) {
   return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
@@ -99,7 +121,7 @@ export function requireProjectPermission(metadata: MetadataRepository) {
     const permission = request.routeOptions.config.permission;
     if (!permission) throw new Error(`route ${request.routeOptions.url} declares no permission`);
     const { id } = request.params as { id: string };
-    const access = await metadata.resolveProjectAccess(request.actor!, id);
+    const access = await metadata.resolveProjectAccess(actorOf(request), id);
     if (!access) throw new ApiError(404, "not_found", "project not found");
     if (!access.permissions.has(permission))
       throw new ApiError(403, "forbidden", `this action needs the ${permission} permission`);

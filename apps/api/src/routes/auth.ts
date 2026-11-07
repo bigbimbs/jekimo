@@ -8,7 +8,7 @@ import type { MetadataRepository, UserRecord } from "@jekimo/storage-postgres";
 import type { FastifyInstance, FastifyReply, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../errors.js";
 import { type PasswordHasher, passwordProblem, TimingSafeVerifier } from "../passwords.js";
-import { hashSessionToken, newCsrfToken, newSessionToken, SESSION_COOKIE } from "../session.js";
+import { hashSessionToken, newCsrfToken, newSessionToken, SESSION_COOKIE, sessionOf } from "../session.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
@@ -118,14 +118,13 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
     return { user: publicUser(user), csrf_token: csrfToken };
   });
 
-  app.get("/api/v1/auth/session", { preHandler: opts.session }, async (request) => ({
-    user: publicUser(request.session!.user),
-    csrf_token: request.session!.csrfToken,
-    expires_at: request.session!.expiresAt.toISOString(),
-  }));
+  app.get("/api/v1/auth/session", { preHandler: opts.session }, async (request) => {
+    const s = sessionOf(request);
+    return { user: publicUser(s.user), csrf_token: s.csrfToken, expires_at: s.expiresAt.toISOString() };
+  });
 
   app.post("/api/v1/auth/logout", { preHandler: opts.session }, async (request, reply) => {
-    const s = request.session!;
+    const s = sessionOf(request);
     await opts.metadata.revokeSession(s.sessionId, opts.clock());
     await opts.metadata.appendAudit({
       actorUserId: s.user.id,

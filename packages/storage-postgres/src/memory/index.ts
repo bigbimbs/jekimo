@@ -98,12 +98,16 @@ export class MemoryMetadataRepository implements MetadataRepository {
   /** Test helper: adds or changes a membership with a role name defined in the project. */
   setMember(projectId: string, userId: string, role: string): void {
     if (!this.roles.get(projectId)?.has(role)) throw new Error(`no role ${role} in ${projectId}`);
-    this.members.get(projectId)!.set(userId, role);
+    const members = this.members.get(projectId);
+    if (!members) throw new Error(`no project ${projectId}`);
+    members.set(userId, role);
   }
 
   /** Test helper: defines a custom role. */
   defineRole(projectId: string, name: string, permissions: ProjectPermission[]): void {
-    this.roles.get(projectId)!.set(name, new Set(permissions));
+    const roles = this.roles.get(projectId);
+    if (!roles) throw new Error(`no project ${projectId}`);
+    roles.set(name, new Set(permissions));
   }
 
   async findUserForLogin(email: string): Promise<{ user: UserRecord; passwordHash: string } | null> {
@@ -141,7 +145,7 @@ export class MemoryMetadataRepository implements MetadataRepository {
     const s = this.sessions.find((x) => sameBytes(x.tokenHash, tokenHash));
     if (!s || s.revokedAt !== null || s.expiresAt <= now) return null;
     const u = this.users.find((x) => x.id === s.userId);
-    if (!u || u.status !== "active") return null;
+    if (u?.status !== "active") return null;
     const { passwordHash: _, ...user } = u;
     return {
       sessionId: s.id,
@@ -202,14 +206,22 @@ export class MemoryMetadataRepository implements MetadataRepository {
     if (!this.projects.some((p) => p.id === projectId)) return null;
     const role = this.members.get(projectId)?.get(actor.userId);
     if (role === undefined && actor.instanceRole !== "admin") return null;
-    const permissions =
-      actor.instanceRole === "admin" ? new Set(PROJECT_PERMISSIONS) : new Set(this.roles.get(projectId)!.get(role!)!);
+    let permissions: Set<ProjectPermission>;
+    if (actor.instanceRole === "admin") {
+      permissions = new Set(PROJECT_PERMISSIONS);
+    } else {
+      const granted = role === undefined ? undefined : this.roles.get(projectId)?.get(role);
+      if (!granted) return null;
+      permissions = new Set(granted);
+    }
     return mintProjectAccess({ projectId, userId: actor.userId, permissions, viaInstanceAdmin: role === undefined });
   }
 
   async getProject(access: ProjectAccess): Promise<ProjectRecord> {
     assertProjectAccess(access);
-    return { ...this.projects.find((p) => p.id === access.projectId)! };
+    const project = this.projects.find((p) => p.id === access.projectId);
+    if (!project) throw new Error(`no project ${access.projectId}`);
+    return { ...project };
   }
 
   async createIngestionKey(
@@ -277,8 +289,8 @@ export class MemoryMetadataRepository implements MetadataRepository {
 
   async replaceIssueCounts(projectId: string, summaries: FingerprintSummary[]): Promise<void> {
     for (let n = this.issues.length - 1; n >= 0; n--) {
-      const i = this.issues[n]!;
-      if (i.projectId !== projectId) continue;
+      const i = this.issues[n];
+      if (!i || i.projectId !== projectId) continue;
       const s = summaries.find((x) => x.fingerprint === i.fingerprint);
       if (!s) this.issues.splice(n, 1);
       else Object.assign(i, { eventCount: s.eventCount, firstSeen: s.firstSeen, lastSeen: s.lastSeen });
@@ -331,8 +343,8 @@ export class MemoryEventStore implements EventStore {
     const page: EventPage = {
       events: matching.slice(0, query.limit).map(({ projectId: _, ...e }) => structuredClone(e)),
     };
-    if (matching.length > query.limit) {
-      const last = page.events[page.events.length - 1]!;
+    const last = page.events.at(-1);
+    if (matching.length > query.limit && last) {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
@@ -363,8 +375,8 @@ export class MemoryEventStore implements EventStore {
   async expireDay(projectId: string, day: string): Promise<{ deleted: number }> {
     let deleted = 0;
     for (let n = this.rows.length - 1; n >= 0; n--) {
-      const r = this.rows[n]!;
-      if (r.projectId === projectId && utcDay(r.receivedAt) === day) {
+      const r = this.rows[n];
+      if (r && r.projectId === projectId && utcDay(r.receivedAt) === day) {
         this.rows.splice(n, 1);
         deleted++;
       }
