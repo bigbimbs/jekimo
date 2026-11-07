@@ -17,7 +17,6 @@ interface Route {
 }
 
 const MATRIX_EVENT_ID = "01JBQ4Z3H8X9T2K7M5N6P8R9SV";
-/** Set in beforeAll, once the matrix project has an issue. */
 let matrixIssueId = "";
 
 const ROUTES: Route[] = [

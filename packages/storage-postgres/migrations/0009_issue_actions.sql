@@ -1,12 +1,6 @@
--- Issue identity, latest event, environments, and status changes
--- (docs/access-model.md, "Permission catalogue": issues.manage).
---
--- `id` is the stable handle the API and dashboard use; fingerprints can be
--- long client strings. `last_event_id` points at the newest event of the
--- issue in the event store. `environments` collects the distinct
--- environments seen, for filtering. `status_changed_at` is when a person (or
--- a regression) last changed the status: a resolved issue that receives an
--- event received after it reopens.
+-- `id` exists because fingerprints are client strings of up to 256
+-- characters, unsuitable for URLs. A resolved issue reopens when it receives
+-- an event received after `status_changed_at`.
 
 ALTER TABLE issues
   ADD COLUMN id uuid NOT NULL DEFAULT gen_random_uuid(),

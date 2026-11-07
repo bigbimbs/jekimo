@@ -140,7 +140,6 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
       ...(d.lastSeen.getTime() === receivedAt.getTime() && { lastEventId: e.event_id }),
     });
   }
-  // A resolved issue whose summary is newer than its resolution reopens here.
   await deps.metadata.upsertIssues(job.project_id, summaries);
 
   // Counts depend only on the job's content, so every attempt computes the

@@ -1,10 +1,6 @@
-/**
- * Issue summaries and status (docs/architecture.md, "Storage engines", rule
- * 3; docs/access-model.md, "Permission catalogue"). Counts and seen times
- * are derived from the event store by the worker; this module merges them,
- * reopens resolved issues that receive new events, and applies the status
- * changes people make. Every status change is audit-logged.
- */
+// Counts are derived from the event store (docs/architecture.md, "Storage
+// engines", rule 3); every status change is audit-logged
+// (docs/access-model.md, "Audit log").
 
 import type { ProjectAccess } from "./access.js";
 import { type IssueStatus, MAX_ISSUE_ENVIRONMENTS } from "./constants/index.js";
@@ -15,17 +11,14 @@ import type { AuditEntry, IssueRecord, IssueSummary } from "./types.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** True for a well-formed issue id. Other strings name no issue. */
 export function isIssueId(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
 
-/** The audit action for a status change made by a person. */
 export function issueStatusAction(status: IssueStatus): string {
   return status === "unresolved" ? "issue.reopened" : `issue.${status}`;
 }
 
-/** Merges two environment lists: distinct, sorted, capped. */
 export function mergeEnvironments(a: readonly string[], b: readonly string[] = []): string[] {
   return [...new Set([...a, ...b])].sort().slice(0, MAX_ISSUE_ENVIRONMENTS);
 }
@@ -95,9 +88,8 @@ function toIssue(r: IssueRow): IssueRecord {
 type InsertAudit = (db: PoolClient, entry: AuditEntry) => Promise<void>;
 
 /**
- * Merges summaries into issues; counts and last_seen only move forward. A
- * resolved issue whose summary was last seen after it was resolved is
- * reopened first, and the regression is audit-logged without an actor.
+ * Counts and last_seen only move forward, so a retry converges. Also reopens
+ * resolved issues seen after their resolution and audit-logs the regression.
  */
 export function upsertIssues(
   pool: Pool,

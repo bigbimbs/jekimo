@@ -4,9 +4,7 @@
  * Everything here runs synchronously on the caller's stack, so it is bounded:
  * strings are truncated, containers are capped, and nesting stops at the
  * attribute depth limit. Redaction happens while copying, so the original
- * values never reach the serialised event. The key test is the shared one
- * from `@jekimo/event-schema` (`createKeyRedactor`), the same rules the
- * worker applies with `redactEvent`.
+ * values never reach the serialised event.
  */
 
 import { type KeyRedactor, LIMITS, REDACTED_VALUE } from "@jekimo/event-schema";

@@ -1,8 +1,7 @@
 /**
  * Server-side redaction (docs/event-format.md, "Privacy defaults"). SDKs
  * redact before sending; the server applies the default key list again, plus
- * the project's own rules, with the same `redactEvent` from
- * `@jekimo/event-schema`, so a misconfigured SDK is not the last line of
+ * the project's own rules, so a misconfigured SDK is not the last line of
  * defense.
  *
  * Project rules are extra key names, normalized like the default list, and

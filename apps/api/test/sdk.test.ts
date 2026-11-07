@@ -1,10 +1,3 @@
-/**
- * The Node.js SDK against a running local API: the SDK sends over HTTP, the
- * API accepts and queues, the worker stores, and the event reads back with
- * sensitive keys redacted, once by the SDK and once by the worker with the
- * project's own rules.
- */
-
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { init, type JekimoClient } from "../../../packages/sdk-node/src/index.js";
@@ -71,9 +64,8 @@ describe("SDK to local API", () => {
       environment: "test",
       sdk: { name: "@jekimo/sdk-node" },
       exception: { type: "Error", value: "synthetic charge failure" },
-      // Redacted in the SDK by the default list...
+      // authorization is redacted by the SDK; tenant_id only by the worker's project rule.
       context: { route: "/charge", authorization: "[REDACTED]" },
-      // ...and by the worker with the project's rule for tenant_id.
       attributes: { tenant_id: "[REDACTED]", card: { cvv: "[REDACTED]", last4: "4242" } },
     });
     expect(event.fingerprint).toMatch(/^[0-9a-f]{64}$/);

@@ -1,22 +1,9 @@
-/**
- * Key-based redaction. Normative text: docs/event-format.md, "Privacy
- * defaults".
- *
- * The value of any `context` key, or `attributes` key at any depth, that is
- * on the default list, on the operator's extra list, or matches one of the
- * operator's patterns is replaced with `[REDACTED]`. SDKs apply this in the
- * application process before serialization; the worker applies it again with
- * the project's own rules.
- */
+// Normative text: docs/event-format.md, "Privacy defaults".
 
 import { isRedactedKey, normalizeKey, REDACTED_VALUE } from "./limits.js";
 import type { KeyRedactor, RedactOptions } from "./types/index.js";
 import type { AttributeValue, EventEnvelope } from "./types.js";
 
-/**
- * The key test for a set of options: the default list, the extra keys, then
- * the patterns. SDKs that redact while copying values use it directly.
- */
 export function createKeyRedactor(options: RedactOptions = {}): KeyRedactor {
   const extra = new Set((options.extraKeys ?? []).map(normalizeKey));
   const patterns = options.patterns ?? [];
@@ -45,10 +32,7 @@ function redactObject(obj: { [key: string]: AttributeValue }, redact: KeyRedacto
   return out;
 }
 
-/**
- * Returns a copy of the event with sensitive `context` and `attributes`
- * values replaced. No other field is changed and the input is not mutated.
- */
+/** Returns a copy; the input is not mutated. */
 export function redactEvent<T extends EventEnvelope>(event: T, options: RedactOptions = {}): T {
   const redact = createKeyRedactor(options);
   const out: T = { ...event };

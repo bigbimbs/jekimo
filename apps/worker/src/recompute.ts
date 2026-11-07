@@ -1,15 +1,9 @@
-/**
- * Issue recompute (docs/architecture.md, "Storage engines", rule 3): issue
- * counts are derived from the event store and can be rebuilt from it at any
- * time. For each project, every issue's count and first and last seen are
- * set from the events that remain, and issues with no events left are
- * deleted. Status, title, and environments are kept.
- */
+// docs/architecture.md, "Storage engines", rule 3: issue counts are derived
+// from the event store and can be rebuilt from it at any time.
 
 import type { ProcessDeps } from "./process.js";
 import type { RecomputeResult } from "./types/index.js";
 
-/** Recomputes one project's issues, or every project's when projectId is omitted. */
 export async function recomputeIssues(
   deps: ProcessDeps,
   options: { projectId?: string; clock?: () => Date } = {},

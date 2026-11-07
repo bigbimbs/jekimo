@@ -1,9 +1,4 @@
-/**
- * `npm run recompute-issues -w @jekimo/worker [-- <project id>]`, or
- * `node dist/recompute.mjs [<project id>]` in the worker image: rebuilds
- * issue counts from the event store. Reads JEKIMO_DATABASE_URL. Safe to run
- * while the worker is running.
- */
+// Usage: node dist/recompute.mjs [<project id>]. Safe to run alongside the worker.
 
 import { createPool, PostgresEventStore, PostgresMetadataRepository } from "@jekimo/storage-postgres";
 import { recomputeIssues } from "./recompute.js";

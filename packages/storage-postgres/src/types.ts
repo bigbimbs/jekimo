@@ -84,7 +84,6 @@ export interface IssueSummary {
   lastSeen: Date;
   /** The newest event of the issue; applied when lastSeen is the newest seen. */
   lastEventId?: string;
-  /** Environments seen in these events; merged into the issue's list. */
   environments?: string[];
 }
 
@@ -94,7 +93,6 @@ export interface IssueRecord extends IssueSummary {
   projectId: string;
   status: IssueStatus;
   environments: string[];
-  /** When a person or a regression last changed the status. */
   statusChangedAt?: Date;
 }
 
@@ -175,8 +173,7 @@ export interface MetadataRepository {
   /** Requires settings.manage. Rules are normalized and validated; returns what was stored. */
   setRedactionRules(access: ProjectAccess, rules: RedactionRules, sourceIp?: string): Promise<RedactionRules>;
 
-  // Issues (docs/access-model.md, "Permission catalogue"). Counts come from
-  // the event store through upsertIssues and replaceIssueCounts.
+  // Issues (docs/access-model.md, "Permission catalogue").
   /** Requires project.read. Newest last_seen first. Throws RangeError for an invalid cursor. */
   listIssues(access: ProjectAccess, query: IssueQuery): Promise<IssuePage>;
   /** Requires project.read. Null when the id is unknown or belongs to another project. */

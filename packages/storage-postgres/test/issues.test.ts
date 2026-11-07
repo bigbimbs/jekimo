@@ -1,9 +1,4 @@
-/**
- * Issue storage against a real PostgreSQL: merging summaries, latest event
- * and environments, listing with filters and a cursor, status changes with
- * audit entries, regressions, and project scoping. Skipped unless
- * JEKIMO_DATABASE_URL is set.
- */
+// Skipped unless JEKIMO_DATABASE_URL is set.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type IssueSummary, PostgresMetadataRepository, type ProjectAccess } from "../src/index.js";

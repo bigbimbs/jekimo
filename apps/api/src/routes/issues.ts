@@ -1,10 +1,5 @@
-/**
- * Issues: list, detail with the latest event, and status changes (resolve,
- * ignore, reopen). Reading needs `project.read` and changing status needs
- * `issues.manage` (docs/access-model.md, "Permission catalogue"); a project
- * the user cannot see is a 404 from requireProjectPermission. Status changes
- * are audit-logged by the storage layer.
- */
+// Permissions per docs/access-model.md, "Permission catalogue". Status
+// changes are audit-logged by the storage layer.
 
 import { EVENT_KINDS, type EventKind, LIMITS, SEVERITIES, type Severity } from "@jekimo/event-schema";
 import {
@@ -88,8 +83,7 @@ export async function issueRoutes(app: FastifyInstance, opts: IssueRouteOptions)
     async (request) => {
       const { issue_id: issueId } = request.params as { issue_id: string };
       const access = projectAccessOf(request);
-      // The project comes from the access check, so another project's issue
-      // id is simply not found here.
+      // Scoped to the access check's project, so another project's issue id is a 404.
       const issue = await opts.metadata.getIssue(access, issueId);
       if (!issue) throw new ApiError(404, "not_found", "issue not found");
       const latest =

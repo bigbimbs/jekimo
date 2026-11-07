@@ -1,10 +1,3 @@
-/**
- * The issue API against in-memory storage: filters, cursor pagination, the
- * detail view with its latest event, status changes and their audit entries,
- * and project scoping of issue ids (docs/access-model.md, "Authorization
- * enforcement", rule 4).
- */
-
 import type { IssueSummary } from "@jekimo/storage-postgres";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Harness, harness, projectWithKey, type SignedIn, setRole, signIn, storeEvent } from "./helpers.js";
