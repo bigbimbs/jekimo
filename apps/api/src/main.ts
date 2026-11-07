@@ -9,10 +9,12 @@ import {
   createPool,
   INGEST_QUEUE,
   type IngestJob,
+  migrateOnStart,
   PostgresEventStore,
   PostgresMetadataRepository,
   PostgresQueue,
   queuePolicyFromEnv,
+  runMigrations,
 } from "@jekimo/storage-postgres";
 import { buildApp, loggerOptions } from "./app.js";
 import { loadApiConfig } from "./config.js";
@@ -20,6 +22,10 @@ import { loadApiConfig } from "./config.js";
 async function main(): Promise<void> {
   const config = loadApiConfig();
   const pool = createPool({ applicationName: "jekimo-api" });
+  if (migrateOnStart()) {
+    const applied = await runMigrations(pool);
+    console.log(applied.length === 0 ? "schema is up to date" : `applied migrations: ${applied.join(", ")}`);
+  }
   const metadata = new PostgresMetadataRepository(pool);
 
   let setupToken: string | null = null;

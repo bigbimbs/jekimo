@@ -10,9 +10,13 @@ Read by `apps/api`, `apps/worker`, and `npm run migrate`.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DATABASE_URL` | required | PostgreSQL connection string, for example `postgres://jekimo:<password>@127.0.0.1:5432/jekimo`. |
+| `JEKIMO_DATABASE_URL` | required | PostgreSQL connection string, for example `postgres://jekimo:<password>@127.0.0.1:5432/jekimo`. Never logged. |
+| `DATABASE_URL` | unset | **Deprecated.** Read only when `JEKIMO_DATABASE_URL` is unset, with a deprecation warning at start-up. It will be removed in a later release; rename it. |
 | `JEKIMO_DATABASE_POOL_MAX` | `10` | Maximum connections per process. |
-| `JEKIMO_MIGRATIONS_DIR` | the `migrations/` directory of `packages/storage-postgres` | Where the migration runner looks for `NNNN_description.sql` files. The API image sets it to `/app/migrations`. |
+| `JEKIMO_MIGRATE_ON_START` | `false` | When `true`, the API and the worker apply pending migrations and create the coming week's event partitions before they start serving. Concurrent starts wait for each other on an advisory lock. Leave it `false` when migrations run as a separate step (`npm run migrate`, or the dev stack's `migrate` service). |
+| `JEKIMO_MIGRATIONS_DIR` | the `migrations/` directory of `packages/storage-postgres` | Where the migration runner looks for `NNNN_description.sql` files. The API and worker images set it to `/app/migrations`. |
+
+The privileges the runtime account needs are listed in [`packages/storage-postgres/README.md`](../packages/storage-postgres/README.md#database-privileges).
 
 The first release uses one database role for migrations and runtime. A restricted runtime role, with setup-time administrator credentials discarded after setup, is still to come (see [access-model.md](access-model.md), "Setup flow").
 
@@ -37,13 +41,14 @@ The API terminates plain HTTP. In production put it behind a TLS-terminating rev
 | Variable | Read by | Default | Meaning |
 | --- | --- | --- | --- |
 | `JEKIMO_QUEUE_MAX_ATTEMPTS` | API | `5` | Attempts before a queued ingest job is dead-lettered. Stamped on each job at enqueue time. |
+| `JEKIMO_QUEUE_MAX_DEPTH` | API | `10000` | Pending and running ingest jobs (one per accepted request) the queue holds. When it is full, `POST /api/v1/ingest` returns `503 unavailable` with `Retry-After: 30` instead of accepting events it cannot hold. Dead-lettered jobs do not count. Concurrent requests can overshoot it by a few jobs. |
 | `JEKIMO_QUEUE_VISIBILITY_SECONDS` | worker | `60` | How long a claimed job is hidden from other workers before it is redelivered. |
 | `JEKIMO_WORKER_BATCH_SIZE` | worker | `10` | Jobs claimed per poll. Each job is one ingest request of up to 100 events. |
 | `JEKIMO_WORKER_POLL_MS` | worker | `1000` | Wait between polls when the queue is empty. |
 | `JEKIMO_EXPIRY_INTERVAL_MINUTES` | worker | `15` | Interval of the expiry pass, 1 to 15 ([retention.md](retention.md) requires at least every 15 minutes). |
 | `JEKIMO_LOG_LEVEL` | worker | `info` | As for the API. |
 
-Dead-lettered jobs stay in the `queue_jobs` table with `status = 'dead'` and a payload-free `last_error` for inspection.
+Dead-lettered jobs stay in the `queue_jobs` table with `status = 'dead'` and a payload-free `last_error` for inspection. `PostgresQueue.stats()` reports queue depth, the age of the oldest pending or running job, and the dead-lettered count for health checks.
 
 ## Local development stack
 
@@ -64,4 +69,4 @@ These are specified but not implemented yet. Each spec lists its own variables:
 - Ingestion rate limits and quotas: [ingestion-protocol.md](ingestion-protocol.md)
 - Object storage, cold tier, restores, and backups: [object-storage.md](object-storage.md)
 
-All Jekimo variables are prefixed `JEKIMO_`, except `DATABASE_URL` and the PostgreSQL container's `POSTGRES_PASSWORD`.
+All Jekimo variables are prefixed `JEKIMO_`, except the deprecated `DATABASE_URL` and the PostgreSQL container's `POSTGRES_PASSWORD`.

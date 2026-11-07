@@ -60,9 +60,9 @@ npm run lint       # Biome lint, format, and import-order check (no writes)
 npm run lint:fix   # apply Biome's safe fixes and formatting
 npm run format     # format every file with Biome
 npm run typecheck  # tsc -b over the solution tsconfig and its project references
-npm test           # Vitest unit tests; PostgreSQL integration tests run when DATABASE_URL is set
+npm test           # Vitest unit tests; PostgreSQL integration tests run when JEKIMO_DATABASE_URL is set
 npm run check      # lint, typecheck, then test; CI runs the same three steps
-npm run migrate -w @jekimo/storage-postgres   # apply migrations to DATABASE_URL
+npm run migrate -w @jekimo/storage-postgres   # apply migrations to JEKIMO_DATABASE_URL
 npm run build --workspaces --if-present       # build libraries, app bundles, and the SDK into dist/
 docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build   # local stack
 ```

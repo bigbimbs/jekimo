@@ -1,7 +1,8 @@
 /**
  * Integration test helper: a throwaway schema in the database named by
- * DATABASE_URL, migrated from scratch, dropped afterwards. Tests that use it
- * are skipped when DATABASE_URL is not set.
+ * JEKIMO_DATABASE_URL (or the deprecated DATABASE_URL), migrated from
+ * scratch, dropped afterwards. Tests that use it are skipped when neither is
+ * set.
  */
 
 import { randomBytes } from "node:crypto";
@@ -9,7 +10,9 @@ import pg from "pg";
 import { migrate } from "./migrate.js";
 import type { Pool } from "./pool.js";
 
-export const hasDatabase = Boolean(process.env.DATABASE_URL);
+const testDatabaseUrl = process.env.JEKIMO_DATABASE_URL || process.env.DATABASE_URL;
+
+export const hasDatabase = Boolean(testDatabaseUrl);
 
 export interface TestDatabase {
   pool: Pool;
@@ -17,9 +20,10 @@ export interface TestDatabase {
   close(): Promise<void>;
 }
 
-export async function createTestDatabase(): Promise<TestDatabase> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is not set");
+/** A fresh schema. Pass `migrate: false` to get it empty, without migrations. */
+export async function createTestDatabase(options: { migrate?: boolean } = {}): Promise<TestDatabase> {
+  const connectionString = testDatabaseUrl;
+  if (!connectionString) throw new Error("JEKIMO_DATABASE_URL is not set");
   const schema = `jekimo_test_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString });
   await admin.connect();
@@ -27,7 +31,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   await admin.end();
   const pool = new pg.Pool({ connectionString, max: 5, options: `-c search_path=${schema}` });
   pool.on("error", () => {});
-  await migrate(pool);
+  if (options.migrate !== false) await migrate(pool);
   return {
     pool,
     schema,

@@ -28,7 +28,7 @@ Not yet implemented: rate limits and quotas (a TODO in `src/routes/ingest.ts` ci
 ## Development
 
 ```bash
-npm run dev -w @jekimo/api     # tsx watch, needs DATABASE_URL
+npm run dev -w @jekimo/api     # tsx watch, needs JEKIMO_DATABASE_URL
 npm run build -w @jekimo/api   # dist/main.mjs and dist/migrate.mjs
 npm test -- apps/api
 ```

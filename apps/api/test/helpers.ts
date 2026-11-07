@@ -25,12 +25,18 @@ export interface Harness {
 }
 
 export async function harness(
-  options: { setupToken?: string | null; config?: Parameters<typeof buildApp>[0]["config"] } = {},
+  options: {
+    setupToken?: string | null;
+    config?: Parameters<typeof buildApp>[0]["config"];
+    queueMaxDepth?: number;
+  } = {},
 ): Promise<Harness> {
   const now = { value: new Date("2026-11-05T09:15:00.000Z") };
   const metadata = new MemoryMetadataRepository(() => now.value);
   const events = new MemoryEventStore();
-  const queue = new MemoryQueue<IngestJob>();
+  const queue = new MemoryQueue<IngestJob>(
+    options.queueMaxDepth === undefined ? {} : { maxDepth: options.queueMaxDepth },
+  );
   const app = await buildApp({
     metadata,
     events,

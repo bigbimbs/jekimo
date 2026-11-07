@@ -1,6 +1,7 @@
 /**
  * PostgreSQL metadata repository: users, sessions, projects, roles,
- * memberships, ingestion keys, issues, and the audit log.
+ * memberships, ingestion keys, issues, daily counters, redaction rules, and
+ * the audit log. Cross-project reads live in cross-project.ts.
  */
 
 import {
@@ -10,11 +11,22 @@ import {
   type ProjectPermission,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
+import {
+  findIngestionKey,
+  listProjectRetention,
+  listProjectsForActor,
+  PROJECT_COLUMNS,
+  type ProjectRow,
+  toProject,
+} from "./cross-project.js";
 import { type Pool, type PoolClient, withTransaction } from "./pool.js";
+import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
 import type {
   Actor,
   AuditEntry,
+  DailyCounterIncrement,
+  DailyCounters,
   FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
@@ -22,6 +34,7 @@ import type {
   MetadataRepository,
   ProjectRecord,
   ProjectRetention,
+  RedactionRules,
   SessionRecord,
   UserRecord,
 } from "./types.js";
@@ -34,31 +47,10 @@ interface UserRow {
   created_at: Date;
 }
 
-interface ProjectRow {
-  id: string;
-  name: string;
-  retention_days: number;
-  sample_rate: number;
-  disabled: boolean;
-  created_at: Date;
-}
-
 const USER_COLUMNS = "u.id, u.email, u.instance_role, u.status, u.created_at";
-const PROJECT_COLUMNS = "p.id, p.name, p.retention_days, p.sample_rate, p.disabled, p.created_at";
 
 function toUser(r: UserRow): UserRecord {
   return { id: r.id, email: r.email, instanceRole: r.instance_role, status: r.status, createdAt: r.created_at };
-}
-
-function toProject(r: ProjectRow): ProjectRecord {
-  return {
-    id: r.id,
-    name: r.name,
-    retentionDays: r.retention_days,
-    sampleRate: r.sample_rate,
-    disabled: r.disabled,
-    createdAt: r.created_at,
-  };
 }
 
 async function insertAudit(db: Pool | PoolClient, entry: AuditEntry): Promise<void> {
@@ -227,18 +219,8 @@ export class PostgresMetadataRepository implements MetadataRepository {
     });
   }
 
-  async listProjects(actor: Actor): Promise<ProjectRecord[]> {
-    // Instance-admin listing and membership listing are the only
-    // cross-project reads (docs/access-model.md, "Authorization enforcement").
-    const { rows } =
-      actor.instanceRole === "admin"
-        ? await this.pool.query<ProjectRow>(`SELECT ${PROJECT_COLUMNS} FROM projects p ORDER BY p.created_at, p.id`)
-        : await this.pool.query<ProjectRow>(
-            `SELECT ${PROJECT_COLUMNS} FROM projects p JOIN project_members m ON m.project_id = p.id
-             WHERE m.user_id = $1 ORDER BY p.created_at, p.id`,
-            [actor.userId],
-          );
-    return rows.map(toProject);
+  listProjects(actor: Actor): Promise<ProjectRecord[]> {
+    return listProjectsForActor(this.pool, actor);
   }
 
   async resolveProjectAccess(actor: Actor, projectId: string): Promise<ProjectAccess | null> {
@@ -297,29 +279,8 @@ export class PostgresMetadataRepository implements MetadataRepository {
     });
   }
 
-  async findIngestionKey(keyId: string): Promise<IngestionKeyLookup | null> {
-    const { rows } = await this.pool.query<{
-      key_id: string;
-      project_id: string;
-      key_hash: Buffer;
-      revoked_at: Date | null;
-      expires_at: Date | null;
-      disabled: boolean;
-    }>(
-      `SELECT k.key_id, k.project_id, k.key_hash, k.revoked_at, k.expires_at, p.disabled
-       FROM ingestion_keys k JOIN projects p ON p.id = k.project_id WHERE k.key_id = $1`,
-      [keyId],
-    );
-    const r = rows[0];
-    if (!r) return null;
-    return {
-      keyId: r.key_id,
-      projectId: r.project_id,
-      keyHash: new Uint8Array(r.key_hash),
-      revokedAt: r.revoked_at,
-      expiresAt: r.expires_at,
-      projectDisabled: r.disabled,
-    };
+  findIngestionKey(keyId: string): Promise<IngestionKeyLookup | null> {
+    return findIngestionKey(this.pool, keyId);
   }
 
   async getProjectSettings(projectId: string): Promise<{ retentionDays: number; sampleRate: number } | null> {
@@ -388,10 +349,104 @@ export class PostgresMetadataRepository implements MetadataRepository {
     });
   }
 
-  async listProjectRetention(): Promise<ProjectRetention[]> {
-    const { rows } = await this.pool.query<{ id: string; retention_days: number }>(
-      "SELECT id, retention_days FROM projects ORDER BY id",
+  listProjectRetention(): Promise<ProjectRetention[]> {
+    return listProjectRetention(this.pool);
+  }
+
+  async incrementDailyCounters(projectId: string, input: DailyCounterIncrement): Promise<boolean> {
+    const counts = checkCounterIncrement(input);
+    // One statement: the idempotency key and the counts commit together, and
+    // a concurrent repeat of the key waits on the first and then adds nothing.
+    const { rowCount } = await this.pool.query(
+      `WITH k AS (
+         INSERT INTO project_counter_increments (project_id, increment_key)
+         SELECT $1, $2::text WHERE $2::text IS NOT NULL
+         ON CONFLICT DO NOTHING RETURNING 1
+       )
+       INSERT INTO project_daily_counters AS c (project_id, day, accepted, rejected, dropped, sampled)
+       SELECT $1, $3::date, $4, $5, $6, $7 WHERE $2::text IS NULL OR EXISTS (SELECT 1 FROM k)
+       ON CONFLICT (project_id, day) DO UPDATE SET
+         accepted = c.accepted + EXCLUDED.accepted,
+         rejected = c.rejected + EXCLUDED.rejected,
+         dropped = c.dropped + EXCLUDED.dropped,
+         sampled = c.sampled + EXCLUDED.sampled,
+         updated_at = now()`,
+      [
+        projectId,
+        input.idempotencyKey ?? null,
+        input.day,
+        counts.accepted,
+        counts.rejected,
+        counts.dropped,
+        counts.sampled,
+      ],
     );
-    return rows.map((r) => ({ projectId: r.id, retentionDays: r.retention_days }));
+    return rowCount === 1;
+  }
+
+  async listDailyCounters(access: ProjectAccess, range: { from: string; to: string }): Promise<DailyCounters[]> {
+    requirePermission(access, "project.read");
+    if (!isUtcDay(range.from) || !isUtcDay(range.to))
+      throw new RangeError("counter range must be UTC days, YYYY-MM-DD");
+    const { rows } = await this.pool.query<{
+      day: string;
+      accepted: string;
+      rejected: string;
+      dropped: string;
+      sampled: string;
+    }>(
+      `SELECT to_char(day, 'YYYY-MM-DD') AS day, accepted, rejected, dropped, sampled
+       FROM project_daily_counters WHERE project_id = $1 AND day BETWEEN $2::date AND $3::date ORDER BY day`,
+      [access.projectId, range.from, range.to],
+    );
+    return rows.map((r) => ({
+      day: r.day,
+      accepted: Number(r.accepted),
+      rejected: Number(r.rejected),
+      dropped: Number(r.dropped),
+      sampled: Number(r.sampled),
+    }));
+  }
+
+  async pruneDailyCounters(beforeDay: string, keysBefore: Date): Promise<{ counters: number; keys: number }> {
+    if (!isUtcDay(beforeDay)) throw new RangeError("beforeDay must be a UTC day, YYYY-MM-DD");
+    const counters = await this.pool.query("DELETE FROM project_daily_counters WHERE day < $1::date", [beforeDay]);
+    const keys = await this.pool.query("DELETE FROM project_counter_increments WHERE created_at < $1", [
+      keysBefore.toISOString(),
+    ]);
+    return { counters: counters.rowCount ?? 0, keys: keys.rowCount ?? 0 };
+  }
+
+  async getRedactionRules(projectId: string): Promise<RedactionRules | null> {
+    const { rows } = await this.pool.query<{ redaction_rules: RedactionRules }>(
+      "SELECT redaction_rules FROM projects WHERE id = $1",
+      [projectId],
+    );
+    const r = rows[0];
+    return r ? { keys: r.redaction_rules.keys, patterns: r.redaction_rules.patterns } : null;
+  }
+
+  async setRedactionRules(access: ProjectAccess, rules: RedactionRules, sourceIp?: string): Promise<RedactionRules> {
+    requirePermission(access, "settings.manage");
+    const normalized = normalizeRedactionRules(rules);
+    return await withTransaction(this.pool, async (client) => {
+      const { rowCount } = await client.query(
+        "UPDATE projects SET redaction_rules = $2::jsonb, updated_at = now() WHERE id = $1",
+        [access.projectId, JSON.stringify(normalized)],
+      );
+      if (rowCount !== 1) throw new Error("project no longer exists");
+      // Counts only: the rules themselves can describe what a project hides.
+      await insertAudit(client, {
+        actorUserId: access.userId,
+        action: "project.redaction_rules_updated",
+        targetType: "project",
+        targetId: access.projectId,
+        projectId: access.projectId,
+        viaInstanceAdmin: access.viaInstanceAdmin,
+        details: { keys: normalized.keys.length, patterns: normalized.patterns.length },
+        ...(sourceIp !== undefined && { sourceIp }),
+      });
+      return normalized;
+    });
   }
 }

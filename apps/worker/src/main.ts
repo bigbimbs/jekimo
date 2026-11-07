@@ -7,10 +7,12 @@ import {
   createPool,
   INGEST_QUEUE,
   type IngestJob,
+  migrateOnStart,
   PostgresEventStore,
   PostgresMetadataRepository,
   PostgresQueue,
   queuePolicyFromEnv,
+  runMigrations,
 } from "@jekimo/storage-postgres";
 import pino from "pino";
 import { loadWorkerConfig } from "./config.js";
@@ -20,6 +22,10 @@ async function main(): Promise<void> {
   const config = loadWorkerConfig();
   const log = pino({ level: config.logLevel, base: { service: "jekimo-worker" } });
   const pool = createPool({ applicationName: "jekimo-worker" });
+  if (migrateOnStart()) {
+    const applied = await runMigrations(pool);
+    log.info({ applied }, applied.length === 0 ? "schema is up to date" : "migrations applied");
+  }
   const worker = new Worker({
     queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE, queuePolicyFromEnv()),
     metadata: new PostgresMetadataRepository(pool),

@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../src/access.js";
 import { decodeCursor, encodeCursor } from "../src/event-store.js";
-import { DEFAULT_QUEUE_POLICY, daysFrom, decideFailure, partitionName } from "../src/index.js";
+import {
+  DEFAULT_QUEUE_POLICY,
+  databaseUrl,
+  daysFrom,
+  decideFailure,
+  isUtcDay,
+  migrateOnStart,
+  normalizeRedactionRules,
+  partitionName,
+  QueueFullError,
+  queuePolicyFromEnv,
+} from "../src/index.js";
 import { MemoryMetadataRepository, MemoryQueue } from "../src/memory/index.js";
 import { describeError } from "../src/queue.js";
 
@@ -121,5 +132,87 @@ describe("project access", () => {
     const viaAdmin = await repo.resolveProjectAccess({ userId: admin.id, instanceRole: "admin" }, "prj_a");
     expect(viaAdmin?.viaInstanceAdmin).toBe(true);
     expect(viaAdmin?.permissions.has("project.delete")).toBe(true);
+  });
+});
+
+describe("connection settings", () => {
+  it("prefers JEKIMO_DATABASE_URL and falls back to the deprecated DATABASE_URL", () => {
+    expect(databaseUrl({ JEKIMO_DATABASE_URL: "postgres://new", DATABASE_URL: "postgres://old" })).toBe(
+      "postgres://new",
+    );
+    expect(databaseUrl({ DATABASE_URL: "postgres://old" })).toBe("postgres://old");
+    expect(() => databaseUrl({})).toThrow("JEKIMO_DATABASE_URL is not set");
+  });
+
+  it("reads JEKIMO_MIGRATE_ON_START", () => {
+    expect(migrateOnStart({})).toBe(false);
+    expect(migrateOnStart({ JEKIMO_MIGRATE_ON_START: "true" })).toBe(true);
+    expect(migrateOnStart({ JEKIMO_MIGRATE_ON_START: "0" })).toBe(false);
+    expect(() => migrateOnStart({ JEKIMO_MIGRATE_ON_START: "yes" })).toThrow(/true or false/);
+  });
+
+  it("reads the queue depth bound", () => {
+    expect(queuePolicyFromEnv({ JEKIMO_QUEUE_MAX_DEPTH: "50" }).maxDepth).toBe(50);
+    expect(queuePolicyFromEnv({ JEKIMO_QUEUE_MAX_DEPTH: "-1" }).maxDepth).toBeUndefined();
+  });
+});
+
+describe("project settings validation", () => {
+  it("accepts real UTC days only", () => {
+    expect(isUtcDay("2026-11-05")).toBe(true);
+    expect(isUtcDay("2026-02-30")).toBe(false);
+    expect(isUtcDay("2026-11-05T00:00:00Z")).toBe(false);
+  });
+
+  it("normalizes redaction keys and rejects invalid patterns", () => {
+    expect(normalizeRedactionRules({ keys: ["Api-Key", "api_key", "X Token"], patterns: ["^a", "^a"] })).toEqual({
+      keys: ["apikey", "xtoken"],
+      patterns: ["^a"],
+    });
+    expect(() => normalizeRedactionRules({ keys: ["-_ "], patterns: [] })).toThrow(RangeError);
+    expect(() => normalizeRedactionRules({ keys: [], patterns: ["[unclosed"] })).toThrow(RangeError);
+    expect(() => normalizeRedactionRules({ keys: [], patterns: ["x".repeat(257)] })).toThrow(RangeError);
+  });
+});
+
+describe("memory counters and redaction rules", () => {
+  it("counts once per idempotency key and scopes reads to the project", async () => {
+    const meta = new MemoryMetadataRepository();
+    const admin = meta.addUser("admin@example.test", "x", "admin");
+    const actor = { userId: admin.id, instanceRole: "admin" as const };
+    await meta.createProject(actor, { id: "prj_a", name: "A", retentionDays: 30 });
+    const access = await meta.resolveProjectAccess(actor, "prj_a");
+    if (!access) throw new Error("no access");
+    expect(
+      await meta.incrementDailyCounters("prj_a", { day: "2026-11-05", accepted: 2, idempotencyKey: "job:1" }),
+    ).toBe(true);
+    expect(
+      await meta.incrementDailyCounters("prj_a", { day: "2026-11-05", accepted: 2, idempotencyKey: "job:1" }),
+    ).toBe(false);
+    expect(await meta.listDailyCounters(access, { from: "2026-11-05", to: "2026-11-05" })).toEqual([
+      { day: "2026-11-05", accepted: 2, rejected: 0, dropped: 0, sampled: 0 },
+    ]);
+    expect(await meta.setRedactionRules(access, { keys: ["Card-PIN"], patterns: [] })).toEqual({
+      keys: ["cardpin"],
+      patterns: [],
+    });
+    expect(await meta.getRedactionRules("prj_a")).toEqual({ keys: ["cardpin"], patterns: [] });
+  });
+});
+
+describe("memory queue bounds and stats", () => {
+  it("throws QueueFullError at maxDepth and reports stats", async () => {
+    let now = 0;
+    const q = new MemoryQueue<string>({ maxDepth: 2, maxAttempts: 1 }, () => now);
+    await q.enqueue("a");
+    now = 10;
+    await q.enqueue("b");
+    await expect(q.enqueue("c")).rejects.toBeInstanceOf(QueueFullError);
+    const [job] = await q.dequeue(1);
+    await q.fail(job!, new Error("poison"));
+    now = 25;
+    expect(await q.stats()).toEqual({ pending: 1, running: 0, depth: 1, dead: 1, oldestAgeMs: 15 });
+    await q.enqueue("c");
+    await expect(q.enqueue("d")).rejects.toBeInstanceOf(QueueFullError);
   });
 });

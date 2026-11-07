@@ -16,13 +16,15 @@ import {
   LIMITS,
   validateIngestRequest,
 } from "@jekimo/event-schema";
-import type { IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
+import { type IngestJob, type MetadataRepository, type Queue, QueueFullError } from "@jekimo/storage-postgres";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { keyIdForLookup, verifyIngestionKey } from "../keys.js";
 
 const gunzipAsync = promisify(gunzip);
 const JSON_CONTENT_TYPE = /^application\/json\s*(;\s*charset\s*=\s*"?utf-8"?\s*)?$/i;
 const RETRY_AFTER_SECONDS = 5;
+/** A full queue drains at the worker's pace, so clients wait longer. */
+const QUEUE_FULL_RETRY_AFTER_SECONDS = 30;
 
 class IngestError extends Error {
   constructor(
@@ -186,6 +188,10 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
       try {
         await opts.queue.enqueue(job);
       } catch (err) {
+        if (err instanceof QueueFullError) {
+          request.log.warn({ project_id: projectId, max_depth: err.maxDepth }, "ingest queue full");
+          throw new IngestError("unavailable", "the ingest queue is full; retry later", QUEUE_FULL_RETRY_AFTER_SECONDS);
+        }
         request.log.error(
           { err: { type: (err as Error).name, message: (err as Error).message }, project_id: projectId },
           "enqueue failed",

@@ -178,4 +178,15 @@ describe("accepted requests", () => {
     expect(res.headers["retry-after"]).toBe("5");
     expect(res.json()).toEqual({ error: { code: "unavailable", message: expect.any(String), retry_after: 5 } });
   });
+
+  it("returns 503 with a longer Retry-After when the queue is full", async () => {
+    h = await harness({ queueMaxDepth: 1 });
+    ({ key, keyId, projectId } = await projectWithKey(h, await signIn(h, "owner@example.test")));
+    expect((await ingest({ events: [ingestEvent()] })).statusCode).toBe(202);
+    const res = await ingest({ events: [ingestEvent()] });
+    expect(res.statusCode).toBe(503);
+    expect(res.headers["retry-after"]).toBe("30");
+    expect(res.json()).toEqual({ error: { code: "unavailable", message: expect.any(String), retry_after: 30 } });
+    expect(h.queue.jobs).toHaveLength(1);
+  });
 });

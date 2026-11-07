@@ -176,7 +176,9 @@ Edit `/opt/jekimo/.env`. It holds secrets: keep it `chmod 600`, owned by the dep
 | `JEKIMO_PUBLIC_URL` | `https://jekimo.example.com` | The instance `base_url`. Used for links and secure cookies. |
 | `JEKIMO_DATABASE_URL` | see Path A | Connection string for the application account. Leave unset with Path B. |
 
-> **To confirm when the slice lands:** the names `JEKIMO_VERSION`, `JEKIMO_PUBLIC_URL`, and `JEKIMO_DATABASE_URL`. They are not yet in a spec; the variables below are.
+`JEKIMO_DATABASE_URL` is implemented ([configuration.md](configuration.md#database)); the older name `DATABASE_URL` is still read when it is unset but is deprecated.
+
+> **To confirm when the slice lands:** the names `JEKIMO_VERSION` and `JEKIMO_PUBLIC_URL`. They are not yet in a spec; the variables below are.
 
 ### Optional, from the specs
 
@@ -345,8 +347,10 @@ Read the release notes for every version between yours and the target, especiall
 
    ```bash
    docker compose pull
-   docker compose run --rm api npm run migrate
+   docker compose run --rm api node dist/migrate.mjs
    ```
+
+   Alternatively, set `JEKIMO_MIGRATE_ON_START=true` and the API and worker apply pending migrations when they start; concurrent starts wait for each other.
 
 5. Restart the services on the new version:
 
@@ -369,7 +373,7 @@ Migrations move forward only. To go back to the previous version:
 
 If the new version did not run any migration (the release notes say so), step 2 can be skipped.
 
-> **To confirm when the slice lands:** the migrate command `npm run migrate` inside the api image, whether the API refuses to start against an unmigrated database, and whether migrations are ever reversible.
+> **To confirm when the slice lands:** whether the API refuses to start against an unmigrated database, and whether migrations are ever reversible.
 
 ## Troubleshooting
 
