@@ -52,7 +52,7 @@ The first release uses one account for migrations and runtime. That account need
 | Ownership of the tables Jekimo creates | `ALTER TABLE events DETACH PARTITION` and `DROP TABLE` on expired daily partitions require ownership. Creating the tables as this account gives it ownership. |
 | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on those tables | Ordinary reads and writes (implied by ownership). |
 
-It needs no superuser, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or `BYPASSRLS` attribute, no extensions (`gen_random_uuid()` is built into PostgreSQL 13 and later), and no access to any other database or schema. Session-level advisory locks (`pg_advisory_lock`), which the migration runner uses so concurrent runs wait for each other, are available to every account. [docs/install-vps.md](../../docs/install-vps.md), "Path A", has the SQL that creates such an account.
+It needs no superuser, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or `BYPASSRLS` attribute, no extensions (`gen_random_uuid()` is built into PostgreSQL 13 and later), and no access to any other database or schema. Session-level advisory locks (`pg_advisory_lock`), which the migration runner uses so concurrent runs wait for each other, are available to every account. [docs/install-vps.md](../../docs/install-vps.md#option-2-an-existing-postgresql-server), "Option 2", has the SQL that creates such an account, and [docs/database-setup.md](../../docs/database-setup.md) specifies how setup provisions it.
 
 ## Usage
 

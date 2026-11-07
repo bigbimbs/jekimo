@@ -6,9 +6,11 @@
 #   2. Checks that the root package.json version equals the tag version.
 #   3. Takes the release notes from the matching "## [X.Y.Z]" section of
 #      CHANGELOG.md and fails if that section is missing or empty.
-#   4. Creates the GitHub Release (marked as a pre-release when the tag
-#      contains a hyphen) and attaches the event envelope JSON Schema, a
-#      tarball of docs/, and a SHA256SUMS file.
+#   4. Checks that the event envelope JSON Schema parses and declares
+#      draft 2020-12.
+#   5. Creates the GitHub Release (marked as a pre-release when the tag
+#      contains a hyphen) and attaches the JSON Schema with its .sha256
+#      file, a tarball of docs/, and a SHA256SUMS file.
 #
 # Container images are built by images.yml and the Node SDK is published by
 # publish-sdk.yml. See docs/releasing.md for the full checklist.
@@ -97,12 +99,39 @@ jobs:
           echo "Release notes for $VERSION:"
           cat release-notes.md
 
+      # SDK authors validate against this file, so a release must never carry
+      # a schema that does not parse or targets another JSON Schema draft.
+      - name: Check the event envelope JSON Schema
+        env:
+          SCHEMA: packages/event-schema/schema/event-envelope.v1.json
+        run: |
+          node <<'JS'
+          const fs = require("node:fs");
+          const file = process.env.SCHEMA;
+          let schema;
+          try {
+            schema = JSON.parse(fs.readFileSync(file, "utf8"));
+          } catch (err) {
+            console.log(`::error file=${file}::Not valid JSON: ${err.message}`);
+            process.exit(1);
+          }
+          const expected = "https://json-schema.org/draft/2020-12/schema";
+          if (schema.$schema !== expected) {
+            console.log(`::error file=${file}::$schema must be ${expected}, found ${JSON.stringify(schema.$schema)}`);
+            process.exit(1);
+          }
+          console.log(`${file} parses and declares draft 2020-12`);
+          JS
+
       - name: Package release assets
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p release-assets
+          # Copied byte for byte from the tagged commit, with its checksum in
+          # sha256sum format as a separate asset for single-file downloads.
           cp packages/event-schema/schema/event-envelope.v1.json release-assets/
+          (cd release-assets && sha256sum event-envelope.v1.json > event-envelope.v1.json.sha256)
           tar --sort=name --owner=0 --group=0 --numeric-owner \
             -czf "release-assets/jekimo-docs-$VERSION.tar.gz" docs
           (cd release-assets && sha256sum -- * > SHA256SUMS)

@@ -1,9 +1,15 @@
-# VPS deployment
+# Docker Compose deployment
 
-This directory will contain the Docker Compose deployment for the API, worker, web dashboard, and optional local PostgreSQL service.
+| File | Purpose |
+| --- | --- |
+| [`docker-compose.yml`](docker-compose.yml) | Production stack for one VPS: Caddy for HTTPS, the published `ghcr.io/bigbimbs/jekimo-api` and `jekimo-worker` images pinned by `JEKIMO_VERSION`, a one-shot `migrate` job, and an optional local PostgreSQL (`COMPOSE_PROFILES=local-db`). Only Caddy publishes ports. |
+| [`Caddyfile`](Caddyfile) | Caddy site for `JEKIMO_DOMAIN`, with automatic certificates. |
+| [`.env.example`](.env.example) | Template for the production `.env`. |
+| [`postgres-init/10-jekimo.sh`](postgres-init/10-jekimo.sh) | Runs once on an empty local-db volume: creates the restricted `jekimo` account and database and removes the superuser's password. |
+| [`docker-compose.dev.yml`](docker-compose.dev.yml) | Local development stack built from source, every port on loopback. Not a production deployment. |
 
-The installer will support connecting to an existing PostgreSQL datasource or provisioning a local database and restricted application account. Keep secrets outside version control and document backup, restore, upgrade, and credential rotation procedures.
+Install guide: [docs/install-vps.md](../../docs/install-vps.md). Database flows and credential handling: [docs/database-setup.md](../../docs/database-setup.md). Backups: [docs/backups-and-restore.md](../../docs/backups-and-restore.md). Local development: [docs/local-development.md](../../docs/local-development.md).
 
-`docker-compose.dev.yml` runs PostgreSQL 16, a one-shot migration job, the API, and the worker for local development, with every port bound to loopback. It is not a production deployment. See [docs/local-development.md](../../docs/local-development.md).
+The dashboard image (`apps/web`) does not exist yet; `docker-compose.yml` and the `Caddyfile` have a commented placeholder for it.
 
-The production VPS deployment has not been added yet.
+Keep secrets in `.env` only, never in these files. The production Compose file passes each service only the variables it reads, so the PostgreSQL superuser password never reaches the API or worker.

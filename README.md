@@ -115,7 +115,7 @@ Keep ingestion separate from querying and issue management. This allows SDK traf
 - ~~Specify retention behavior.~~ Done: [docs/retention.md](docs/retention.md).
 - ~~Define instance, user, and project ownership and access rules.~~ Done: [docs/access-model.md](docs/access-model.md).
 - ~~Choose a storage approach and document the expected VPS resource range.~~ PostgreSQL; proposed range in [docs/retention.md](docs/retention.md).
-- Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.
+- ~~Define the existing-database and local-provisioning setup flows, including the one-time administrator credential handling.~~ Done: [docs/database-setup.md](docs/database-setup.md).
 
 ### Phase 1 — Backend MVP
 

@@ -15,4 +15,10 @@ This package contains:
 - `schema/event-envelope.v1.json` — the published JSON Schema (draft 2020-12).
 - `examples/` — valid example payloads used by the documentation and the tests.
 
+## Getting the schema
+
+Every GitHub release attaches the JSON Schema it shipped with as `event-envelope.v1.json`, byte-identical to the file in the tagged commit, with `event-envelope.v1.json.sha256` next to it in `sha256sum` format. The latest release's copy is always at <https://github.com/bigbimbs/jekimo/releases/latest/download/event-envelope.v1.json>; the copy for a specific version is under that version's release on the [releases page](https://github.com/bigbimbs/jekimo/releases). Prefer a release copy to the file on `main`, which changes whenever `main` does.
+
+## Tests
+
 The test suite checks that the validator, the JSON Schema, and the examples agree with each other. Any change to the contract must update all three and be recorded in `docs/event-format.md`.
