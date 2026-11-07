@@ -11,6 +11,13 @@ Jekimo is at the **scaffold stage**. The product brief in the [README](README.md
 - Documentation improvements.
 - Implementation work on the Phase 1 milestones, coordinated through an issue first.
 
+## Where to start
+
+- Browse the [Phase 1: Backend MVP milestone](https://github.com/bigbimbs/jekimo/milestone/1) for the work in progress toward the first release.
+- New to the project? Pick an issue labelled [`good first issue`](https://github.com/bigbimbs/jekimo/labels/good%20first%20issue). Each one describes what to build and how to check it, and needs no database or running services unless it says so.
+- Issues labelled [`needs design`](https://github.com/bigbimbs/jekimo/labels/needs%20design) need an agreed approach before code; comment on the issue or start a thread in [Ideas](https://github.com/bigbimbs/jekimo/discussions/categories/ideas).
+- Comment on an issue to say you are working on it, so nobody duplicates your work.
+
 ## Before you start
 
 1. **Search existing issues** to avoid duplicate work.
