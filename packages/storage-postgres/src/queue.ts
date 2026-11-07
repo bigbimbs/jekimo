@@ -7,6 +7,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Pool } from "./pool.js";
+import { firstRow } from "./rows.js";
 import type { Job, Queue } from "./types.js";
 
 export interface QueuePolicy {
@@ -84,7 +85,7 @@ export class PostgresQueue<T> implements Queue<T> {
       "INSERT INTO queue_jobs (queue, payload, max_attempts) VALUES ($1, $2::jsonb, $3) RETURNING id",
       [this.name, JSON.stringify(payload), this.policy.maxAttempts],
     );
-    return rows[0]!.id;
+    return firstRow(rows, "enqueue job").id;
   }
 
   async dequeue(limit: number): Promise<Job<T>[]> {

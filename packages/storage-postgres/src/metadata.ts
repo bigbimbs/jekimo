@@ -11,6 +11,7 @@ import {
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
 import { type Pool, type PoolClient, withTransaction } from "./pool.js";
+import { firstRow } from "./rows.js";
 import type {
   Actor,
   AuditEntry,
@@ -87,7 +88,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
 
   async countUsers(): Promise<number> {
     const { rows } = await this.pool.query<{ n: string }>("SELECT count(*) AS n FROM users");
-    return Number(rows[0]!.n);
+    return Number(firstRow(rows, "count users").n);
   }
 
   createFirstAdmin(input: { email: string; passwordHash: string }): Promise<UserRecord | null> {
@@ -101,7 +102,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
          RETURNING ${USER_COLUMNS}`,
         [input.email, input.passwordHash],
       );
-      const user = toUser(rows[0]!);
+      const user = toUser(firstRow(rows, "insert first admin"));
       await insertAudit(client, {
         actorUserId: user.id,
         action: "user.created",
@@ -128,7 +129,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
        WHERE action = 'auth.login_failed' AND target_type = 'user' AND target_id = $1 AND occurred_at >= $2`,
       [userId, since.toISOString()],
     );
-    return Number(rows[0]!.n);
+    return Number(firstRow(rows, "count failed logins").n);
   }
 
   async createSession(input: {
@@ -207,7 +208,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
           "INSERT INTO project_roles (project_id, name, permissions, built_in) VALUES ($1, $2, $3, true) RETURNING id",
           [input.id, name, [...permissions]],
         );
-        if (name === "admin") adminRoleId = role.rows[0]!.id;
+        if (name === "admin") adminRoleId = firstRow(role.rows, "insert built-in role").id;
       }
       await client.query("INSERT INTO project_members (project_id, user_id, role_id) VALUES ($1, $2, $3)", [
         input.id,
@@ -222,7 +223,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
         projectId: input.id,
         ...(input.sourceIp !== undefined && { sourceIp: input.sourceIp }),
       });
-      return toProject(rows[0]!);
+      return toProject(firstRow(rows, "insert project"));
     });
   }
 
@@ -291,7 +292,7 @@ export class PostgresMetadataRepository implements MetadataRepository {
         viaInstanceAdmin: access.viaInstanceAdmin,
         ...(input.sourceIp !== undefined && { sourceIp: input.sourceIp }),
       });
-      const r = rows[0]!;
+      const r = firstRow(rows, "insert ingestion key");
       return { keyId: r.key_id, projectId: r.project_id, name: r.name, createdAt: r.created_at };
     });
   }

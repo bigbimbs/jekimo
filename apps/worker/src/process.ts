@@ -59,10 +59,12 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps): Promi
   const latest = new Map<string, EventEnvelope>();
   for (const a of append) latest.set(a.event.fingerprint, a.event);
   const derived = await deps.events.summarizeFingerprints(job.project_id, [...latest.keys()]);
-  const summaries: IssueSummary[] = derived.map((d) => {
-    const e = latest.get(d.fingerprint)!;
-    return { ...d, title: issueTitle(e), kind: e.kind, lastSeverity: e.severity };
-  });
+  const summaries: IssueSummary[] = [];
+  for (const d of derived) {
+    const e = latest.get(d.fingerprint);
+    if (!e) continue; // only fingerprints from this job were requested
+    summaries.push({ ...d, title: issueTitle(e), kind: e.kind, lastSeverity: e.severity });
+  }
   await deps.metadata.upsertIssues(job.project_id, summaries);
 
   return {

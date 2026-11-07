@@ -38,8 +38,8 @@ export function inAppFrames(stacktrace: string): string[] {
   for (const line of stacktrace.split("\n")) {
     const m = V8_FRAME.exec(line);
     if (!m) continue;
-    const frame = m[1]!;
-    if (isLibraryFrame(frame)) continue;
+    const frame = m[1];
+    if (frame === undefined || isLibraryFrame(frame)) continue;
     frames.push(frame.replace(LINE_COL, ""));
   }
   return frames;

@@ -10,6 +10,7 @@ import type { EventStore, MetadataRepository, ProjectRecord } from "@jekimo/stor
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../errors.js";
 import { generateIngestionKey } from "../keys.js";
+import { actorOf, projectAccessOf } from "../session.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_EVENT_LIMIT = 100;
@@ -56,11 +57,11 @@ export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOpti
   const projectRoute = { preHandler: [opts.session, opts.projectAccess] };
 
   app.get("/api/v1/projects", { preHandler: opts.session }, async (request) => ({
-    projects: (await opts.metadata.listProjects(request.actor!)).map(publicProject),
+    projects: (await opts.metadata.listProjects(actorOf(request))).map(publicProject),
   }));
 
   app.post("/api/v1/projects", { preHandler: opts.session }, async (request, reply) => {
-    const actor = request.actor!;
+    const actor = actorOf(request);
     if (actor.instanceRole !== "admin" && !opts.membersCanCreateProjects) {
       throw new ApiError(403, "forbidden", "only instance admins can create projects");
     }
@@ -90,7 +91,7 @@ export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOpti
   });
 
   app.get("/api/v1/projects/:id", { ...projectRoute, config: { permission: "project.read" } }, async (request) => ({
-    project: publicProject(await opts.metadata.getProject(request.projectAccess!)),
+    project: publicProject(await opts.metadata.getProject(projectAccessOf(request))),
   }));
 
   app.post(
@@ -100,7 +101,7 @@ export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOpti
       const body = (request.body ?? {}) as Record<string, unknown>;
       const name = typeof body.name === "string" ? body.name.trim().slice(0, 128) : "";
       const generated = generateIngestionKey();
-      const record = await opts.metadata.createIngestionKey(request.projectAccess!, {
+      const record = await opts.metadata.createIngestionKey(projectAccessOf(request), {
         keyId: generated.keyId,
         keyHash: generated.keyHash,
         name,
@@ -147,7 +148,7 @@ export async function projectRoutes(app: FastifyInstance, opts: ProjectRouteOpti
       }
       const cursor = q.cursor === undefined ? undefined : String(q.cursor);
       try {
-        const page = await opts.events.queryEvents(request.projectAccess!.projectId, {
+        const page = await opts.events.queryEvents(projectAccessOf(request).projectId, {
           from,
           to,
           limit,

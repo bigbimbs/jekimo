@@ -158,7 +158,8 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
   });
 
   app.post(INGEST_PATH, async (request, reply) => {
-    const { projectId, keyId, receivedAt } = request.ingest!;
+    if (!request.ingest) throw new Error("ingest route is missing its authentication preHandler");
+    const { projectId, keyId, receivedAt } = request.ingest;
     const parsed = request.body as { json: unknown; bytes: number } | undefined;
     if (parsed === undefined) throw new IngestError("invalid_json", "request body is empty");
 
