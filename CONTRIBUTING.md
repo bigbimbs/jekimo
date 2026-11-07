@@ -4,9 +4,9 @@ Thank you for your interest in Jekimo. This document explains how to propose cha
 
 ## Project status
 
-Jekimo is at the **scaffold stage**. The product brief in the [README](README.md) describes what we are building; the services, SDK, and deployment are not implemented yet. Early contributions that are especially welcome:
+Jekimo is working toward its first release. A first vertical slice runs end to end: instance setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API, plus an alpha of the Node.js SDK. The dashboard, rate limits and quotas, invitations, key rotation, disk-pressure handling, object storage, and the production deployment are not implemented yet. The product brief in the [README](README.md) describes the whole product. Contributions that are especially welcome:
 
-- Feedback on the event envelope, ingestion protocol, and access model in the brief.
+- Feedback on the specs in [`docs/`](docs/README.md): the event envelope, ingestion protocol, retention, access model, and object storage.
 - Design proposals for items listed under "Open decisions" in the README.
 - Documentation improvements.
 - Implementation work on the Phase 1 milestones, coordinated through an issue first.
@@ -32,7 +32,7 @@ Requirements:
 
 - Node.js 22.12 or newer (see [`.nvmrc`](.nvmrc))
 - npm 10 or newer
-- Docker and Docker Compose (for the deployment and storage packages, once implemented)
+- Docker with Compose v2, for the local stack and the PostgreSQL integration tests (see [Local development](#local-development))
 
 ```bash
 git clone https://github.com/bigbimbs/jekimo.git
@@ -80,6 +80,39 @@ When a workspace gets its first source file, wire it in within the same pull req
    Adjust `types` to what the workspace runs on (the dashboard will want DOM libraries rather than Node types). If it imports another workspace, add that workspace to its own `references`.
 2. Add `{ "path": "./apps/<name>" }` or `{ "path": "./packages/<name>" }` to `references` in the root `tsconfig.json`.
 3. Run `npm run check`. Biome and Vitest already pick up every workspace, so they need no changes.
+
+## Local development
+
+[docs/local-development.md](docs/local-development.md) walks through the whole stack step by step. In short, from the repository root:
+
+1. Start PostgreSQL, the migrations, the API, and the worker. Every port binds to `127.0.0.1`, and `.env` is ignored by git:
+
+   ```bash
+   cp .env.example .env
+   docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build
+   ```
+
+2. Run setup. The API prints a one-time setup token to its log; post it to `/api/v1/setup` with a synthetic email and password to create the first instance admin:
+
+   ```bash
+   docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml logs api | grep -A2 "setup token"
+   curl -s -X POST http://127.0.0.1:8080/api/v1/setup \
+     -H 'content-type: application/json' \
+     -d '{"setup_token":"<token from the api logs>","email":"admin@example.test","password":"synthetic-password-123"}'
+   ```
+
+3. Sign in, create a project, and create an ingestion key, as in steps 4 to 6 of the walkthrough.
+
+4. Send a test event built from the synthetic examples in [`packages/event-schema/examples/`](packages/event-schema/examples/), with `project_id` removed because the server assigns it, then read it back with `GET /api/v1/projects/<project id>/events`:
+
+   ```bash
+   jq '{events: [del(.project_id)]}' packages/event-schema/examples/exception.json > events.json
+   curl -s -X POST http://127.0.0.1:8080/api/v1/ingest \
+     -H "authorization: Bearer $JEKIMO_KEY" -H 'content-type: application/json' \
+     -d @events.json
+   ```
+
+With the stack running, `set -a; . ./.env; set +a; npm test` also runs the PostgreSQL integration tests. `docker compose ... down -v` removes the stack and its data.
 
 ## Making changes
 

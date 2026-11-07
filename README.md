@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/bigbimbs/jekimo/actions/workflows/ci.yml/badge.svg)](https://github.com/bigbimbs/jekimo/actions/workflows/ci.yml)
-[![Status: scaffold](https://img.shields.io/badge/status-scaffold-orange.svg)](#repository-layout)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#repository-layout)
 
 Jekimo is an open-source error and event observability platform. It helps teams capture backend exceptions, application errors, crashes, and structured logs, then search and investigate them in one place.
 

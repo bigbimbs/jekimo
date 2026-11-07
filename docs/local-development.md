@@ -2,7 +2,7 @@
 
 This walkthrough runs the whole vertical slice on one machine: PostgreSQL, the API, and the worker in Docker Compose, then setup, a project, an ingestion key, one event sent with curl, and the same event read back. Everything here uses synthetic data.
 
-You need Docker with Compose v2, curl, and Node.js 22 (only for running tests and the services outside Docker). Run every command from the repository root.
+You need Docker with Compose v2, curl, [jq](https://jqlang.org/), and Node.js 22 (only for running tests and the services outside Docker). Run every command from the repository root.
 
 ## 1. Start the stack
 
@@ -133,39 +133,20 @@ JEKIMO_KEY='<key from the response>'
 
 ## 7. Send events
 
-Save a batch with one valid exception and one log event that is missing its required `message`:
+Build a batch from the synthetic examples in [`packages/event-schema/examples/`](../packages/event-schema/examples/). They are in stored form, so the `project_id` the server assigns is removed first. The batch holds the exception example, with a `password` attribute added to show redaction, and the log example with its required `message` removed, to show a rejection:
 
 ```bash
-cat > events.json <<EOF
-{
-  "sent_at": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
-  "events": [
-    {
-      "schema_version": 1,
-      "event_id": "01JBQ4Z3H8X9T2K7M5N6P8R9SV",
-      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
-      "kind": "exception",
-      "severity": "error",
-      "message": "Database request failed while charging invoice",
-      "service": "billing-api",
-      "environment": "development",
-      "exception": {
-        "type": "DatabaseError",
-        "value": "connection terminated unexpectedly",
-        "stacktrace": "DatabaseError: connection terminated unexpectedly\n    at chargeInvoice (/app/src/invoices/charge.ts:42:19)"
-      },
-      "attributes": { "invoice_id": "inv_000123", "password": "synthetic" }
-    },
-    {
-      "schema_version": 1,
-      "event_id": "01JBQ50A6D2V8W4Y1Z3X5C7B9N",
-      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
-      "kind": "log",
-      "severity": "info"
-    }
-  ]
-}
-EOF
+jq -n \
+  --slurpfile exception packages/event-schema/examples/exception.json \
+  --slurpfile log packages/event-schema/examples/log.json \
+  --arg sent_at "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+  '{
+    sent_at: $sent_at,
+    events: [
+      ($exception[0] | del(.project_id) | .attributes.password = "synthetic"),
+      ($log[0] | del(.project_id, .message))
+    ]
+  }' > events.json
 ```
 
 ```bash
@@ -182,7 +163,7 @@ content-type: application/json; charset=utf-8
 {"accepted":["01JBQ4Z3H8X9T2K7M5N6P8R9SV"],"rejected":[{"index":1,"errors":[{"path":"/message","code":"required","message":"/message is required"}],"event_id":"01JBQ50A6D2V8W4Y1Z3X5C7B9N"}]}
 ```
 
-`202` means the accepted event is in the durable queue. Sending the same file again returns the same `accepted` list and stores nothing new, because events are deduplicated on `(project_id, event_id)`.
+`202` means the accepted event is in the durable queue. Sending the same file again returns the same `accepted` list and stores nothing new: the repeat goes through the queue again, and the worker drops it when it appends to the event store, because events are deduplicated on `(project_id, event_id)` for at least 7 days.
 
 ## 8. Read it back
 
@@ -203,26 +184,29 @@ curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/events
         "schema_version": 1,
         "event_id": "01JBQ4Z3H8X9T2K7M5N6P8R9SV",
         "project_id": "prj_isdkxqf9vy94reeg",
-        "timestamp": "2026-11-06T14:06:21.000Z",
+        "timestamp": "2026-11-05T09:14:33.412Z",
         "kind": "exception",
         "severity": "error",
         "message": "Database request failed while charging invoice",
-        "fingerprint": "82e87af9d7d305e6753309d14e6ca653425a0b624b8f1b6609d3fb6d92c153ac",
+        "fingerprint": "DatabaseError:charge-invoice",
         "service": "billing-api",
-        "environment": "development",
+        "environment": "production",
+        "release": "1.4.2",
         "exception": {
           "type": "DatabaseError",
           "value": "connection terminated unexpectedly",
-          "stacktrace": "DatabaseError: connection terminated unexpectedly\n    at chargeInvoice (/app/src/invoices/charge.ts:42:19)"
+          "stacktrace": "DatabaseError: connection terminated unexpectedly\n    at Client.query (/app/node_modules/pg/lib/client.js:526:17)\n    at chargeInvoice (/app/src/invoices/charge.ts:42:19)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)"
         },
-        "attributes": { "password": "[REDACTED]", "invoice_id": "inv_000123" }
+        "sdk": { "name": "@jekimo/sdk-node", "version": "0.1.0" },
+        "context": { "host": "billing-api-6c9d7b", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736", "request_id": "req_7f3c2a1b" },
+        "attributes": { "db_pool": { "idle": 0, "size": 10 }, "password": "[REDACTED]", "invoice_id": "inv_000123", "retry_count": 2 }
       }
     }
   ]
 }
 ```
 
-The server set `project_id` from the key, derived a `fingerprint`, recorded `skew_ms` (`received_at` minus `sent_at`), and redacted `password` with the default key list. Query parameters: `from` and `to` (RFC 3339, on `received_at`, default the last 24 hours), `severity` (comma-separated), `limit` (1 to 500, default 100), and `cursor` (the `next_cursor` of the previous page).
+The server set `project_id` from the key, kept the explicit `fingerprint` from the example (it derives one when the event has none), recorded `skew_ms` (`received_at` minus `sent_at`), and redacted `password` with the default key list. Query parameters: `from` and `to` (RFC 3339, on `received_at`, default the last 24 hours), `severity` (comma-separated), `limit` (1 to 500, default 100), and `cursor` (the `next_cursor` of the previous page).
 
 ## 9. Check the isolation rules
 

@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `.env.example` now lists every setting from the "Planned configuration" tables of `docs/retention.md`, `docs/access-model.md`, and `docs/object-storage.md`, grouped by spec with a link and a one-line description, set to its documented default or left empty. Object storage settings are marked Phase 2, and the two object storage credentials are empty with a reminder never to commit a real value. The local development and current API, queue, and worker settings are kept in their own groups, so `cp .env.example .env` still starts the dev stack.
+- The ingestion protocol now states where cross-request deduplication happens: a repeat of an accepted `event_id` is listed in `accepted` and may pass through the queue again, and the worker drops it when appending to the event store. The window is at least 7 days from the stored copy's `received_at`; a repeat arriving after its entry was pruned is stored as a new event. Behavior is unchanged; `docs/ingestion-protocol.md` and `docs/retention.md` now match it.
+- `CONTRIBUTING.md` has a "Local development" section on starting the stack, running setup, and sending a test event, and no longer describes the project as a scaffold. The curl walkthrough in `docs/local-development.md` builds its batch from `packages/event-schema/examples/` with `jq`.
+
 - `SECURITY.md` now has a supported-versions table for `0.x` and states the policy from `1.0.0`: the latest minor, plus the previous minor for 90 days.
 - Dependabot groups GitHub Actions updates into one pull request.
 
