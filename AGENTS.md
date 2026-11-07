@@ -42,6 +42,8 @@ The Node.js SDK `@jekimo/sdk-node` exists as an alpha in `packages/sdk-node`; it
 - Update `CHANGELOG.md` under "Unreleased" for user-visible changes.
 - Update the relevant `docs/` page when behavior, configuration, or deployment changes.
 - Prefer small, focused pull requests.
+- Declarations live in their own files: interfaces and type aliases in `src/types/<domain>.ts`, enumerations and fixed values in `src/constants/<domain>.ts` as `as const` arrays or objects with a derived union type (never TypeScript `enum`). Implementation files import them with `import type` and do not export types. See "Code organization" in [CONTRIBUTING.md](CONTRIBUTING.md).
+- Minimal comments: comment only the why that the code cannot show (a spec rule with its doc section, a security constraint, a workaround). Never restate what the code does. See "Comments" in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Releases
 

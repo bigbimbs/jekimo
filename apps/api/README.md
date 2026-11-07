@@ -4,6 +4,8 @@ Fastify server for setup, sign-in, projects, ingestion keys, event ingestion, an
 
 Fastify was chosen over Hono because it is Node-native and mature, gives per-route body parsers and encapsulated plugins (the ingest endpoint has its own parser, error format, and no session middleware), ships structured logging with redaction, and has `inject()` for tests without a socket.
 
+NestJS was considered and not chosen. Its dependency injection relies on decorator metadata that esbuild and `tsx` (the bundler and dev runner here) do not emit. The ingest route needs low-level control over body size, gzip limits and error format. And its runtime dependencies (`reflect-metadata`, `rxjs`, usually `class-validator`) duplicate `@jekimo/event-schema`'s validator on a service meant to run small on one VPS. The structure Nest provides comes from conventions instead; see "Code organization" in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
 ## Endpoints
 
 | Method and path | Credential | Purpose |
