@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       # Integration tests in packages/storage-postgres and apps/api run when
-      # DATABASE_URL is set; they create and drop their own schemas.
+      # JEKIMO_DATABASE_URL is set; they create and drop their own schemas.
       postgres:
         image: postgres:16-alpine
         env:
@@ -33,7 +33,7 @@ jobs:
           --health-timeout 3s
           --health-retries 30
     env:
-      DATABASE_URL: postgres://jekimo:ci-only-not-a-secret@localhost:5432/jekimo_test
+      JEKIMO_DATABASE_URL: postgres://jekimo:ci-only-not-a-secret@localhost:5432/jekimo_test
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

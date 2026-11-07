@@ -9,7 +9,7 @@
 name: jekimo-dev
 
 x-database-url: &database-url
-  DATABASE_URL: postgres://jekimo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/jekimo
+  JEKIMO_DATABASE_URL: postgres://jekimo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/jekimo
 
 services:
   postgres:

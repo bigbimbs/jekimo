@@ -145,6 +145,24 @@ export interface MetadataRepository {
 
   // Maintenance: instance-wide listing used only by the expiry pass.
   listProjectRetention(): Promise<ProjectRetention[]>;
+
+  // Daily counters (docs/retention.md, "What is retained"). projectId here
+  // was derived from an ingestion key by the API, or from a queued job.
+  /**
+   * Adds to one project's counters for one UTC day. With an idempotency key,
+   * a repeat of the same key for the project is ignored and returns false.
+   */
+  incrementDailyCounters(projectId: string, input: DailyCounterIncrement): Promise<boolean>;
+  /** Counters for UTC days in [from, to], oldest first. Days with no counts are omitted. */
+  listDailyCounters(access: ProjectAccess, range: { from: string; to: string }): Promise<DailyCounters[]>;
+  /** Deletes counters for days before `beforeDay` and idempotency keys created before `keysBefore`. */
+  pruneDailyCounters(beforeDay: string, keysBefore: Date): Promise<{ counters: number; keys: number }>;
+
+  // Project redaction rules (docs/event-format.md, "Privacy defaults").
+  /** For the worker. Null when the project does not exist. */
+  getRedactionRules(projectId: string): Promise<RedactionRules | null>;
+  /** Requires settings.manage. Rules are normalized and validated; returns what was stored. */
+  setRedactionRules(access: ProjectAccess, rules: RedactionRules, sourceIp?: string): Promise<RedactionRules>;
 }
 
 /** One event to append, already validated, stamped, and fingerprinted. */
@@ -227,6 +245,8 @@ export interface Queue<T> {
   ack(job: Job<T>): Promise<void>;
   /** Schedules a retry with backoff, or dead-letters after maxAttempts. */
   fail(job: Job<T>, error: unknown): Promise<"retry" | "dead">;
+  /** Depth, oldest-job age, and dead-lettered count, for health checks. */
+  stats(): Promise<QueueStats>;
 }
 
 /** Queue that carries accepted events from the ingest endpoint to the worker. */
@@ -246,3 +266,43 @@ export interface IngestJob {
 }
 
 export type { ProjectPermission };
+
+export type DailyCounterName = "accepted" | "rejected" | "dropped" | "sampled";
+
+/** One project's counts for one UTC day. */
+export interface DailyCounters {
+  /** UTC day, YYYY-MM-DD. */
+  day: string;
+  accepted: number;
+  rejected: number;
+  dropped: number;
+  sampled: number;
+}
+
+export interface DailyCounterIncrement extends Partial<Record<DailyCounterName, number>> {
+  /** UTC day, YYYY-MM-DD. */
+  day: string;
+  /** Makes the increment apply at most once per project, for example `job:<id>`. */
+  idempotencyKey?: string;
+}
+
+/** Operator-configured redaction on top of DEFAULT_REDACTED_KEYS. */
+export interface RedactionRules {
+  /** Key names, stored normalized (lower-cased, without `-`, `_`, and spaces). */
+  keys: string[];
+  /** Regular expression sources matched against key names. */
+  patterns: string[];
+}
+
+export interface QueueStats {
+  /** Jobs waiting, including those scheduled for a retry. */
+  pending: number;
+  /** Jobs claimed by a worker. */
+  running: number;
+  /** pending + running: what counts toward the size bound. */
+  depth: number;
+  /** Dead-lettered jobs kept for inspection. */
+  dead: number;
+  /** Age of the oldest pending or running job, or null when there is none. */
+  oldestAgeMs: number | null;
+}

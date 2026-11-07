@@ -10,9 +10,11 @@ RUN npm ci --no-audit --no-fund \
  && npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    JEKIMO_MIGRATIONS_DIR=/app/migrations
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/worker/dist ./dist
+COPY --from=build /app/packages/storage-postgres/migrations ./migrations
 USER node
 CMD ["node", "--enable-source-maps", "dist/main.mjs"]

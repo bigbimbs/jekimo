@@ -4,18 +4,29 @@ export type Pool = pg.Pool;
 export type PoolClient = pg.PoolClient;
 
 export interface PoolOptions {
-  /** Defaults to the DATABASE_URL environment variable. */
+  /** Defaults to databaseUrl(): JEKIMO_DATABASE_URL, else the deprecated DATABASE_URL. */
   connectionString?: string;
   /** Defaults to JEKIMO_DATABASE_POOL_MAX, else 10. */
   max?: number;
   applicationName?: string;
 }
 
-/** Reads DATABASE_URL, or throws a message that does not echo its value. */
+let warnedDeprecatedUrl = false;
+
+/**
+ * Reads JEKIMO_DATABASE_URL, falling back to the deprecated DATABASE_URL, or
+ * throws a message that does not echo either value.
+ */
 export function databaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const url = env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
-  return url;
+  if (env.JEKIMO_DATABASE_URL) return env.JEKIMO_DATABASE_URL;
+  if (env.DATABASE_URL) {
+    if (!warnedDeprecatedUrl) {
+      warnedDeprecatedUrl = true;
+      process.emitWarning("DATABASE_URL is deprecated; set JEKIMO_DATABASE_URL instead", "DeprecationWarning");
+    }
+    return env.DATABASE_URL;
+  }
+  throw new Error("JEKIMO_DATABASE_URL is not set");
 }
 
 export function createPool(options: PoolOptions = {}): Pool {

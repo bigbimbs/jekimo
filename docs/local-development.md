@@ -23,7 +23,7 @@ This starts four services:
 | `api` | The API on `127.0.0.1:8080` (`JEKIMO_DEV_API_PORT` to change it). Starts after `migrate` succeeds. |
 | `worker` | Drains the ingest queue and runs the expiry pass. Starts after `migrate` succeeds. |
 
-If port 5432 is already taken by a local PostgreSQL, set `JEKIMO_DEV_POSTGRES_PORT=55432` in `.env` and use the same port in `DATABASE_URL`.
+If port 5432 is already taken by a local PostgreSQL, set `JEKIMO_DEV_POSTGRES_PORT=55432` in `.env` and use the same port in `JEKIMO_DATABASE_URL`.
 
 Check that everything is up:
 
@@ -55,7 +55,7 @@ Or from your machine, against the published port:
 set -a; . ./.env; set +a; npm run migrate -w @jekimo/storage-postgres
 ```
 
-Each migration is applied once and recorded in `schema_migrations`.
+Each migration is applied once and recorded in `schema_migrations`. To have the API and worker apply pending migrations themselves when they start, set `JEKIMO_MIGRATE_ON_START=true` ([configuration.md](configuration.md#database)); the `migrate` service keeps working either way.
 
 ## 3. Create the first instance admin
 
@@ -270,7 +270,7 @@ npm run dev -w @jekimo/worker
 npm run check
 ```
 
-Unit tests always run. Integration tests against PostgreSQL run when `DATABASE_URL` is set, each in a throwaway schema, and are skipped otherwise:
+Unit tests always run. Integration tests against PostgreSQL run when `JEKIMO_DATABASE_URL` is set (or the deprecated `DATABASE_URL`), each in a throwaway schema, and are skipped otherwise:
 
 ```bash
 set -a; . ./.env; set +a; npm test

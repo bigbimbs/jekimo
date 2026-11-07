@@ -8,7 +8,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "./pool.js";
 import { firstRow } from "./rows.js";
-import type { Job, Queue } from "./types.js";
+import type { Job, Queue, QueueStats } from "./types.js";
 
 export interface QueuePolicy {
   /** How long a claimed job stays invisible to other consumers. */
@@ -18,6 +18,8 @@ export interface QueuePolicy {
   /** First retry delay; doubles per attempt up to maxBackoffMs. */
   baseBackoffMs: number;
   maxBackoffMs: number;
+  /** Pending plus running jobs above which enqueue throws QueueFullError. */
+  maxDepth: number;
 }
 
 export const DEFAULT_QUEUE_POLICY: QueuePolicy = {
@@ -25,12 +27,25 @@ export const DEFAULT_QUEUE_POLICY: QueuePolicy = {
   maxAttempts: 5,
   baseBackoffMs: 1_000,
   maxBackoffMs: 60_000,
+  maxDepth: 10_000,
 };
 
 /**
- * Reads JEKIMO_QUEUE_VISIBILITY_SECONDS and JEKIMO_QUEUE_MAX_ATTEMPTS. The API
- * stamps max attempts on each job it enqueues; the worker applies the
- * visibility timeout when it claims jobs.
+ * Thrown by enqueue when the queue already holds maxDepth pending and running
+ * jobs. The ingest endpoint answers 503 with Retry-After.
+ */
+export class QueueFullError extends Error {
+  constructor(readonly maxDepth: number) {
+    super(`queue is full (${maxDepth} jobs)`);
+    this.name = "QueueFullError";
+  }
+}
+
+/**
+ * Reads JEKIMO_QUEUE_VISIBILITY_SECONDS, JEKIMO_QUEUE_MAX_ATTEMPTS, and
+ * JEKIMO_QUEUE_MAX_DEPTH. The API stamps max attempts on each job it enqueues
+ * and enforces the depth bound; the worker applies the visibility timeout
+ * when it claims jobs.
  */
 export function queuePolicyFromEnv(env: NodeJS.ProcessEnv = process.env): Partial<QueuePolicy> {
   const policy: Partial<QueuePolicy> = {};
@@ -39,6 +54,8 @@ export function queuePolicyFromEnv(env: NodeJS.ProcessEnv = process.env): Partia
     policy.visibilityTimeoutMs = visibility * 1000;
   const attempts = Number(env.JEKIMO_QUEUE_MAX_ATTEMPTS);
   if (env.JEKIMO_QUEUE_MAX_ATTEMPTS && Number.isInteger(attempts) && attempts > 0) policy.maxAttempts = attempts;
+  const depth = Number(env.JEKIMO_QUEUE_MAX_DEPTH);
+  if (env.JEKIMO_QUEUE_MAX_DEPTH && Number.isInteger(depth) && depth > 0) policy.maxDepth = depth;
   return policy;
 }
 
@@ -81,11 +98,47 @@ export class PostgresQueue<T> implements Queue<T> {
   }
 
   async enqueue(payload: T): Promise<string> {
+    // The depth check counts at most maxDepth rows, so it stays cheap when
+    // the queue is full. Concurrent enqueues can overshoot by a few jobs.
     const { rows } = await this.pool.query<{ id: string }>(
-      "INSERT INTO queue_jobs (queue, payload, max_attempts) VALUES ($1, $2::jsonb, $3) RETURNING id",
-      [this.name, JSON.stringify(payload), this.policy.maxAttempts],
+      `INSERT INTO queue_jobs (queue, payload, max_attempts)
+       SELECT $1, $2::jsonb, $3
+       WHERE (SELECT count(*) FROM (
+         SELECT 1 FROM queue_jobs WHERE queue = $1 AND status IN ('pending', 'running') LIMIT $4
+       ) live) < $4
+       RETURNING id`,
+      [this.name, JSON.stringify(payload), this.policy.maxAttempts, this.policy.maxDepth],
     );
-    return firstRow(rows, "enqueue job").id;
+    const row = rows[0];
+    if (!row) throw new QueueFullError(this.policy.maxDepth);
+    return String(row.id);
+  }
+
+  async stats(): Promise<QueueStats> {
+    const { rows } = await this.pool.query<{
+      pending: string;
+      running: string;
+      dead: string;
+      oldest_age_ms: number | null;
+    }>(
+      `SELECT count(*) FILTER (WHERE status = 'pending') AS pending,
+              count(*) FILTER (WHERE status = 'running') AS running,
+              count(*) FILTER (WHERE status = 'dead') AS dead,
+              (extract(epoch FROM now() - min(created_at) FILTER (WHERE status <> 'dead')) * 1000)::double precision
+                AS oldest_age_ms
+       FROM queue_jobs WHERE queue = $1`,
+      [this.name],
+    );
+    const r = firstRow(rows, "queue stats");
+    const pending = Number(r.pending);
+    const running = Number(r.running);
+    return {
+      pending,
+      running,
+      depth: pending + running,
+      dead: Number(r.dead),
+      oldestAgeMs: r.oldest_age_ms === null ? null : Math.max(0, Math.round(r.oldest_age_ms)),
+    };
   }
 
   async dequeue(limit: number): Promise<Job<T>[]> {

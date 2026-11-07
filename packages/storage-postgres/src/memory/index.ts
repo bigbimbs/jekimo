@@ -15,11 +15,14 @@ import {
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
 import { decodeCursor, encodeCursor } from "../event-store.js";
-import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, type QueuePolicy } from "../queue.js";
+import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
+import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
 import type {
   Actor,
   AppendEvent,
   AuditEntry,
+  DailyCounterIncrement,
+  DailyCounters,
   EventPage,
   EventQuery,
   EventStore,
@@ -33,6 +36,8 @@ import type {
   ProjectRecord,
   ProjectRetention,
   Queue,
+  QueueStats,
+  RedactionRules,
   SessionRecord,
   StoredEvent,
   UserRecord,
@@ -68,6 +73,12 @@ export class MemoryMetadataRepository implements MetadataRepository {
   readonly keys: (IngestionKeyLookup & { name: string; createdAt: Date })[] = [];
   readonly audit: (AuditEntry & { occurredAt: Date })[] = [];
   readonly issues: IssueRecord[] = [];
+  /** project id -> day -> counts */
+  readonly counters = new Map<string, Map<string, DailyCounters>>();
+  /** project id -> idempotency key -> when it was used */
+  readonly counterKeys = new Map<string, Map<string, Date>>();
+  /** project id -> redaction rules */
+  readonly redactionRules = new Map<string, RedactionRules>();
 
   constructor(private readonly clock: () => Date = () => new Date()) {}
 
@@ -300,6 +311,85 @@ export class MemoryMetadataRepository implements MetadataRepository {
   async listProjectRetention(): Promise<ProjectRetention[]> {
     return this.projects.map((p) => ({ projectId: p.id, retentionDays: p.retentionDays }));
   }
+
+  async incrementDailyCounters(projectId: string, input: DailyCounterIncrement): Promise<boolean> {
+    const counts = checkCounterIncrement(input);
+    if (!this.projects.some((p) => p.id === projectId)) throw new Error(`no project ${projectId}`);
+    if (input.idempotencyKey !== undefined) {
+      const keys = this.counterKeys.get(projectId) ?? new Map<string, Date>();
+      this.counterKeys.set(projectId, keys);
+      if (keys.has(input.idempotencyKey)) return false;
+      keys.set(input.idempotencyKey, this.clock());
+    }
+    const days = this.counters.get(projectId) ?? new Map<string, DailyCounters>();
+    this.counters.set(projectId, days);
+    const day = days.get(input.day) ?? { day: input.day, accepted: 0, rejected: 0, dropped: 0, sampled: 0 };
+    days.set(input.day, {
+      day: input.day,
+      accepted: day.accepted + counts.accepted,
+      rejected: day.rejected + counts.rejected,
+      dropped: day.dropped + counts.dropped,
+      sampled: day.sampled + counts.sampled,
+    });
+    return true;
+  }
+
+  async listDailyCounters(access: ProjectAccess, range: { from: string; to: string }): Promise<DailyCounters[]> {
+    assertProjectAccess(access);
+    if (!access.permissions.has("project.read")) throw new Error("missing permission project.read");
+    if (!isUtcDay(range.from) || !isUtcDay(range.to))
+      throw new RangeError("counter range must be UTC days, YYYY-MM-DD");
+    return [...(this.counters.get(access.projectId)?.values() ?? [])]
+      .filter((c) => c.day >= range.from && c.day <= range.to)
+      .sort((a, b) => (a.day < b.day ? -1 : 1))
+      .map((c) => ({ ...c }));
+  }
+
+  async pruneDailyCounters(beforeDay: string, keysBefore: Date): Promise<{ counters: number; keys: number }> {
+    if (!isUtcDay(beforeDay)) throw new RangeError("beforeDay must be a UTC day, YYYY-MM-DD");
+    let counters = 0;
+    let keys = 0;
+    for (const days of this.counters.values()) {
+      for (const day of days.keys()) {
+        if (day < beforeDay) {
+          days.delete(day);
+          counters++;
+        }
+      }
+    }
+    for (const used of this.counterKeys.values()) {
+      for (const [key, at] of used) {
+        if (at < keysBefore) {
+          used.delete(key);
+          keys++;
+        }
+      }
+    }
+    return { counters, keys };
+  }
+
+  async getRedactionRules(projectId: string): Promise<RedactionRules | null> {
+    if (!this.projects.some((p) => p.id === projectId)) return null;
+    const rules = this.redactionRules.get(projectId);
+    return rules ? { keys: [...rules.keys], patterns: [...rules.patterns] } : { keys: [], patterns: [] };
+  }
+
+  async setRedactionRules(access: ProjectAccess, rules: RedactionRules): Promise<RedactionRules> {
+    assertProjectAccess(access);
+    if (!access.permissions.has("settings.manage")) throw new Error("missing permission settings.manage");
+    const normalized = normalizeRedactionRules(rules);
+    this.redactionRules.set(access.projectId, normalized);
+    await this.appendAudit({
+      actorUserId: access.userId,
+      action: "project.redaction_rules_updated",
+      targetType: "project",
+      targetId: access.projectId,
+      projectId: access.projectId,
+      viaInstanceAdmin: access.viaInstanceAdmin,
+      details: { keys: normalized.keys.length, patterns: normalized.patterns.length },
+    });
+    return { keys: [...normalized.keys], patterns: [...normalized.patterns] };
+  }
 }
 
 export class MemoryEventStore implements EventStore {
@@ -414,6 +504,7 @@ interface MemoryJob<T> {
   status: "pending" | "running" | "dead";
   attempts: number;
   runAt: number;
+  createdAt: number;
   lockedUntil: number;
   leaseId: string | null;
   lastError?: string;
@@ -435,6 +526,9 @@ export class MemoryQueue<T> implements Queue<T> {
 
   async enqueue(payload: T): Promise<string> {
     if (this.failEnqueue) throw new Error("queue unavailable");
+    if (this.jobs.filter((j) => j.status !== "dead").length >= this.policy.maxDepth) {
+      throw new QueueFullError(this.policy.maxDepth);
+    }
     const id = String(this.nextId++);
     this.jobs.push({
       id,
@@ -442,6 +536,7 @@ export class MemoryQueue<T> implements Queue<T> {
       status: "pending",
       attempts: 0,
       runAt: this.clock(),
+      createdAt: this.clock(),
       lockedUntil: 0,
       leaseId: null,
     });
@@ -491,5 +586,18 @@ export class MemoryQueue<T> implements Queue<T> {
       else Object.assign(j, { status: "pending", runAt: this.clock() + decision.delayMs });
     }
     return decision.status;
+  }
+
+  async stats(): Promise<QueueStats> {
+    const live = this.jobs.filter((j) => j.status !== "dead");
+    const pending = live.filter((j) => j.status === "pending").length;
+    const oldest = Math.min(...live.map((j) => j.createdAt));
+    return {
+      pending,
+      running: live.length - pending,
+      depth: live.length,
+      dead: this.jobs.length - live.length,
+      oldestAgeMs: live.length === 0 ? null : Math.max(0, this.clock() - oldest),
+    };
   }
 }

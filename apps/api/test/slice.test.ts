@@ -1,7 +1,7 @@
 /**
  * The vertical slice against a real PostgreSQL: setup, sign in, create a
  * project and key, ingest, let the worker drain the queue, and read the
- * event back. Skipped unless DATABASE_URL is set.
+ * event back. Skipped unless JEKIMO_DATABASE_URL is set.
  */
 
 import {

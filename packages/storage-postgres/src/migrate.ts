@@ -8,11 +8,14 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { daysFrom, PostgresEventStore } from "./event-store.js";
 import type { Pool } from "./pool.js";
 
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/;
 /** Arbitrary constant so concurrent runners wait for each other. */
 const MIGRATION_LOCK_KEY = 0x6a656b69; // "jeki"
+/** Event partitions are created this many days ahead of today. */
+const PARTITION_DAYS_AHEAD = 7;
 
 export interface Migration {
   version: number;
@@ -74,4 +77,24 @@ export async function migrate(pool: Pool, migrations?: Migration[]): Promise<str
     await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]).catch(() => {});
     client.release();
   }
+}
+
+/**
+ * What `npm run migrate` and JEKIMO_MIGRATE_ON_START do: applies pending
+ * migrations, then creates event partitions for yesterday through a week
+ * ahead. Safe to run concurrently and repeatedly.
+ */
+export async function runMigrations(pool: Pool, migrations?: Migration[]): Promise<string[]> {
+  const applied = await migrate(pool, migrations);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  await new PostgresEventStore(pool).prepareDays(daysFrom(yesterday, PARTITION_DAYS_AHEAD + 2));
+  return applied;
+}
+
+/** Reads JEKIMO_MIGRATE_ON_START: whether the API and worker migrate before serving. */
+export function migrateOnStart(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.JEKIMO_MIGRATE_ON_START;
+  if (raw === undefined || raw === "" || raw === "false" || raw === "0") return false;
+  if (raw === "true" || raw === "1") return true;
+  throw new Error("JEKIMO_MIGRATE_ON_START must be true or false");
 }

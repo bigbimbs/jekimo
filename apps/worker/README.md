@@ -19,7 +19,7 @@ Not yet implemented: project-level redaction rules, daily counters, disk-pressur
 ## Development
 
 ```bash
-npm run dev -w @jekimo/worker    # tsx watch, needs DATABASE_URL
+npm run dev -w @jekimo/worker    # tsx watch, needs JEKIMO_DATABASE_URL
 npm run build -w @jekimo/worker  # dist/main.mjs
 npm test -- apps/worker
 ```

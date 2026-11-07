@@ -1,11 +1,20 @@
 /**
- * Integration tests against a real PostgreSQL. Skipped unless DATABASE_URL
- * is set; CI starts a PostgreSQL 16 service container so they run there.
+ * Integration tests against a real PostgreSQL. Skipped unless
+ * JEKIMO_DATABASE_URL (or the deprecated DATABASE_URL) is set; CI starts a PostgreSQL 16 service container so they run there.
  */
 
 import { utcDay } from "@jekimo/event-schema";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type AppendEvent, PostgresEventStore, PostgresMetadataRepository, PostgresQueue } from "../src/index.js";
+import {
+  type AppendEvent,
+  loadMigrations,
+  migrate,
+  PostgresEventStore,
+  PostgresMetadataRepository,
+  PostgresQueue,
+  QueueFullError,
+  runMigrations,
+} from "../src/index.js";
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../src/testing.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -295,5 +304,151 @@ describe.skipIf(!hasDatabase)("PostgreSQL storage", () => {
       const { rows } = await db.pool.query("SELECT status FROM queue_jobs WHERE queue = 'test-crash'");
       expect(rows[0].status).toBe("dead");
     });
+  });
+});
+
+describe.skipIf(!hasDatabase)("PostgreSQL migrations", () => {
+  it("run from an empty schema, then do nothing when run again", async () => {
+    const db = await createTestDatabase({ migrate: false });
+    try {
+      const all = await loadMigrations();
+      expect(await migrate(db.pool)).toEqual(all.map((m) => m.name));
+      expect(await migrate(db.pool)).toEqual([]);
+      expect(await runMigrations(db.pool)).toEqual([]);
+      const { rows } = await db.pool.query<{ n: number }>("SELECT count(*)::int AS n FROM schema_migrations");
+      expect(rows[0]?.n).toBe(all.length);
+      const tables = await db.pool.query<{ table_name: string }>(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = $1",
+        [db.schema],
+      );
+      expect(tables.rows.map((r) => r.table_name)).toEqual(
+        expect.arrayContaining(["projects", "queue_jobs", "project_daily_counters", "project_counter_increments"]),
+      );
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("serialize concurrent runs", async () => {
+    const db = await createTestDatabase({ migrate: false });
+    try {
+      const runs = await Promise.all([migrate(db.pool), migrate(db.pool), migrate(db.pool)]);
+      expect(runs.flat()).toHaveLength((await loadMigrations()).length);
+    } finally {
+      await db.close();
+    }
+  });
+});
+
+describe.skipIf(!hasDatabase)("PostgreSQL counters, redaction rules, and queue bounds", () => {
+  let db: TestDatabase;
+  let meta: PostgresMetadataRepository;
+
+  beforeAll(async () => {
+    db = await createTestDatabase();
+    meta = new PostgresMetadataRepository(db.pool);
+  });
+
+  afterAll(async () => {
+    await db?.close();
+  });
+
+  async function adminAccess(projectId: string) {
+    const admin =
+      (await meta.createFirstAdmin({ email: "counters@example.test", passwordHash: "$argon2id$synthetic" })) ??
+      (await meta.findUserForLogin("counters@example.test"))?.user;
+    if (!admin) throw new Error("no admin");
+    const actor = { userId: admin.id, instanceRole: "admin" as const };
+    await meta.createProject(actor, { id: projectId, name: projectId, retentionDays: 30 });
+    const access = await meta.resolveProjectAccess(actor, projectId);
+    if (!access) throw new Error("no access");
+    return access;
+  }
+
+  it("adds daily counters per project and day, once per idempotency key", async () => {
+    const access = await adminAccess("prj_counters");
+    const other = await adminAccess("prj_counters_other");
+    expect(await meta.incrementDailyCounters("prj_counters", { day: "2026-11-05", accepted: 3, rejected: 1 })).toBe(
+      true,
+    );
+    expect(await meta.incrementDailyCounters("prj_counters", { day: "2026-11-05", accepted: 2, sampled: 4 })).toBe(
+      true,
+    );
+    const keyed = { day: "2026-11-06", accepted: 5, dropped: 2, idempotencyKey: "job:42" };
+    const results = await Promise.all([
+      meta.incrementDailyCounters("prj_counters", keyed),
+      meta.incrementDailyCounters("prj_counters", keyed),
+    ]);
+    expect(results.sort()).toEqual([false, true]);
+    // The same key in another project is a different increment.
+    expect(await meta.incrementDailyCounters("prj_counters_other", keyed)).toBe(true);
+
+    expect(await meta.listDailyCounters(access, { from: "2026-11-01", to: "2026-11-30" })).toEqual([
+      { day: "2026-11-05", accepted: 5, rejected: 1, dropped: 0, sampled: 4 },
+      { day: "2026-11-06", accepted: 5, rejected: 0, dropped: 2, sampled: 0 },
+    ]);
+    expect(await meta.listDailyCounters(other, { from: "2026-11-06", to: "2026-11-06" })).toEqual([
+      { day: "2026-11-06", accepted: 5, rejected: 0, dropped: 2, sampled: 0 },
+    ]);
+    await expect(meta.incrementDailyCounters("prj_counters", { day: "2026-13-01", accepted: 1 })).rejects.toThrow(
+      RangeError,
+    );
+    await expect(meta.incrementDailyCounters("prj_counters", { day: "2026-11-05", accepted: -1 })).rejects.toThrow(
+      RangeError,
+    );
+
+    const pruned = await meta.pruneDailyCounters("2026-11-06", new Date(Date.now() + 60_000));
+    expect(pruned).toEqual({ counters: 1, keys: 2 });
+    expect((await meta.listDailyCounters(access, { from: "2026-11-01", to: "2026-11-30" })).map((c) => c.day)).toEqual([
+      "2026-11-06",
+    ]);
+  });
+
+  it("stores normalized redaction rules and audits only their size", async () => {
+    const access = await adminAccess("prj_redact");
+    expect(await meta.getRedactionRules("prj_redact")).toEqual({ keys: [], patterns: [] });
+    const stored = await meta.setRedactionRules(access, {
+      keys: ["X-Internal-Token", "x_internal_token", "account number"],
+      patterns: ["^card_.*$"],
+    });
+    expect(stored).toEqual({ keys: ["xinternaltoken", "accountnumber"], patterns: ["^card_.*$"] });
+    expect(await meta.getRedactionRules("prj_redact")).toEqual(stored);
+    expect(await meta.getRedactionRules("prj_missing")).toBeNull();
+    await expect(meta.setRedactionRules(access, { keys: [], patterns: ["("] })).rejects.toThrow(RangeError);
+    const { rows } = await db.pool.query(
+      "SELECT details FROM audit_log WHERE action = 'project.redaction_rules_updated' AND project_id = 'prj_redact'",
+    );
+    expect(rows.map((r) => r.details)).toEqual([{ keys: 2, patterns: 1 }]);
+  });
+
+  it("reports depth, oldest age, and dead-lettered jobs", async () => {
+    const q = new PostgresQueue<string>(db.pool, "test-stats", { maxAttempts: 1 });
+    expect(await q.stats()).toEqual({ pending: 0, running: 0, depth: 0, dead: 0, oldestAgeMs: null });
+    await q.enqueue("a");
+    await q.enqueue("b");
+    await q.enqueue("c");
+    await new Promise((r) => setTimeout(r, 50));
+    const [claimed] = await q.dequeue(1);
+    expect(await q.fail(claimed!, new Error("poison"))).toBe("dead");
+    await q.dequeue(1);
+    const stats = await q.stats();
+    expect(stats).toMatchObject({ pending: 1, running: 1, depth: 2, dead: 1 });
+    expect(stats.oldestAgeMs).toBeGreaterThanOrEqual(40);
+  });
+
+  it("refuses to enqueue past the depth bound, not counting dead jobs", async () => {
+    const q = new PostgresQueue<string>(db.pool, "test-bound", { maxDepth: 2, maxAttempts: 1 });
+    await q.enqueue("a");
+    await q.enqueue("b");
+    await expect(q.enqueue("c")).rejects.toBeInstanceOf(QueueFullError);
+    const [job] = await q.dequeue(1);
+    await q.fail(job!, new Error("poison"));
+    await q.enqueue("c");
+    await expect(q.enqueue("d")).rejects.toBeInstanceOf(QueueFullError);
+    expect(await q.stats()).toMatchObject({ depth: 2, dead: 1 });
+    const { rows } = await db.pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM queue_jobs WHERE queue = 'test-bound'",
+    );
+    expect(rows[0]?.n).toBe(3);
   });
 });
