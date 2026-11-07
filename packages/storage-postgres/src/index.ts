@@ -18,6 +18,7 @@ export {
   secondsUntilNextMinute,
   secondsUntilNextUtcDay,
 } from "./ingest-limits.js";
+export { decodeIssueCursor, encodeIssueCursor, isIssueId } from "./issues.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export {
   defaultMigrationsDir,
@@ -44,5 +45,5 @@ export {
   type QueuePolicy,
   queuePolicyFromEnv,
 } from "./queue.js";
-export * from "./types/index.js";
+export type * from "./types/index.js";
 export * from "./types.js";

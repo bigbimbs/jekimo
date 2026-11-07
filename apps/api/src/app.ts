@@ -20,6 +20,7 @@ import { apiErrorHandler } from "./errors.js";
 import { argon2Hasher, type PasswordHasher } from "./passwords.js";
 import { authRoutes, SetupGate } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { issueRoutes } from "./routes/issues.js";
 import { limitRoutes } from "./routes/limits.js";
 import { projectRoutes } from "./routes/projects.js";
 import { requireProjectPermission, requireSession } from "./session.js";
@@ -161,6 +162,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       retentionDefaultDays: config.retentionDefaultDays,
       retentionMaxDays: config.retentionMaxDays,
       clock,
+    });
+    await dashboard.register(issueRoutes, {
+      metadata: deps.metadata,
+      events: deps.events,
+      session,
+      projectAccess: requireProjectPermission(deps.metadata),
     });
     if (deps.limits) {
       await dashboard.register(limitRoutes, {

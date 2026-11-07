@@ -223,6 +223,22 @@ curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/events
 
 The response is one element of the `events` list above. An id that does not exist in this project, including one that exists in a project you cannot access, answers `404`.
 
+The event also opened an issue, grouped by its fingerprint:
+
+```bash
+curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/issues?status=unresolved"
+```
+
+The response lists issues with `id`, `title`, `status`, `event_count`, `first_seen`, `last_seen`, and `last_event_id`; filters and paging are in [apps/api/README.md](../apps/api/README.md). Take an issue's `id` to read it with its latest event, or to resolve it (state-changing requests need the CSRF token from sign-in):
+
+```bash
+curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/issues/$ISSUE_ID"
+curl -s -b cookies.txt -X POST -H "x-jekimo-csrf-token: $CSRF" \
+  "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/issues/$ISSUE_ID/resolve"
+```
+
+`/ignore` and `/reopen` work the same way. If a resolved issue receives a new event, the worker reopens it.
+
 ## 8. Check the isolation rules
 
 ```bash

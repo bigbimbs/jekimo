@@ -11,6 +11,7 @@ import {
   type ProjectPermission,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "./access.js";
+import type { IssueStatus } from "./constants/index.js";
 import {
   findIngestionKey,
   listProjectRetention,
@@ -19,9 +20,11 @@ import {
   type ProjectRow,
   toProject,
 } from "./cross-project.js";
+import { getIssue, listIssues, setIssueStatus, upsertIssues } from "./issues.js";
 import { type Pool, type PoolClient, withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
+import type { IssuePage, IssueQuery } from "./types/index.js";
 import type {
   Actor,
   AuditEntry,
@@ -30,6 +33,7 @@ import type {
   FingerprintSummary,
   IngestionKeyLookup,
   IngestionKeyRecord,
+  IssueRecord,
   IssueSummary,
   MetadataRepository,
   ProjectRecord,
@@ -292,34 +296,8 @@ export class PostgresMetadataRepository implements MetadataRepository {
     return r ? { retentionDays: r.retention_days, sampleRate: r.sample_rate } : null;
   }
 
-  async upsertIssues(projectId: string, summaries: IssueSummary[]): Promise<void> {
-    if (summaries.length === 0) return;
-    await this.pool.query(
-      `INSERT INTO issues AS i (project_id, fingerprint, title, kind, last_severity, event_count, first_seen, last_seen)
-       SELECT $1, fingerprint, title, kind, last_severity, event_count, first_seen, last_seen
-       FROM jsonb_to_recordset($2::jsonb) AS r(fingerprint text, title text, kind text, last_severity text,
-         event_count bigint, first_seen timestamptz, last_seen timestamptz)
-       ON CONFLICT (project_id, fingerprint) DO UPDATE SET
-         event_count = GREATEST(i.event_count, EXCLUDED.event_count),
-         first_seen = LEAST(i.first_seen, EXCLUDED.first_seen),
-         last_severity = CASE WHEN EXCLUDED.last_seen >= i.last_seen THEN EXCLUDED.last_severity ELSE i.last_severity END,
-         last_seen = GREATEST(i.last_seen, EXCLUDED.last_seen),
-         updated_at = now()`,
-      [
-        projectId,
-        JSON.stringify(
-          summaries.map((s) => ({
-            fingerprint: s.fingerprint,
-            title: s.title.slice(0, 256),
-            kind: s.kind,
-            last_severity: s.lastSeverity,
-            event_count: s.eventCount,
-            first_seen: s.firstSeen.toISOString(),
-            last_seen: s.lastSeen.toISOString(),
-          })),
-        ),
-      ],
-    );
+  upsertIssues(projectId: string, summaries: IssueSummary[]): Promise<void> {
+    return upsertIssues(this.pool, insertAudit, projectId, summaries);
   }
 
   replaceIssueCounts(projectId: string, summaries: FingerprintSummary[], asOf: Date): Promise<void> {
@@ -448,5 +426,25 @@ export class PostgresMetadataRepository implements MetadataRepository {
       });
       return normalized;
     });
+  }
+
+  listIssues(access: ProjectAccess, query: IssueQuery): Promise<IssuePage> {
+    requirePermission(access, "project.read");
+    return listIssues(this.pool, access, query);
+  }
+
+  getIssue(access: ProjectAccess, issueId: string): Promise<IssueRecord | null> {
+    requirePermission(access, "project.read");
+    return getIssue(this.pool, access.projectId, issueId);
+  }
+
+  setIssueStatus(
+    access: ProjectAccess,
+    issueId: string,
+    status: IssueStatus,
+    sourceIp?: string,
+  ): Promise<IssueRecord | null> {
+    requirePermission(access, "issues.manage");
+    return setIssueStatus(this.pool, insertAudit, access, issueId, status, sourceIp);
   }
 }

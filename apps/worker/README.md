@@ -5,11 +5,11 @@ Drains the durable ingest queue in PostgreSQL and turns accepted events into sto
 For each queued ingest request it:
 
 1. Applies the project sample rate with `shouldKeepEvent` (exceptions, errors, and fatals are never sampled).
-2. Redacts `context` and `attributes` with the default key list plus the project's own rules ([docs/event-format.md](../../docs/event-format.md), "Privacy defaults"). Extra keys are normalized like the default list (lower-cased, `-`, `_`, and spaces removed); patterns are JavaScript regular expressions matched case-sensitively against the raw key name, as in the Node SDK. Rules are read once per project per batch, so a change applies from the next batch. A pattern that does not compile fails the job instead of storing an unredacted value.
+2. Redacts `context` and `attributes` with `redactEvent` from `@jekimo/event-schema`, the same rules the Node SDK applies: the default key list plus the project's own rules ([docs/event-format.md](../../docs/event-format.md), "Privacy defaults"). Extra keys are normalized like the default list (lower-cased, `-`, `_`, and spaces removed); patterns are JavaScript regular expressions matched case-sensitively against the raw key name, as in the Node SDK. Rules are read once per project per batch, so a change applies from the next batch. A pattern that does not compile fails the job instead of storing an unredacted value.
 3. Validates the event in stored form with `validateEvent(..., { mode: "stored" })`, checking future timestamps against the client's `sent_at` as the API did. An event that fails is not stored, is counted as dropped, and is logged with its index, `event_id`, and the failing paths and codes only. Unknown fields are removed.
-4. Derives a fingerprint when the event has none: exception type plus in-app stack frames with line numbers removed, otherwise the message with numbers, UUIDs, and hex strings replaced (see `src/fingerprint.ts` and [docs/event-format.md](../../docs/event-format.md), "Grouping").
+4. Derives a fingerprint when the event has none with `deriveFingerprint` from `@jekimo/event-schema`: exception type plus in-app stack frames (all frames when none is in-app) with line and column numbers removed, otherwise the message with numbers, UUIDs, and hex strings replaced ([docs/event-format.md](../../docs/event-format.md), "Grouping").
 5. Appends events to the event store. Appends are idempotent on `(project_id, event_id)`.
-6. Derives counts per fingerprint from the event store and merges them into the `issues` table. Counts are never incremented blindly, so a retry converges.
+6. Derives counts per fingerprint from the event store and merges them into the `issues` table, with the job's latest event id (when the job holds the newest events) and the environments seen. Counts are never incremented blindly, so a retry converges. A `resolved` issue that receives an event received after it was resolved is reopened (a regression) and the change is audit-logged as `issue.regressed` with no actor; `ignored` issues stay ignored.
 7. Adds the job's counts to the project's daily counters for the UTC day of `received_at`, with `job:<queue job id>` as the idempotency key, so a redelivered job is counted once.
 
 The steps are separate and idempotent, event store first, with no transaction across the event store and metadata ([docs/architecture.md](../../docs/architecture.md), "Storage engines", rules 2 and 3). A job is acknowledged only after all of them succeed. Failed jobs are retried with exponential backoff and dead-lettered after the configured number of attempts. A job claimed by a worker that dies is redelivered after the visibility timeout and reprocessed without duplicate events or double counts. On `SIGTERM` or `SIGINT` the worker finishes every job it has claimed, then exits.
@@ -33,13 +33,25 @@ The pass is idempotent and safe to interrupt: expiring a day twice removes nothi
 
 Every minute the worker reads free space on the database volume (`JEKIMO_DISK_PATH` or `JEKIMO_DISK_BUDGET_BYTES`, [docs/configuration.md](../../docs/configuration.md#disk-safety)). A change of level is logged and, at the warning level or worse, written to the audit log as `instance.disk_level_changed`. From the critical level until free space is back above the warning level, the pass runs every minute with each project's retention cut to at most 7 days, and logs `emergency expiry removed events` with the project id and count for each project that lost events. A reading that fails changes nothing: the worker never deletes data early on an unknown level.
 
+## Recomputing issues
+
+Issue counts are derived from the event store, so they can be rebuilt at any time:
+
+```bash
+npm run recompute-issues -w @jekimo/worker                  # every project
+npm run recompute-issues -w @jekimo/worker -- prj_example   # one project
+docker compose exec worker node dist/recompute.mjs           # in the worker image
+```
+
+For each project it sets every issue's count and first and last seen from the remaining events and deletes issues with none, keeping status, title, and environments. Issues the worker updates while it runs are left alone. The expiry pass does the same for each project it removed events from, so issues whose last event expired are deleted.
+
 Not yet implemented: archiving to object storage instead of deleting. There is no API endpoint yet to set redaction rules or read counters; the storage methods are `setRedactionRules` and `listDailyCounters`.
 
 ## Development
 
 ```bash
 npm run dev -w @jekimo/worker    # tsx watch, needs JEKIMO_DATABASE_URL
-npm run build -w @jekimo/worker  # dist/main.mjs
+npm run build -w @jekimo/worker  # dist/main.mjs and dist/recompute.mjs
 npm test -- apps/worker          # PostgreSQL tests run when JEKIMO_DATABASE_URL is set
 ```
 

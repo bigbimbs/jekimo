@@ -19,6 +19,10 @@ Owns PostgreSQL connections, schema migrations, and project-scoped persistence. 
 
 `setRedactionRules(access, { keys, patterns })` stores operator rules on top of the default key list, with `settings.manage`. Keys are normalized like the default list; patterns must compile as JavaScript regular expressions. The audit log records how many keys and patterns were set, not the rules. `getRedactionRules(projectId)` is for the worker.
 
+### Issues
+
+Issue queries live in `src/issues.ts`; `ISSUE_STATUSES` and `MAX_ISSUE_ENVIRONMENTS` are in `src/constants/issues.ts`, and `IssueQuery` and `IssuePage` in `src/types/issues.ts`. `upsertIssues(projectId, summaries)` merges summaries derived from the event store: counts and `last_seen` only move forward, the latest event id follows the newest `last_seen`, and environments are merged (up to 32). In the same transaction it reopens `resolved` issues whose summary was last seen after the resolution and audit-logs `issue.regressed`. `replaceIssueCounts` sets exact counts and deletes issues with no events left, for the expiry pass and the recompute job. `listIssues(access, query)` and `getIssue(access, id)` need `project.read`; `setIssueStatus(access, id, status)` needs `issues.manage` and audit-logs `issue.resolved`, `issue.ignored`, or `issue.reopened` with the status before and after. An id from another project is not found.
+
 ## Schema
 
 Migrations are plain SQL in `migrations/`, applied in order, each in a transaction, and recorded in `schema_migrations`:
@@ -32,6 +36,7 @@ Migrations are plain SQL in `migrations/`, applied in order, each in a transacti
 | `0005_project_redaction_rules.sql` | `projects.redaction_rules` (`{"keys": [], "patterns": []}`) |
 | `0006_event_message_search.sql` | GIN index on `to_tsvector('simple', ...)` of `message`, with punctuation turned into word breaks |
 | `0008_ingest_limits.sql` | `projects.rate_limit_per_minute` and `projects.events_per_day` (null inherits the instance default), `project_ingest_usage` (one row per project: events in the current UTC minute and day) |
+| `0009_issue_actions.sql` | `issues.id` (stable uuid), `last_event_id`, `environments`, `status_changed_at`, `status_changed_by` |
 
 Event indexes: BRIN on `received_at`; b-tree on `(project_id, received_at)`, `(project_id, fingerprint)`, and `(project_id, severity, received_at)`; GIN on the `message` search vector. `attributes` has no index.
 
@@ -59,7 +64,7 @@ The first release uses one account for migrations and runtime. That account need
 | Ownership of the tables Jekimo creates | `ALTER TABLE events DETACH PARTITION` and `DROP TABLE` on expired daily partitions require ownership. Creating the tables as this account gives it ownership. |
 | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on those tables | Ordinary reads and writes (implied by ownership). |
 
-It needs no superuser, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or `BYPASSRLS` attribute, no extensions (`gen_random_uuid()` is built into PostgreSQL 13 and later), and no access to any other database or schema. Session-level advisory locks (`pg_advisory_lock`), which the migration runner uses so concurrent runs wait for each other, are available to every account. [docs/install-vps.md](../../docs/install-vps.md), "Path A", has the SQL that creates such an account.
+It needs no superuser, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or `BYPASSRLS` attribute, no extensions (`gen_random_uuid()` is built into PostgreSQL 13 and later), and no access to any other database or schema. Session-level advisory locks (`pg_advisory_lock`), which the migration runner uses so concurrent runs wait for each other, are available to every account. [docs/install-vps.md](../../docs/install-vps.md#option-2-an-existing-postgresql-server), "Option 2", has the SQL that creates such an account, and [docs/database-setup.md](../../docs/database-setup.md) specifies how setup provisions it.
 
 ## Usage
 

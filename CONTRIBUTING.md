@@ -63,9 +63,9 @@ Install the Biome extension for your editor; VS Code offers it automatically fro
 
 Shared compiler options live in [`tsconfig.base.json`](tsconfig.base.json): ES2022, NodeNext modules, `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and `noEmit`. The root [`tsconfig.json`](tsconfig.json) is a solution file: it compiles nothing itself and lists each TypeScript project under `references`, so `tsc -b` checks them all. Root-level config files such as `vitest.config.ts` are covered by `tsconfig.config.json`.
 
-Workspaces depend on each other through package names (`@jekimo/event-schema`, `@jekimo/storage-postgres/memory`) and project `references`; no tsconfig includes another workspace's `src/`. (The one relative import across workspaces, `apps/api/test/slice.test.ts` loading the worker, also resolves through the reference to `apps/worker`.) There are two kinds of project:
+Workspaces depend on each other through package names (`@jekimo/event-schema`, `@jekimo/storage-postgres/memory`) and project `references`; no tsconfig includes another workspace's `src/`. (The relative imports across workspaces, `apps/api/test/slice.test.ts` loading the worker and `apps/api/test/sdk.test.ts` loading the worker and the Node SDK, also resolve through the references to `apps/worker` and `packages/sdk-node`.) There are two kinds of project:
 
-- **Libraries other workspaces import** (`packages/event-schema`, `packages/storage-postgres`, and `apps/worker`, which `apps/api`'s end-to-end test imports). `tsconfig.json` covers `src/` only and emits to `dist/` (JavaScript, declarations, and source maps; `apps/worker` emits declarations only, since its runtime build is the esbuild bundle). Tests have their own project in `test/tsconfig.json`, which references the package. Each `exports` entry in `package.json` lists three conditions in this order:
+- **Libraries other workspaces import** (`packages/event-schema`, `packages/storage-postgres`, and `apps/worker` and `packages/sdk-node`, which `apps/api`'s end-to-end tests import). `tsconfig.json` covers `src/` only and emits to `dist/` (JavaScript, declarations, and source maps; `apps/worker` and `packages/sdk-node` emit declarations only, to `dist/types/`, since their runtime builds are esbuild bundles; the SDK's published declarations come from `tsconfig.build.json`). Tests have their own project in `test/tsconfig.json`, which references the package. Each `exports` entry in `package.json` of a library imported by package name lists three conditions in this order:
 
   ```json
   ".": {
@@ -76,7 +76,7 @@ Workspaces depend on each other through package names (`@jekimo/event-schema`, `
   ```
 
   `tsc -b` ignores `@jekimo/source` and resolves `types`, which it builds from the referenced project first. Vitest (`vitest.config.ts`), the esbuild app and SDK bundles, and `tsx` (`npm run dev`, `npm run migrate`) set the `@jekimo/source` condition and read the TypeScript sources directly, so tests, dev servers, and bundles need no prior build. Plain Node.js without the condition loads `dist/`.
-- **Leaf projects** (`apps/api`, `packages/sdk-node`) that nothing imports. `tsconfig.json` covers `src/` and `test/` and emits nothing.
+- **Leaf projects** (`apps/api`) that nothing imports. `tsconfig.json` covers `src/` and `test/` and emits nothing.
 
 When a workspace gets its first source file, wire it in within the same pull request:
 
@@ -142,6 +142,40 @@ With the stack running, `set -a; . ./.env; set +a; npm test` also runs the Postg
 - Update documentation under `docs/` and the relevant README when you change public behavior, configuration, or the event schema.
 - Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes. These entries become the release notes, so describe the change for people running Jekimo or using the SDK.
 - If you change a workflow under `.github/workflows/`, run [`actionlint`](https://github.com/rhysd/actionlint) on it.
+
+### Code organization
+
+Keep declarations apart from behavior, so each workspace's shapes and fixed values can be found and reviewed in one place:
+
+- **Types and interfaces** live in `src/types/`, one file per domain (for example `src/types/issue.ts`, `src/types/queue.ts`), re-exported from `src/types/index.ts`. These files contain only `interface` and `type` declarations, no runtime code.
+- **Enumerations and other fixed values** live in `src/constants/`, one file per domain, re-exported from `src/constants/index.ts`. Write an enumeration as an `as const` array or object with its union type derived next to it, not as a TypeScript `enum`:
+
+  ```ts
+  // src/constants/issue.ts
+  export const ISSUE_STATUSES = ["unresolved", "resolved", "ignored"] as const;
+  export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+  ```
+
+  `enum` emits runtime code that Node.js type stripping does not support, and a constant array also gives validators and tests the list of allowed values.
+- **Implementation files** (routes, repositories, services, the worker) hold functions and classes and import the declarations they need with `import type`. They do not export types of their own.
+- A type used only inside one file and never exported may stay in that file. Once a second file needs it, move it to `src/types/`.
+- Public packages keep their entry point (`src/index.ts`) as the place that re-exports what consumers may use, including types and constants.
+
+The API (`apps/api`, Fastify) is organized by module, one folder per area under `src/modules/` (for example `issues`, `members`, `keys`):
+
+- `routes.ts` registers the area's routes as a Fastify plugin. It parses and validates the request, declares the credential and permission it needs, calls the service, and shapes the response. It holds no business logic and no storage calls beyond what the service exposes.
+- `service.ts` holds the logic. It receives its dependencies (the storage boundaries, clocks, configuration) as arguments when it is created, so tests can pass in-memory doubles; there is no decorator-based injection.
+- The area's declarations follow the rules above, in `src/types/` and `src/constants/`.
+- Every project route declares its permission with the shared `requireProjectPermission` pre-handler (the equivalent of a guard), never by checking a role name.
+
+### Comments
+
+Keep comments few and short. Names and types should say what code does; a comment is for what they cannot:
+
+- Write one when the reason is not visible in the code: a spec rule (cite the doc and section), a security or isolation constraint, a workaround, or a deliberate choice that looks wrong at first sight.
+- Do not restate the code, narrate steps, label obvious blocks, or repeat a function's name and types in prose.
+- Prefer a clearer name or a smaller function over a comment that explains a confusing one.
+- A short doc comment on an exported function or type is welcome when its contract (units, ranges, side effects, what it throws) is not obvious from the signature.
 
 ### Commit messages
 
