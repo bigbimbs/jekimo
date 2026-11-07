@@ -20,6 +20,7 @@ rmSync(dist, { recursive: true, force: true });
 const shared = {
   entryPoints: [join(root, "src/index.ts")],
   bundle: true,
+  conditions: ["@jekimo/source"],
   platform: "node",
   target: "node22",
   legalComments: "none",

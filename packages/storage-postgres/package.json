@@ -5,13 +5,26 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./memory": "./src/memory/index.ts",
-    "./testing": "./src/testing.ts"
+    ".": {
+      "@jekimo/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./memory": {
+      "@jekimo/source": "./src/memory/index.ts",
+      "types": "./dist/memory/index.d.ts",
+      "default": "./dist/memory/index.js"
+    },
+    "./testing": {
+      "@jekimo/source": "./src/testing.ts",
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
   },
   "scripts": {
-    "migrate": "tsx src/migrate-cli.ts",
-    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -b",
+    "migrate": "tsx --conditions=@jekimo/source src/migrate-cli.ts",
+    "typecheck": "tsc -b test",
     "test": "vitest run --root ../.. packages/storage-postgres"
   },
   "dependencies": {

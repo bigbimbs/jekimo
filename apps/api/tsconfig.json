@@ -4,5 +4,10 @@
     "composite": true,
     "types": ["node"]
   },
-  "include": ["src", "test", "../../packages/event-schema/src", "../../packages/storage-postgres/src", "../worker/src"]
+  "include": ["src", "test"],
+  "references": [
+    { "path": "../../packages/event-schema" },
+    { "path": "../../packages/storage-postgres" },
+    { "path": "../worker" }
+  ]
 }

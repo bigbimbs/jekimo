@@ -1,6 +1,8 @@
 // Bundles an app's TypeScript entry points, and the workspace packages they
 // import, into dist/*.mjs with esbuild. Third-party packages stay external
-// and are loaded from node_modules at run time.
+// and are loaded from node_modules at run time. Workspace packages are read
+// from their TypeScript sources through the "@jekimo/source" export
+// condition, so they need no build first.
 //
 // Usage: node scripts/build-app.mjs <app dir> <name>=<entry> [<name>=<entry> ...]
 // Entry paths are relative to the app directory.
@@ -28,6 +30,7 @@ await build({
   outdir: join(root, appDir, "dist"),
   outExtension: { ".js": ".mjs" },
   bundle: true,
+  conditions: ["@jekimo/source"],
   platform: "node",
   target: "node22",
   format: "esm",

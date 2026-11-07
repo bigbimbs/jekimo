@@ -1,0 +1,9 @@
+{
+  // Placeholder until the dashboard has source: it checks no files. When
+  // src/ lands, replace "files" with "include" and set the DOM and JSX options.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true
+  },
+  "files": []
+}

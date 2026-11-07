@@ -5,7 +5,14 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "@jekimo/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./schema/event-envelope.v1.json": "./schema/event-envelope.v1.json"
+  },
+  "scripts": {
+    "build": "tsc -b"
   }
 }
