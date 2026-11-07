@@ -4,6 +4,7 @@
  */
 
 import { RETENTION } from "@jekimo/event-schema";
+import { DEFAULT_RATE_LIMIT_PER_MINUTE, INGEST_LIMIT_BOUNDS } from "@jekimo/storage-postgres";
 
 export interface ApiConfig {
   host: string;
@@ -16,6 +17,9 @@ export interface ApiConfig {
   sessionMaxDays: number;
   retentionDefaultDays: number;
   retentionMaxDays: number;
+  rateLimitPerMinute: number;
+  /** Null: no quota. */
+  quotaEventsPerDay: number | null;
   inviteExpiryDays: number;
   keyRotationGraceHours: number;
   /** Null: invitation and reset links are paths, not URLs. */
@@ -35,6 +39,8 @@ export const DEFAULT_API_CONFIG: ApiConfig = {
   sessionMaxDays: 30,
   retentionDefaultDays: RETENTION.DEFAULT_DAYS,
   retentionMaxDays: RETENTION.MAX_DAYS,
+  rateLimitPerMinute: DEFAULT_RATE_LIMIT_PER_MINUTE,
+  quotaEventsPerDay: null,
   inviteExpiryDays: 7,
   keyRotationGraceHours: 24,
   publicUrl: null,
@@ -104,6 +110,17 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       retentionMaxDays,
     ),
     retentionMaxDays,
+    rateLimitPerMinute: int(
+      env,
+      "JEKIMO_RATE_LIMIT_PER_MINUTE",
+      d.rateLimitPerMinute,
+      INGEST_LIMIT_BOUNDS.MIN_PER_MINUTE,
+      INGEST_LIMIT_BOUNDS.MAX_PER_MINUTE,
+    ),
+    quotaEventsPerDay:
+      env.JEKIMO_QUOTA_EVENTS_PER_DAY === undefined || env.JEKIMO_QUOTA_EVENTS_PER_DAY === ""
+        ? d.quotaEventsPerDay
+        : int(env, "JEKIMO_QUOTA_EVENTS_PER_DAY", 0, INGEST_LIMIT_BOUNDS.MIN_PER_DAY, INGEST_LIMIT_BOUNDS.MAX_PER_DAY),
     inviteExpiryDays: int(env, "JEKIMO_INVITE_EXPIRY_DAYS", d.inviteExpiryDays, 1, 90),
     keyRotationGraceHours: int(env, "JEKIMO_KEY_ROTATION_GRACE_HOURS", d.keyRotationGraceHours, 0, 720),
     publicUrl: publicUrl(env),

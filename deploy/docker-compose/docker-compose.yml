@@ -17,6 +17,16 @@ x-database: &database
   JEKIMO_DATABASE_POOL_MAX: ${JEKIMO_DATABASE_POOL_MAX:-10}
   JEKIMO_LOG_LEVEL: ${JEKIMO_LOG_LEVEL:-info}
 
+# The containers' root filesystem and the postgres-data volume both live under
+# /var/lib/docker, so the default JEKIMO_DISK_PATH of / measures the database
+# disk without mounting database files into the API and worker.
+x-disk: &disk
+  JEKIMO_DISK_WARN_PERCENT: ${JEKIMO_DISK_WARN_PERCENT:-20}
+  JEKIMO_DISK_CRITICAL_PERCENT: ${JEKIMO_DISK_CRITICAL_PERCENT:-10}
+  JEKIMO_DISK_FULL_PERCENT: ${JEKIMO_DISK_FULL_PERCENT:-5}
+  JEKIMO_DISK_PATH: ${JEKIMO_DISK_PATH:-/}
+  JEKIMO_DISK_BUDGET_BYTES: ${JEKIMO_DISK_BUDGET_BYTES:-}
+
 x-jekimo: &jekimo
   restart: unless-stopped
   logging: *logging
@@ -62,7 +72,7 @@ services:
     <<: *jekimo
     image: ghcr.io/bigbimbs/jekimo-api:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
     environment:
-      <<: *database
+      <<: [*database, *disk]
       # Caddy is the API's only client.
       JEKIMO_TRUST_PROXY: "true"
       JEKIMO_MIGRATE_ON_START: "false"
@@ -76,6 +86,8 @@ services:
       JEKIMO_RETENTION_MAX_DAYS: ${JEKIMO_RETENTION_MAX_DAYS:-3650}
       JEKIMO_QUEUE_MAX_ATTEMPTS: ${JEKIMO_QUEUE_MAX_ATTEMPTS:-5}
       JEKIMO_QUEUE_MAX_DEPTH: ${JEKIMO_QUEUE_MAX_DEPTH:-10000}
+      JEKIMO_RATE_LIMIT_PER_MINUTE: ${JEKIMO_RATE_LIMIT_PER_MINUTE:-1000}
+      JEKIMO_QUOTA_EVENTS_PER_DAY: ${JEKIMO_QUOTA_EVENTS_PER_DAY:-}
     expose:
       - "8080"
     healthcheck:
@@ -93,8 +105,10 @@ services:
     <<: *jekimo
     image: ghcr.io/bigbimbs/jekimo-worker:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
     environment:
-      <<: *database
+      <<: [*database, *disk]
       JEKIMO_MIGRATE_ON_START: "false"
+      JEKIMO_RETENTION_DEFAULT_DAYS: ${JEKIMO_RETENTION_DEFAULT_DAYS:-30}
+      JEKIMO_RETENTION_MAX_DAYS: ${JEKIMO_RETENTION_MAX_DAYS:-3650}
       JEKIMO_QUEUE_VISIBILITY_SECONDS: ${JEKIMO_QUEUE_VISIBILITY_SECONDS:-60}
       JEKIMO_WORKER_BATCH_SIZE: ${JEKIMO_WORKER_BATCH_SIZE:-10}
       JEKIMO_WORKER_POLL_MS: ${JEKIMO_WORKER_POLL_MS:-1000}

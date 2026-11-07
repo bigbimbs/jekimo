@@ -16,8 +16,19 @@ import {
   LIMITS,
   validateIngestRequest,
 } from "@jekimo/event-schema";
-import { type IngestJob, type MetadataRepository, type Queue, QueueFullError } from "@jekimo/storage-postgres";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import {
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
+  type DiskMonitor,
+  type IngestJob,
+  type IngestLimitStore,
+  type IngestLimits,
+  type MetadataRepository,
+  type Queue,
+  QueueFullError,
+  secondsUntilNextMinute,
+  secondsUntilNextUtcDay,
+} from "@jekimo/storage-postgres";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { keyIdForLookup, verifyIngestionKey } from "../keys.js";
 
 const gunzipAsync = promisify(gunzip);
@@ -25,6 +36,8 @@ const JSON_CONTENT_TYPE = /^application\/json\s*(;\s*charset\s*=\s*"?utf-8"?\s*)
 const RETRY_AFTER_SECONDS = 5;
 /** A full queue drains at the worker's pace, so clients wait longer. */
 const QUEUE_FULL_RETRY_AFTER_SECONDS = 30;
+/** docs/retention.md, "Disk safety". */
+const DISK_FULL_RETRY_AFTER_SECONDS = 60;
 
 class IngestError extends Error {
   constructor(
@@ -38,7 +51,7 @@ class IngestError extends Error {
 
 declare module "fastify" {
   interface FastifyRequest {
-    ingest?: { projectId: string; keyId: string; receivedAt: Date };
+    ingest?: { projectId: string; keyId: string; receivedAt: Date; limits?: IngestLimits };
   }
 }
 
@@ -47,6 +60,35 @@ export interface IngestRouteOptions {
   queue: Queue<IngestJob>;
   clock: () => Date;
   maxBodyBytes?: number;
+  /** Absent only in tests: ingest is then not limited. */
+  limits?: IngestLimitStore;
+  limitDefaults?: IngestLimits;
+  /** Absent only in tests: disk space is then not checked. */
+  disk?: DiskMonitor;
+}
+
+/** docs/ingestion-protocol.md, "Headers on every response". */
+function setRateLimitHeaders(reply: FastifyReply, limits: IngestLimits, minuteEvents: number, now: Date): void {
+  reply.header("x-ratelimit-limit", String(limits.ratePerMinute));
+  reply.header("x-ratelimit-remaining", String(Math.max(0, limits.ratePerMinute - minuteEvents)));
+  reply.header("x-ratelimit-reset", String(secondsUntilNextMinute(now)));
+}
+
+function rateLimited(limits: IngestLimits, now: Date): IngestError {
+  return new IngestError(
+    "rate_limited",
+    `project exceeded ${limits.ratePerMinute} events per minute`,
+    secondsUntilNextMinute(now),
+  );
+}
+
+/** docs/retention.md, "Quotas": refused until midnight UTC. */
+function quotaExceeded(limits: IngestLimits, now: Date): IngestError {
+  return new IngestError(
+    "quota_exceeded",
+    `project exceeded its quota of ${limits.eventsPerDay} events per day`,
+    secondsUntilNextUtcDay(now),
+  );
 }
 
 /** Reads the body stream, stopping as soon as it passes `limit` bytes. */
@@ -71,6 +113,10 @@ function readLimited(stream: NodeJS.ReadableStream, limit: number): Promise<Buff
 
 export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOptions): Promise<void> {
   const maxBody = opts.maxBodyBytes ?? LIMITS.MAX_BATCH_BYTES;
+  const limitDefaults: IngestLimits = opts.limitDefaults ?? {
+    ratePerMinute: DEFAULT_RATE_LIMIT_PER_MINUTE,
+    eventsPerDay: null,
+  };
   const utf8 = new TextDecoder("utf-8", { fatal: true });
 
   app.setErrorHandler((err, request, reply) => {
@@ -124,7 +170,7 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
   });
 
   // Step 1 of "Processing": authenticate before looking at the body.
-  app.addHook("onRequest", async (request) => {
+  app.addHook("onRequest", async (request, reply) => {
     const receivedAt = opts.clock();
     const token = bearerToken(request.headers.authorization);
     const { keyId, wellFormed } = keyIdForLookup(token);
@@ -140,10 +186,33 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
     ) {
       throw new IngestError("unauthorized", "missing, malformed, unknown, or revoked ingestion key");
     }
+    // A 401 carries no X-RateLimit-* headers: no project is known.
+    let limits: IngestLimits | undefined;
+    let usage: { minuteEvents: number; dayEvents: number } | undefined;
+    if (opts.limits) {
+      const read = await opts.limits.read(record.projectId, receivedAt);
+      if (!read) throw new IngestError("unauthorized", "missing, malformed, unknown, or revoked ingestion key");
+      limits = {
+        ratePerMinute: read.rateLimitPerMinute ?? limitDefaults.ratePerMinute,
+        eventsPerDay: read.eventsPerDay ?? limitDefaults.eventsPerDay,
+      };
+      usage = read;
+      setRateLimitHeaders(reply, limits, read.minuteEvents, receivedAt);
+    }
     if (record.projectDisabled) throw new IngestError("project_disabled", "project is disabled");
-    // TODO(rate limits): per-project rate limits and quotas, 429 with
-    // Retry-After and X-RateLimit-* headers, docs/ingestion-protocol.md
-    // "Rate limits and quotas" and processing steps 2 and 3.
+    if (opts.disk && (await opts.disk.status()).level === "full") {
+      throw new IngestError(
+        "unavailable",
+        "the server is low on disk space; retry later",
+        DISK_FULL_RETRY_AFTER_SECONDS,
+      );
+    }
+    // A full minute refuses before the body is read. A project over quota
+    // with room in its minute is read so its dropped events can be counted.
+    if (limits && usage && usage.minuteEvents >= limits.ratePerMinute) {
+      const overQuota = limits.eventsPerDay !== null && usage.dayEvents >= limits.eventsPerDay;
+      throw overQuota ? quotaExceeded(limits, receivedAt) : rateLimited(limits, receivedAt);
+    }
     const contentType = request.headers["content-type"];
     if (typeof contentType !== "string" || !JSON_CONTENT_TYPE.test(contentType)) {
       throw new IngestError("unsupported_media_type", "Content-Type must be application/json");
@@ -156,12 +225,12 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
     if (Number.isFinite(length) && length > maxBody) {
       throw new IngestError("payload_too_large", `request body exceeds ${maxBody} bytes`);
     }
-    request.ingest = { projectId: record.projectId, keyId: record.keyId, receivedAt };
+    request.ingest = { projectId: record.projectId, keyId: record.keyId, receivedAt, ...(limits && { limits }) };
   });
 
   app.post(INGEST_PATH, async (request, reply) => {
     if (!request.ingest) throw new Error("ingest route is missing its authentication preHandler");
-    const { projectId, keyId, receivedAt } = request.ingest;
+    const { projectId, keyId, receivedAt, limits } = request.ingest;
     const parsed = request.body as { json: unknown; bytes: number } | undefined;
     if (parsed === undefined) throw new IngestError("invalid_json", "request body is empty");
 
@@ -173,6 +242,27 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
     if (!result.ok) {
       reply.status(result.status).send(result.response);
       return;
+    }
+    if (opts.limits && limits) {
+      const events = result.accepted.length + result.duplicates.length + result.rejected.length;
+      const charged = await opts.limits.charge(projectId, receivedAt, events, limits);
+      setRateLimitHeaders(reply, limits, charged.minuteEvents, receivedAt);
+      if (charged.outcome === "quota_exceeded") {
+        // Best effort, like the rejected counter below.
+        try {
+          await opts.metadata.incrementDailyCounters(projectId, {
+            day: receivedAt.toISOString().slice(0, 10),
+            dropped: events,
+          });
+        } catch (err) {
+          request.log.warn(
+            { err: { type: (err as Error).name, message: (err as Error).message }, project_id: projectId },
+            "dropped counter update failed",
+          );
+        }
+        throw quotaExceeded(limits, receivedAt);
+      }
+      if (charged.outcome === "rate_limited") throw rateLimited(limits, receivedAt);
     }
     if (result.accepted.length > 0) {
       const job: IngestJob = {

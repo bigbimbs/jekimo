@@ -17,10 +17,21 @@ import {
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
 import type { IssueStatus } from "../constants/index.js";
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
+import { checkIngestLimitSettings, currentUsage, decideCharge, requireInstanceAdmin } from "../ingest-limits.js";
 import { decodeIssueCursor, encodeIssueCursor, issueStatusAction, mergeEnvironments } from "../issues.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
-import type { IssuePage, IssueQuery, MemoryUser } from "../types/index.js";
+import type {
+  IngestChargeResult,
+  IngestLimitSettings,
+  IngestLimitStore,
+  IngestLimits,
+  IngestUsage,
+  IngestUsageRow,
+  IssuePage,
+  IssueQuery,
+  MemoryUser,
+} from "../types/index.js";
 import type {
   Actor,
   AppendEvent,
@@ -673,5 +684,62 @@ export class MemoryQueue<T> implements Queue<T> {
       dead: this.jobs.length - live.length,
       oldestAgeMs: live.length === 0 ? null : Math.max(0, this.clock() - oldest),
     };
+  }
+}
+
+/** Ingestion limits over a MemoryMetadataRepository's projects. */
+export class MemoryIngestLimitStore implements IngestLimitStore {
+  readonly settings = new Map<string, IngestLimitSettings>();
+  readonly usage = new Map<string, IngestUsageRow>();
+  /** When set, read and charge throw it. */
+  failWith: Error | undefined;
+
+  constructor(private readonly metadata: MemoryMetadataRepository) {}
+
+  private exists(projectId: string): boolean {
+    return this.metadata.projects.some((p) => p.id === projectId);
+  }
+
+  async read(projectId: string, now: Date): Promise<(IngestLimitSettings & IngestUsage) | null> {
+    if (this.failWith) throw this.failWith;
+    if (!this.exists(projectId)) return null;
+    const settings = this.settings.get(projectId) ?? { rateLimitPerMinute: null, eventsPerDay: null };
+    return { ...settings, ...currentUsage(this.usage.get(projectId) ?? null, now) };
+  }
+
+  async charge(projectId: string, now: Date, events: number, limits: IngestLimits): Promise<IngestChargeResult> {
+    if (this.failWith) throw this.failWith;
+    if (!this.exists(projectId)) throw new Error("project no longer exists");
+    const { outcome, next } = decideCharge(this.usage.get(projectId) ?? null, now, events, limits);
+    this.usage.set(projectId, next);
+    return { outcome, minuteEvents: next.minuteEvents, dayEvents: next.dayEvents };
+  }
+
+  async getSettings(access: ProjectAccess): Promise<IngestLimitSettings> {
+    assertProjectAccess(access);
+    return { ...(this.settings.get(access.projectId) ?? { rateLimitPerMinute: null, eventsPerDay: null }) };
+  }
+
+  async setSettings(
+    actor: Actor,
+    access: ProjectAccess,
+    settings: IngestLimitSettings,
+    sourceIp?: string,
+  ): Promise<IngestLimitSettings> {
+    requireInstanceAdmin(actor, access);
+    const checked = checkIngestLimitSettings(settings);
+    if (!this.exists(access.projectId)) throw new Error("project no longer exists");
+    this.settings.set(access.projectId, checked);
+    await this.metadata.appendAudit({
+      actorUserId: actor.userId,
+      action: "project.ingest_limits_updated",
+      targetType: "project",
+      targetId: access.projectId,
+      projectId: access.projectId,
+      viaInstanceAdmin: access.viaInstanceAdmin,
+      details: { rate_limit_per_minute: checked.rateLimitPerMinute, events_per_day: checked.eventsPerDay },
+      ...(sourceIp !== undefined && { sourceIp }),
+    });
+    return { ...checked };
   }
 }

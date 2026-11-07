@@ -1,8 +1,24 @@
 export { hasProjectPermission, type ProjectAccess } from "./access.js";
 export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
 export * from "./constants/index.js";
+export {
+  DiskMonitor,
+  databaseBudgetDiskProbe,
+  diskConfigFromEnv,
+  diskProbeFor,
+  statfsDiskProbe,
+} from "./disk.js";
 export { daysFrom, PostgresEventStore, partitionName, searchWords } from "./event-store.js";
 export { checkDatabase, checkQueue } from "./health.js";
+export {
+  checkIngestLimitSettings,
+  currentUsage,
+  decideCharge,
+  minuteStart,
+  PostgresIngestLimitStore,
+  secondsUntilNextMinute,
+  secondsUntilNextUtcDay,
+} from "./ingest-limits.js";
 export { decodeIssueCursor, encodeIssueCursor, isIssueId } from "./issues.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export {

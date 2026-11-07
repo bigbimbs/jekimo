@@ -20,6 +20,7 @@ export const AUDIT_ACTIONS = [
   "project.created",
   "project.settings_updated",
   "project.redaction_rules_updated",
+  "project.ingest_limits_updated",
   "project.deleted",
   "project.restored",
   "member.added",
@@ -37,6 +38,7 @@ export const AUDIT_ACTIONS = [
   "issue.regressed",
   "data.bulk_deleted",
   "instance.settings_updated",
+  "instance.disk_level_changed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

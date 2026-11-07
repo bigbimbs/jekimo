@@ -5,6 +5,9 @@
 
 import {
   createPool,
+  DiskMonitor,
+  diskConfigFromEnv,
+  diskProbeFor,
   INGEST_QUEUE,
   type IngestJob,
   migrateOnStart,
@@ -20,6 +23,7 @@ import { Worker } from "./worker.js";
 
 async function main(): Promise<void> {
   const config = loadWorkerConfig();
+  const disk = diskConfigFromEnv();
   const log = pino({ level: config.logLevel, base: { service: "jekimo-worker" } });
   const pool = createPool({ applicationName: "jekimo-worker" });
   if (migrateOnStart()) {
@@ -34,6 +38,13 @@ async function main(): Promise<void> {
     batchSize: config.batchSize,
     pollMs: config.pollMs,
     expiryIntervalMs: config.expiryIntervalMinutes * 60_000,
+    retentionDefaultDays: config.retentionDefaultDays,
+    retentionMaxDays: config.retentionMaxDays,
+    disk: new DiskMonitor({
+      probe: diskProbeFor(disk, pool),
+      thresholds: disk.thresholds,
+      onError: (err) => log.error({ err }, "disk probe failed"),
+    }),
     auditLogDays: config.auditLogDays,
   });
 

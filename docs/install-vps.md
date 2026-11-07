@@ -297,21 +297,20 @@ Then add an SDK to your application; for Node.js see [`@jekimo/sdk-node`](../pac
 
 ## 11. Rate limits and quotas
 
-> **Not implemented yet** ([issue #24](https://github.com/bigbimbs/jekimo/issues/24)). This section describes the specified behaviour so you can plan for it. Until it lands, the queue bound (`JEKIMO_QUEUE_MAX_DEPTH`, default 10,000 queued requests) is the only protection: when the worker falls that far behind, ingestion answers `503` with `Retry-After: 30` and SDKs back off.
-
-Per [ingestion-protocol.md](ingestion-protocol.md#rate-limits-and-quotas), every project gets a **rate limit** in events per minute (default 1,000) and may get a **quota** in events per day or month (default none):
+Per [ingestion-protocol.md](ingestion-protocol.md#rate-limits-and-quotas), every project gets a **rate limit** in events per minute (default 1,000, `JEKIMO_RATE_LIMIT_PER_MINUTE`) and may get a **quota** in events per day (default none, `JEKIMO_QUOTA_EVENTS_PER_DAY`):
 
 - The rate limit absorbs bursts; it does not cap the total. 1,000 events a minute sustained is 43 million a month, far beyond the reference VPS. Over-limit requests get `429 rate_limited` with `Retry-After`.
-- The quota caps volume. To keep the reference VPS within 1,000,000 events a month, give projects daily quotas that add up to about 33,000 a day, for example 10,000 a day each for three projects. Over-quota requests get `429 quota_exceeded` until the period rolls over, and those events are dropped.
-- Size from the disk, not the other way round: pick the retention you need, use the storage formula in section 1 to find how many monthly events your disk holds, and split that between projects as quotas. Keep the rate limit at or above each project's realistic peak so bursts after a deploy are not dropped.
+- The quota caps volume. To keep the reference VPS within 1,000,000 events a month, give projects daily quotas that add up to about 33,000 a day, for example 10,000 a day each for three projects. Over-quota requests get `429 quota_exceeded` until midnight UTC, and those events are dropped and counted.
+- Size from the disk, not the other way round: pick the retention you need, use the storage formula in section 1 to find how many monthly events your disk holds, and split that between projects as quotas. Keep the rate limit at or above each project's realistic peak so bursts after a deploy are not dropped, and keep the sum over all projects below what the worker stores (`npm run bench -w @jekimo/worker`) so a burst from every project drains instead of filling the queue.
+- The variables set the instance defaults. To set one project's limits, an instance admin calls `PUT /api/v1/projects/<id>/limits` with `{"rate_limit_per_minute": 2000, "events_per_day": 10000}`; `null` inherits the default. There is no dashboard screen for this yet.
 
 ## 12. Disk space
 
-> **Disk monitoring is not implemented yet** ([issue #29](https://github.com/bigbimbs/jekimo/issues/29)). The levels below are specified in [retention.md](retention.md#disk-safety) and will apply once it lands. Until then, nothing stops ingestion when the disk fills, so watch free space yourself.
+The API and worker watch free space on the database disk ([retention.md](retention.md#disk-safety)). With Option 1 the containers and the `postgres-data` volume share `/var/lib/docker`, so the default works. With Option 2 the database's disk is not visible from the VPS containers: set `JEKIMO_DISK_BUDGET_BYTES` to the database size you allow, and Jekimo measures `pg_database_size` against it. If free space cannot be read, ingestion is refused rather than risk the database.
 
-| Free space on the database volume | What Jekimo will do |
+| Free space on the database volume | What Jekimo does |
 | --- | --- |
-| Below 20% (`JEKIMO_DISK_WARN_PERCENT`) | Warning banner for instance admins and an audit log entry. |
+| Below 20% (`JEKIMO_DISK_WARN_PERCENT`) | A warning in the worker log and an audit log entry. The admin banner comes with the dashboard. |
 | Below 10% (`JEKIMO_DISK_CRITICAL_PERCENT`) | Emergency expiry: expiry runs every minute and retention is treated as at most 7 days for all projects, oldest days first, until free space is back above 20%. This deletes data before its configured retention and is logged per project. |
 | Below 5% (`JEKIMO_DISK_FULL_PERCENT`) | Ingestion is refused with `503` and `Retry-After: 60`; SDKs retry, then drop. Querying and export keep working so data can be moved out. |
 

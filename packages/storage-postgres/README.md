@@ -11,6 +11,12 @@ Owns PostgreSQL connections, schema migrations, and project-scoped persistence. 
 
 `incrementDailyCounters(projectId, { day, accepted, rejected, dropped, sampled, idempotencyKey })` adds to one project's counts for one UTC day in a single statement. With an `idempotencyKey` (for example `job:<queue job id>`), a repeat of the key for that project adds nothing and returns `false`, so a redelivered job is not counted twice. `listDailyCounters(access, { from, to })` reads them with `project.read`. `pruneDailyCounters(beforeDay, keysBefore)` deletes counters older than the 13-month retention and old idempotency keys.
 
+### Ingestion limits and disk probes
+
+**`IngestLimitStore`** (`PostgresIngestLimitStore`, `src/ingest-limits.ts`) keeps per-project rate limit and daily quota settings (`null` inherits the instance default) and one usage row per project with the events admitted in the current UTC minute and UTC day. `read(projectId, now)` returns both for the ingest endpoint; `charge(projectId, now, events, limits)` decides a request quota first, then rate, under a row lock, so the limits hold across API processes and restarts. `setSettings` is for instance admins only and is audited.
+
+`src/disk.ts` measures free space on the database volume: `statfsDiskProbe(path)` for a path on the volume, `databaseBudgetDiskProbe(pool, bytes)` (`pg_database_size` against a budget) for remote PostgreSQL, and `DiskMonitor`, which caches a reading and fails closed (`full`) when the probe throws or times out. `diskConfigFromEnv` reads the `JEKIMO_DISK_*` variables.
+
 `setRedactionRules(access, { keys, patterns })` stores operator rules on top of the default key list, with `settings.manage`. Keys are normalized like the default list; patterns must compile as JavaScript regular expressions. The audit log records how many keys and patterns were set, not the rules. `getRedactionRules(projectId)` is for the worker.
 
 ### Issues
@@ -29,6 +35,7 @@ Migrations are plain SQL in `migrations/`, applied in order, each in a transacti
 | `0004_project_daily_counters.sql` | `project_daily_counters` (accepted, rejected, dropped, sampled per project per UTC day), `project_counter_increments` (idempotency keys) |
 | `0005_project_redaction_rules.sql` | `projects.redaction_rules` (`{"keys": [], "patterns": []}`) |
 | `0006_event_message_search.sql` | GIN index on `to_tsvector('simple', ...)` of `message`, with punctuation turned into word breaks |
+| `0008_ingest_limits.sql` | `projects.rate_limit_per_minute` and `projects.events_per_day` (null inherits the instance default), `project_ingest_usage` (one row per project: events in the current UTC minute and day) |
 | `0009_issue_actions.sql` | `issues.id` (stable uuid), `last_event_id`, `environments`, `status_changed_at`, `status_changed_by` |
 
 Event indexes: BRIN on `received_at`; b-tree on `(project_id, received_at)`, `(project_id, fingerprint)`, and `(project_id, severity, received_at)`; GIN on the `message` search vector. `attributes` has no index.

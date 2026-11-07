@@ -48,7 +48,9 @@ NestJS was considered and not chosen. Its dependency injection relies on decorat
 | `GET /api/v1/projects/:id/issues` | session, `project.read` | Issues, newest `last_seen` first, by `status` (`unresolved`, `resolved`, `ignored`), `kind`, and `severity` (comma lists; severity is the latest event's), `environment` (seen at least once), `from` (last seen at or after) and `to` (first seen before), RFC 3339, `limit` (1 to 200, default 50), and `cursor`. |
 | `GET /api/v1/projects/:id/issues/:issue_id` | session, `project.read` | One issue and its latest event (`latest_event`, or `null` if none is recorded). `404` when the id is unknown or belongs to another project. |
 | `POST /api/v1/projects/:id/issues/:issue_id/resolve`, `/ignore`, `/reopen` | session + CSRF, `issues.manage` | Sets the status to `resolved`, `ignored`, or `unresolved` and returns the issue. Each change is audit-logged as `issue.resolved`, `issue.ignored`, or `issue.reopened` with the status before and after; repeating the current status changes and logs nothing. `404` as above. |
-| `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md). |
+| `GET /api/v1/projects/:id/limits` | session, `project.read` | The project's rate limit and daily quota settings (`null` inherits the instance default) and the effective values. |
+| `PUT /api/v1/projects/:id/limits` | session + CSRF, instance admin | Sets `rate_limit_per_minute` (100 to 1,000,000) and `events_per_day`, each a number or `null`. Audited. |
+| `POST /api/v1/ingest` | ingestion key | [Ingestion protocol v1](../../docs/ingestion-protocol.md), with rate limits, quotas, and disk-full refusal as described in [docs/configuration.md](../../docs/configuration.md). |
 
 An issue in a response has `id` (stable, use it in URLs), `fingerprint`, `title`, `kind`, `status`, `last_severity`, `event_count`, `first_seen`, `last_seen`, `environments` (up to 32), and, when set, `last_event_id` and `status_changed_at`. Counts are derived from the event store; see `apps/worker/README.md`. Error codes are stable: `invalid_request` for a bad filter, limit, or cursor, `not_found`, `forbidden` (missing permission), and `csrf_failed`.
 
@@ -64,7 +66,7 @@ Invitation and reset links have the form `<JEKIMO_PUBLIC_URL>/invite#token=<toke
 
 Every sensitive action calls the audit writer (`AUDIT_ACTIONS` in `@jekimo/storage-postgres` lists them). Entries record the actor, action, target, time, source IP, and whether instance-admin authority was used, and never passwords, keys, session tokens, or event payloads.
 
-Not yet implemented: rate limits and quotas (a TODO in `src/routes/ingest.ts` cites the protocol), custom role management, project deletion and restore, and emailing links over SMTP.
+Not yet implemented: custom role management, project deletion and restore, and emailing links over SMTP.
 
 ## Development
 

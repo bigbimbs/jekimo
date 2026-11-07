@@ -6,7 +6,14 @@
 
 import { randomUUID } from "node:crypto";
 import cookie from "@fastify/cookie";
-import type { EventStore, IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
+import type {
+  DiskMonitor,
+  EventStore,
+  IngestJob,
+  IngestLimitStore,
+  MetadataRepository,
+  Queue,
+} from "@jekimo/storage-postgres";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { type ApiConfig, DEFAULT_API_CONFIG } from "./config.js";
 import { apiErrorHandler } from "./errors.js";
@@ -16,6 +23,7 @@ import { authRoutes, SetupGate } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
 import { issueRoutes } from "./routes/issues.js";
 import { keyRoutes } from "./routes/keys.js";
+import { limitRoutes } from "./routes/limits.js";
 import { memberRoutes } from "./routes/members.js";
 import { projectRoutes } from "./routes/projects.js";
 import { userRoutes } from "./routes/users.js";
@@ -25,6 +33,10 @@ export interface AppDeps {
   metadata: MetadataRepository;
   events: EventStore;
   queue: Queue<IngestJob>;
+  /** Absent only in tests: ingest is then not limited. */
+  limits?: IngestLimitStore;
+  /** Absent only in tests: disk space is then not checked. */
+  disk?: DiskMonitor;
   config?: Partial<ApiConfig>;
   /** The one-time setup token, or null when setup is closed. */
   setupToken?: string | null;
@@ -129,7 +141,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // Ingest is registered in its own scope: no cookie parsing, no session
   // middleware, its own body parser and error format.
-  await app.register(ingestRoutes, { metadata: deps.metadata, queue: deps.queue, clock });
+  await app.register(ingestRoutes, {
+    metadata: deps.metadata,
+    queue: deps.queue,
+    clock,
+    limitDefaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
+    ...(deps.limits && { limits: deps.limits }),
+    ...(deps.disk && { disk: deps.disk }),
+  });
 
   await app.register(async (dashboard) => {
     dashboard.addHook("onRequest", rejectAuthorizationHeader);
@@ -183,6 +202,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       session,
       projectAccess,
     });
+    if (deps.limits) {
+      await dashboard.register(limitRoutes, {
+        limits: deps.limits,
+        session,
+        projectAccess: requireProjectPermission(deps.metadata),
+        defaults: { ratePerMinute: config.rateLimitPerMinute, eventsPerDay: config.quotaEventsPerDay },
+      });
+    }
   });
 
   return app;
