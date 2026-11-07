@@ -1,19 +1,6 @@
-# Production stack for one VPS: Caddy (HTTPS), the published Jekimo API and
-# worker images, a one-shot migration job, and an optional local PostgreSQL.
-#
-#   cp .env.example .env    # then edit it; see docs/install-vps.md
-#   docker compose pull
-#   docker compose up -d
-#
-# Only Caddy publishes ports (80 and 443). The API, the worker, and PostgreSQL
-# are reachable on the Compose network only.
-#
-# Database:
-#   - Local PostgreSQL: set COMPOSE_PROFILES=local-db and JEKIMO_DB_PASSWORD.
-#   - Existing PostgreSQL: leave COMPOSE_PROFILES empty and set
-#     JEKIMO_DATABASE_URL to the restricted application account.
-#
-# Settings: docs/configuration.md. Guide: docs/install-vps.md.
+# Production stack for one VPS. Guide: docs/install-vps.md. Settings: docs/configuration.md.
+# Only Caddy publishes ports; Docker's port rules bypass the host firewall, so
+# the API and PostgreSQL stay on the Compose network.
 
 name: jekimo
 
@@ -23,9 +10,8 @@ x-logging: &logging
     max-size: "10m"
     max-file: "5"
 
-# The services read the database through the restricted application account
-# only. JEKIMO_DATABASE_URL wins when set; otherwise the URL points at the
-# local-db PostgreSQL service.
+# Services get the restricted account only, never the superuser password,
+# which is why no service uses env_file.
 x-database: &database
   JEKIMO_DATABASE_URL: ${JEKIMO_DATABASE_URL:-postgres://jekimo:${JEKIMO_DB_PASSWORD:-}@postgres:5432/jekimo}
   JEKIMO_DATABASE_POOL_MAX: ${JEKIMO_DATABASE_POOL_MAX:-10}
@@ -44,7 +30,6 @@ x-jekimo: &jekimo
   depends_on:
     postgres:
       condition: service_healthy
-      # Absent when the local-db profile is off and an existing database is used.
       required: false
     migrate:
       condition: service_completed_successfully
@@ -78,7 +63,7 @@ services:
     image: ghcr.io/bigbimbs/jekimo-api:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
     environment:
       <<: *database
-      # Caddy is the only client; trust its X-Forwarded-For for client addresses.
+      # Caddy is the API's only client.
       JEKIMO_TRUST_PROXY: "true"
       JEKIMO_MIGRATE_ON_START: "false"
       JEKIMO_MEMBERS_CAN_CREATE_PROJECTS: ${JEKIMO_MEMBERS_CAN_CREATE_PROJECTS:-true}
@@ -111,10 +96,7 @@ services:
       JEKIMO_WORKER_BATCH_SIZE: ${JEKIMO_WORKER_BATCH_SIZE:-10}
       JEKIMO_WORKER_POLL_MS: ${JEKIMO_WORKER_POLL_MS:-1000}
       JEKIMO_EXPIRY_INTERVAL_MINUTES: ${JEKIMO_EXPIRY_INTERVAL_MINUTES:-15}
-    # The worker has no HTTP endpoint yet, so it has no /readyz health check.
-    # It exits on a fatal error and is restarted by the policy above.
-  # Applies pending migrations and creates the coming week's event partitions,
-  # then exits. The API and the worker start only after it succeeds.
+    # No HTTP endpoint yet, so no /readyz health check; it exits on fatal errors.
   migrate:
     image: ghcr.io/bigbimbs/jekimo-api:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
     command: ["node", "dist/migrate.mjs"]
@@ -134,19 +116,15 @@ services:
         condition: service_healthy
         required: false
 
-  # Dashboard: planned, waits for the dashboard work (apps/web, issue #31).
-  # When ghcr.io/bigbimbs/jekimo-web is published it is added here and routed
-  # by the Caddyfile; until then the API serves only its JSON API.
+  # Dashboard placeholder until the web image exists (issue #31).
   # web:
   #   <<: *jekimo
   #   image: ghcr.io/bigbimbs/jekimo-web:${JEKIMO_VERSION}
   #   expose:
   #     - "8080"
 
-  # Local PostgreSQL, enabled with COMPOSE_PROFILES=local-db. On the first start
-  # (empty volume) postgres-init/ creates the restricted `jekimo` account and
-  # database and removes the superuser's password, so POSTGRES_ADMIN_PASSWORD
-  # is used once and can be deleted from .env afterwards.
+  # POSTGRES_ADMIN_PASSWORD is used only to initialise an empty volume;
+  # postgres-init/ then removes the superuser's password (docs/database-setup.md).
   postgres:
     image: postgres:16-alpine
     profiles: ["local-db"]

@@ -1,23 +1,17 @@
-# Caddy terminates HTTPS for Jekimo and is the only service with public ports.
-# It obtains and renews the certificate for JEKIMO_DOMAIN automatically once
-# DNS points at this server and ports 80 and 443 are reachable.
 # See docs/install-vps.md.
 
 {$JEKIMO_DOMAIN} {
 	encode zstd gzip
 
-	# The ingestion protocol limits a request body to 1 MiB; leave headroom
-	# for other API requests and refuse anything larger at the edge.
+	# Ingestion bodies are limited to 1 MiB (docs/ingestion-protocol.md).
 	request_body {
 		max_size 2MB
 	}
 
-	# Readiness names internal dependencies; it is for the container runtime,
-	# not the internet. /healthz stays public for uptime monitors.
+	# Readiness names internal dependencies; keep it off the internet.
 	respond /readyz 404
 
-	# Dashboard: planned (apps/web, issue #31). When the web image exists,
-	# route the API paths to the API and everything else to the dashboard:
+	# Once the dashboard image exists (issue #31):
 	#   handle /api/* {
 	#   	reverse_proxy api:8080
 	#   }

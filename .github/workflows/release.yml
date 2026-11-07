@@ -99,8 +99,7 @@ jobs:
           echo "Release notes for $VERSION:"
           cat release-notes.md
 
-      # SDK authors validate against this file, so a release must never carry
-      # a schema that does not parse or targets another JSON Schema draft.
+      # SDK authors validate against this file.
       - name: Check the event envelope JSON Schema
         env:
           SCHEMA: packages/event-schema/schema/event-envelope.v1.json
@@ -128,8 +127,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p release-assets
-          # Copied byte for byte from the tagged commit, with its checksum in
-          # sha256sum format as a separate asset for single-file downloads.
           cp packages/event-schema/schema/event-envelope.v1.json release-assets/
           (cd release-assets && sha256sum event-envelope.v1.json > event-envelope.v1.json.sha256)
           tar --sort=name --owner=0 --group=0 --numeric-owner \
