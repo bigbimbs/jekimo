@@ -6,6 +6,8 @@
 
 import { randomBytes } from "node:crypto";
 import {
+  checkDatabase,
+  checkQueue,
   createPool,
   INGEST_QUEUE,
   type IngestJob,
@@ -17,10 +19,15 @@ import {
   runMigrations,
 } from "@jekimo/storage-postgres";
 import { buildApp, loggerOptions } from "./app.js";
-import { loadApiConfig } from "./config.js";
+import { type ApiConfig, loadApiConfig } from "./config.js";
 
 async function main(): Promise<void> {
-  const config = loadApiConfig();
+  let config: ApiConfig;
+  try {
+    config = loadApiConfig();
+  } catch (err) {
+    throw new Error(`invalid configuration: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const pool = createPool({ applicationName: "jekimo-api" });
   if (migrateOnStart()) {
     const applied = await runMigrations(pool);
@@ -36,11 +43,11 @@ async function main(): Promise<void> {
     process.stdout.write(
       [
         "",
-        "  Jekimo has no users yet. Create the first instance admin with this one-time setup token:",
+        "  Jekimo has no users yet. Create the first instance admin and project with this one-time setup token:",
         "",
         `    ${setupToken}`,
         "",
-        '  POST /api/v1/setup with {"setup_token", "email", "password"}. See docs/local-development.md.',
+        '  POST /api/v1/setup with {"setup_token", "email", "password", "project_name"}. See docs/local-development.md.',
         "  The token is valid until setup completes or the API restarts.",
         "",
         "",
@@ -54,6 +61,7 @@ async function main(): Promise<void> {
     queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE, queuePolicyFromEnv()),
     config,
     setupToken,
+    readiness: { database: () => checkDatabase(pool), queue: () => checkQueue(pool) },
     logger: loggerOptions(config.logLevel),
   });
 

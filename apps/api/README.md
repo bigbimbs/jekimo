@@ -8,9 +8,10 @@ Fastify was chosen over Hono because it is Node-native and mature, gives per-rou
 
 | Method and path | Credential | Purpose |
 | --- | --- | --- |
-| `GET /healthz` | none | Liveness, including a database round trip. |
-| `GET /api/v1/setup` | none | Whether the instance still needs its first admin. |
-| `POST /api/v1/setup` | setup token printed at start | Creates the first instance admin. |
+| `GET /healthz` | none | Liveness: the process is up. Touches no dependency. |
+| `GET /readyz` | none | Readiness: the database and the queue answer within 2 seconds; `503` with `error.code` `not_ready` otherwise. |
+| `GET /api/v1/setup` | none | `{"setup_required": true}` while setup is open; `404` once it has completed. |
+| `POST /api/v1/setup` | setup token printed at start | Creates the first instance admin, the first project, and its ingestion key (returned once). `404` once setup has completed. |
 | `POST /api/v1/auth/login` | email and password | Starts a session (cookie) and returns a CSRF token. |
 | `GET /api/v1/auth/session` | session | Current user and CSRF token. |
 | `POST /api/v1/auth/logout` | session + CSRF | Ends the session. |

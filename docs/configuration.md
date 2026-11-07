@@ -26,7 +26,7 @@ The first release uses one database role for migrations and runtime. A restricte
 | --- | --- | --- |
 | `JEKIMO_API_HOST` | `127.0.0.1` | Listen address. The container image sets `0.0.0.0`. |
 | `JEKIMO_API_PORT` | `8080` | Listen port. |
-| `JEKIMO_LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, or `trace`. Logs are JSON and never contain ingestion keys, passwords, session tokens, or event payloads. |
+| `JEKIMO_LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, or `trace`, in lower case; any other value stops the API at start-up. Logs are JSON and never contain ingestion keys, passwords, session tokens, or event payloads. |
 | `JEKIMO_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` from a reverse proxy when recording the client address in the audit log. Enable only behind a proxy you control. |
 | `JEKIMO_MEMBERS_CAN_CREATE_PROJECTS` | `true` | Whether instance members, not only admins, may create projects. |
 | `JEKIMO_SESSION_IDLE_DAYS` | `14` | Session idle timeout. At most `JEKIMO_SESSION_MAX_DAYS`. |

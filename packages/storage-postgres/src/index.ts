@@ -1,5 +1,6 @@
 export { hasProjectPermission, type ProjectAccess } from "./access.js";
 export { daysFrom, PostgresEventStore, partitionName, searchWords } from "./event-store.js";
+export { checkDatabase, checkQueue } from "./health.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export {
   defaultMigrationsDir,
