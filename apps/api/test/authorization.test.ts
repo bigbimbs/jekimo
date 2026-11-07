@@ -17,6 +17,7 @@ interface Route {
 }
 
 const MATRIX_EVENT_ID = "01JBQ4Z3H8X9T2K7M5N6P8R9SV";
+let matrixIssueId = "";
 
 const ROUTES: Route[] = [
   { method: "GET", url: (id) => `/api/v1/projects/${id}`, permission: "project.read", ok: 200 },
@@ -28,6 +29,21 @@ const ROUTES: Route[] = [
     ok: 200,
   },
   { method: "POST", url: (id) => `/api/v1/projects/${id}/keys`, permission: "keys.manage", ok: 201 },
+  { method: "GET", url: (id) => `/api/v1/projects/${id}/issues`, permission: "project.read", ok: 200 },
+  {
+    method: "GET",
+    url: (id) => `/api/v1/projects/${id}/issues/${matrixIssueId}`,
+    permission: "project.read",
+    ok: 200,
+  },
+  ...["resolve", "ignore", "reopen"].map(
+    (action): Route => ({
+      method: "POST",
+      url: (id) => `/api/v1/projects/${id}/issues/${matrixIssueId}/${action}`,
+      permission: "issues.manage",
+      ok: 200,
+    }),
+  ),
 ];
 
 const BUILT_IN: Record<string, ProjectPermission[]> = {
@@ -47,6 +63,19 @@ beforeAll(async () => {
   owner = await signIn(h, "owner@example.test");
   ({ projectId, key } = await projectWithKey(h, owner, "prj_matrix"));
   await storeEvent(h, projectId, { event_id: MATRIX_EVENT_ID });
+  await h.metadata.upsertIssues(projectId, [
+    {
+      fingerprint: "fp-test",
+      title: "synthetic test event",
+      kind: "log",
+      lastSeverity: "info",
+      eventCount: 1,
+      firstSeen: h.now.value,
+      lastSeen: h.now.value,
+      lastEventId: MATRIX_EVENT_ID,
+    },
+  ]);
+  matrixIssueId = h.metadata.issues[0]!.id;
   for (const [role, permissions] of Object.entries(BUILT_IN)) {
     const user = await signIn(h, `${role}@example.test`);
     setRole(h, projectId, user.userId, role);

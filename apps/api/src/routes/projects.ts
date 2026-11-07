@@ -63,7 +63,7 @@ export function publicProject(p: ProjectRecord) {
   };
 }
 
-function parseTime(value: unknown, name: string): Date | undefined {
+export function parseTime(value: unknown, name: string): Date | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || !TIMESTAMP_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
     throw new ApiError(400, "invalid_request", `${name} must be an RFC 3339 timestamp`);
@@ -72,7 +72,7 @@ function parseTime(value: unknown, name: string): Date | undefined {
 }
 
 /** A comma-separated list of allowed values, or undefined when absent. */
-function parseList<T extends string>(value: unknown, name: string, allowed: readonly T[]): T[] | undefined {
+export function parseList<T extends string>(value: unknown, name: string, allowed: readonly T[]): T[] | undefined {
   if (value === undefined) return undefined;
   const list = String(value)
     .split(",")
@@ -85,7 +85,7 @@ function parseList<T extends string>(value: unknown, name: string, allowed: read
 }
 
 /** One exact-match value no longer than the envelope allows for that field. */
-function parseExact(value: unknown, name: string, maxChars: number): string | undefined {
+export function parseExact(value: unknown, name: string, maxChars: number): string | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || value.length < 1 || value.length > maxChars) {
     throw new ApiError(400, "invalid_request", `${name} must be 1 to ${maxChars} characters`);
@@ -93,7 +93,7 @@ function parseExact(value: unknown, name: string, maxChars: number): string | un
   return value;
 }
 
-function publicEvent(e: StoredEvent) {
+export function publicEvent(e: StoredEvent) {
   return {
     received_at: e.receivedAt.toISOString(),
     key_id: e.keyId,

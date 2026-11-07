@@ -4,6 +4,7 @@ import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo
 import pino from "pino";
 import { beforeEach, describe, expect, it } from "vitest";
 import { counterRetentionStart, processIngestJob, runExpiryPass } from "../src/process.js";
+import { recomputeIssues } from "../src/recompute.js";
 import { RedactorCache } from "../src/redact.js";
 import { Worker } from "../src/worker.js";
 
@@ -397,5 +398,115 @@ describe("Worker", () => {
     await new Promise((r) => setTimeout(r, 30));
     await worker.stop();
     expect(events.rows).toHaveLength(1);
+  });
+});
+
+describe("issues", () => {
+  let now: Date;
+  let owner: { userId: string; instanceRole: "member" };
+
+  beforeEach(async () => {
+    now = new Date("2026-11-05T10:00:00.000Z");
+    metadata = new MemoryMetadataRepository(() => now);
+    const user = metadata.addUser("owner@example.test", "hash", "member");
+    owner = { userId: user.id, instanceRole: "member" };
+    await metadata.createProject(owner, { id: "prj_test", name: "Test", retentionDays: 30 });
+  });
+
+  async function setStatus(status: "resolved" | "ignored") {
+    const access = await metadata.resolveProjectAccess(owner, "prj_test");
+    await metadata.setIssueStatus(access!, metadata.issues[0]!.id, status);
+  }
+
+  it("records the latest event and the environments seen", async () => {
+    await processIngestJob(
+      job([ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", { environment: "staging" })], "2026-11-05T09:15:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    await processIngestJob(
+      job([ev("01JBQ50A6D2V8W4Y1Z3X5C7B9N", { environment: "production" })], "2026-11-05T09:20:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    expect(metadata.issues).toHaveLength(1);
+    expect(metadata.issues[0]).toMatchObject({
+      eventCount: 2,
+      lastEventId: "01JBQ50A6D2V8W4Y1Z3X5C7B9N",
+      environments: ["production", "staging"],
+    });
+    // A late redelivery of the older job does not move the latest event back.
+    await processIngestJob(
+      job([ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", { environment: "staging" })], "2026-11-05T09:15:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    expect(metadata.issues[0]!.lastEventId).toBe("01JBQ50A6D2V8W4Y1Z3X5C7B9N");
+  });
+
+  it("reopens a resolved issue that receives a new event, and audit-logs the regression", async () => {
+    await processIngestJob(
+      job([ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV")], "2026-11-05T09:15:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    await setStatus("resolved");
+    // An event received before the resolution, processed late, does not reopen it.
+    await processIngestJob(
+      job([ev("01JBQ50A6D2V8W4Y1Z3X5C7B9N")], "2026-11-05T09:59:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    expect(metadata.issues[0]!.status).toBe("resolved");
+
+    now = new Date("2026-11-05T10:05:00.000Z");
+    await processIngestJob(
+      job([ev("01JBQ5B7R4M2N8P6Q3S1T9V5W7")], "2026-11-05T10:01:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    expect(metadata.issues[0]).toMatchObject({ status: "unresolved", eventCount: 3 });
+    expect(metadata.audit.at(-1)).toMatchObject({
+      action: "issue.regressed",
+      actorUserId: null,
+      targetType: "issue",
+      targetId: metadata.issues[0]!.id,
+      details: { from: "resolved", to: "unresolved" },
+    });
+  });
+
+  it("keeps an ignored issue ignored", async () => {
+    await processIngestJob(
+      job([ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV")], "2026-11-05T09:15:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    await setStatus("ignored");
+    await processIngestJob(
+      job([ev("01JBQ50A6D2V8W4Y1Z3X5C7B9N")], "2026-11-05T10:30:00.000Z"),
+      { metadata, events },
+      ctx(),
+    );
+    expect(metadata.issues[0]).toMatchObject({ status: "ignored", eventCount: 2 });
+  });
+});
+
+describe("recomputeIssues", () => {
+  it("rebuilds counts from the event store and deletes issues with no events", async () => {
+    await processIngestJob(
+      job([ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV"), ev("01JBQ50A6D2V8W4Y1Z3X5C7B9N", { message: "payment failed" })]),
+      { metadata, events },
+      ctx(),
+    );
+    const shipped = metadata.issues.find((i) => i.title === "order 1001 shipped")!;
+    shipped.eventCount = 99;
+    // Lose the second issue's events behind the worker's back.
+    events.rows.splice(
+      events.rows.findIndex((r) => r.event.message === "payment failed"),
+      1,
+    );
+    const result = await recomputeIssues({ metadata, events });
+    expect(result).toEqual({ projects: 1, fingerprints: 1 });
+    expect(metadata.issues.map((i) => [i.title, i.eventCount])).toEqual([["order 1001 shipped", 1]]);
   });
 });

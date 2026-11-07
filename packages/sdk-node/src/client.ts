@@ -8,8 +8,10 @@
  */
 
 import {
+  createKeyRedactor,
   INGEST_PATH,
   type IngestResponse,
+  type KeyRedactor,
   LIMITS,
   normalizeSampleRate,
   parseIngestionKey,
@@ -38,7 +40,6 @@ import type {
   Severity,
   Transport,
 } from "./index.js";
-import { createRedactor, type KeyRedactor } from "./redact.js";
 import { attempt, MAX_ATTEMPTS, prepareBody, REQUEST_TIMEOUT_MS, requestHeaders, retryDelay } from "./transport.js";
 import { createUlidGenerator } from "./ulid.js";
 import { NAME, VERSION } from "./version.js";
@@ -160,7 +161,10 @@ export class Client implements JekimoClient {
       (typeof globalThis.fetch === "function"
         ? (url, request) => globalThis.fetch(url, request as RequestInit)
         : (undefined as unknown as Transport));
-    this.redact = createRedactor(options.redactKeys, options.redactPatterns);
+    this.redact = createKeyRedactor({
+      ...(options.redactKeys && { extraKeys: options.redactKeys }),
+      ...(options.redactPatterns && { patterns: options.redactPatterns }),
+    });
     this.sampleRate = normalizeSampleRate(options.sampleRate ?? 1);
     this.maxQueueSize = positiveInt(options.maxQueueSize, DEFAULTS.maxQueueSize);
     this.flushIntervalMs = positiveInt(options.flushIntervalMs, DEFAULTS.flushIntervalMs);
