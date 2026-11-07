@@ -199,6 +199,23 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
         throw new IngestError("unavailable", "the server could not accept events; retry later", RETRY_AFTER_SECONDS);
       }
     }
+    // Daily `rejected` counter (docs/retention.md, "What is retained"). One
+    // statement, attempted once per request and never retried, so it applies
+    // at most once. The events are already queued, so a failure here is
+    // logged and the 202 stands: a retrying client would only add repeats.
+    if (result.rejected.length > 0) {
+      try {
+        await opts.metadata.incrementDailyCounters(projectId, {
+          day: receivedAt.toISOString().slice(0, 10),
+          rejected: result.rejected.length,
+        });
+      } catch (err) {
+        request.log.warn(
+          { err: { type: (err as Error).name, message: (err as Error).message }, project_id: projectId },
+          "rejected counter update failed",
+        );
+      }
+    }
     request.log.info(
       {
         project_id: projectId,

@@ -162,6 +162,8 @@ describe("accepted requests", () => {
     expect(job.skew_ms).toBe(1000);
     expect(job.events.map((e) => e.event_id)).toEqual(body.accepted);
     expect(job.events.every((e) => e.project_id === undefined)).toBe(true);
+    // Rejections are counted here; accepted events are counted by the worker.
+    expect(h.metadata.counters.get(projectId)?.get("2026-11-05")).toMatchObject({ accepted: 0, rejected: 2 });
   });
 
   it("returns 202 with only rejections and queues nothing", async () => {
@@ -169,14 +171,29 @@ describe("accepted requests", () => {
     expect(res.statusCode).toBe(202);
     expect(res.json().accepted).toEqual([]);
     expect(h.queue.jobs).toHaveLength(0);
+    expect(h.metadata.counters.get(projectId)?.get("2026-11-05")?.rejected).toBe(1);
+  });
+
+  it("still returns 202 when the rejected counter cannot be updated", async () => {
+    h.metadata.incrementDailyCounters = async () => {
+      throw new Error("metadata down");
+    };
+    const res = await ingest({
+      events: [ingestEvent(), ingestEvent({ event_id: "01JBQ50A6D2V8W4Y1Z3X5C7B9N", severity: "loud" })],
+    });
+    expect(res.statusCode).toBe(202);
+    expect(h.queue.jobs).toHaveLength(1);
   });
 
   it("returns 503 with Retry-After and acknowledges nothing when the queue fails", async () => {
     h.queue.failEnqueue = true;
-    const res = await ingest({ events: [ingestEvent()] });
+    const res = await ingest({
+      events: [ingestEvent(), ingestEvent({ event_id: "01JBQ50A6D2V8W4Y1Z3X5C7B9N", severity: "loud" })],
+    });
     expect(res.statusCode).toBe(503);
     expect(res.headers["retry-after"]).toBe("5");
     expect(res.json()).toEqual({ error: { code: "unavailable", message: expect.any(String), retry_after: 5 } });
+    expect(h.metadata.counters.get(projectId)).toBeUndefined();
   });
 
   it("returns 503 with a longer Retry-After when the queue is full", async () => {

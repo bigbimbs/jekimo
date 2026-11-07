@@ -10,6 +10,7 @@
     { "path": "./apps/api" },
     { "path": "./apps/web" },
     { "path": "./apps/worker" },
-    { "path": "./apps/worker/test" }
+    { "path": "./apps/worker/test" },
+    { "path": "./apps/worker/bench" }
   ]
 }
