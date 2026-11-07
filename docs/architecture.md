@@ -50,6 +50,29 @@ With those rules, offering ClickHouse is an additional implementation of one int
 
 Engines considered and not chosen for the core: Elasticsearch and OpenSearch (best full-text search, heaviest operational footprint), Loki (cheap and object-storage native, weak at structured search), VictoriaLogs (lightweight and promising, still young).
 
+## Dashboard
+
+The dashboard in `apps/web` is a single-page app built with:
+
+- **Vite**, **React**, and **TypeScript**, under the shared `tsconfig.base.json` settings.
+- **Tailwind CSS** for styling.
+- **shadcn/ui** for components. Its components are copied into `apps/web` as source and maintained there, so they are linted and formatted by Biome like the rest of the repository and there is no runtime UI dependency to track. They are built on Radix UI primitives for accessibility.
+- **TanStack Query** for calls to the query API.
+
+The built dashboard is static files served by the instance. Every script, stylesheet, font, and icon is bundled into the build; the dashboard loads nothing from a CDN or other third-party host, so it works on private networks and a user's browser contacts only the Jekimo instance.
+
+### Translation
+
+The dashboard ships in English only, but it is built so other languages can be added without touching components:
+
+- **Every user-visible string comes from a message catalogue.** Catalogues live in `apps/web/src/locales/<locale>/<namespace>.json`, with English (`en`) as the source language. Components never contain literal UI text.
+- **Messages use ICU MessageFormat** through i18next with its ICU plugin (`react-i18next`, `i18next-icu`), so plurals, selects, and variables work for languages whose rules differ from English. Message keys are typed from the English catalogue, and a check in `npm run check` fails on a missing or extra key, an empty value, invalid ICU syntax, or variable names that differ between locales.
+- **Dates, times, numbers, and durations are formatted with the `Intl` APIs** for the active locale, never by hand.
+- **Layouts use logical CSS properties** (Tailwind's `ms-`/`me-`, `ps-`/`pe-`, `start`/`end`), and the root element sets `lang` and `dir`, so a right-to-left language needs no layout rewrite.
+- **The locale is resolved in this order:** the signed-in user's saved preference (a `locale` setting planned with user profiles), then the browser's languages with regional tags falling back to their base language, then English. A locale without a catalogue is not offered.
+
+The API does not translate. Every error carries a stable `code` alongside an English `message` (see [ingestion-protocol.md](ingestion-protocol.md)); the dashboard renders text from the code and shows the English message only for codes it does not know. Server logs stay in English. Captured event data (messages, exception values, stack traces, attributes) is the user's data and is never translated. Adding a language means adding catalogues and listing the locale; no component, API, or schema changes.
+
 ## Deployment
 
 Docker Compose will run the app on one VPS. Setup will connect an existing PostgreSQL datasource or provision PostgreSQL locally. Provisioning credentials are one-time setup secrets; runtime services use a restricted application account.
