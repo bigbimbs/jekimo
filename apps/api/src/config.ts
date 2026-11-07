@@ -17,9 +17,8 @@ export interface ApiConfig {
   sessionMaxDays: number;
   retentionDefaultDays: number;
   retentionMaxDays: number;
-  /** Instance-wide rate limit for projects without their own, events per minute. */
   rateLimitPerMinute: number;
-  /** Instance-wide daily quota for projects without their own; null for none. */
+  /** Null: no quota. */
   quotaEventsPerDay: number | null;
 }
 

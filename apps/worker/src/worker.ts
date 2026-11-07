@@ -2,11 +2,6 @@
  * The worker loop: drain the ingest queue in batches, ack or fail each job,
  * and run the expiry pass on an interval. Logs carry job ids, project ids,
  * and counts, never event payloads.
- *
- * Disk safety (docs/retention.md): the worker checks free space on the
- * database volume every minute. From the critical level until free space is
- * back above the warning level, the expiry pass runs every minute with
- * retention cut to min(configured, 7 days), oldest days first.
  */
 
 import type { DiskLevel } from "@jekimo/event-schema";
@@ -24,15 +19,14 @@ export interface WorkerOptions {
   pollMs: number;
   expiryIntervalMs: number;
   clock?: () => Date;
-  /** Free space on the database volume. Absent: not checked. */
   disk?: DiskMonitor;
-  /** Default 60 seconds. */
+  /** Default 60000. */
   diskCheckIntervalMs?: number;
   retentionDefaultDays?: number;
   retentionMaxDays?: number;
 }
 
-/** docs/retention.md, "Disk safety": at the critical level expiry runs every minute. */
+/** docs/retention.md, "Disk safety". */
 const EMERGENCY_EXPIRY_INTERVAL_MS = 60_000;
 
 const sleep = (ms: number, signal: AbortSignal) =>
@@ -55,9 +49,9 @@ export class Worker {
   private running: Promise<void> | undefined;
   private lastDiskCheck = Number.NEGATIVE_INFINITY;
   private diskLevel: DiskLevel | undefined;
-  /** True from the critical level until the disk is back above the warning level. */
+  /** docs/retention.md: from the critical level until free space is back above the warning level. */
   emergency = false;
-  /** The first pass after a start, and the one after a failed pass, recount every project. */
+  /** A crashed or failed pass may have removed events without recounting their issues. */
   private recountAll = true;
 
   constructor(private readonly opts: WorkerOptions) {
@@ -106,7 +100,6 @@ export class Worker {
     return jobs.length;
   }
 
-  /** Reads the disk level when due and enters or leaves emergency expiry. */
   async checkDiskIfDue(): Promise<void> {
     const disk = this.opts.disk;
     if (!disk) return;
@@ -114,8 +107,7 @@ export class Worker {
     if (now - this.lastDiskCheck < (this.opts.diskCheckIntervalMs ?? 60_000)) return;
     this.lastDiskCheck = now;
     const status = await disk.status();
-    // Never delete data early on a reading that failed; the API already
-    // refuses ingestion while free space is unknown.
+    // Never delete data early on an unknown reading; the API already fails closed.
     if (status.freePercent === null) return;
     const level = status.level;
     if (level !== this.diskLevel) {
@@ -126,7 +118,6 @@ export class Worker {
       const line = { disk_level: level, previous, free_percent: fields.free_percent };
       if (level === "ok") this.opts.log.info(line, "disk level changed");
       else this.opts.log[level === "warn" ? "warn" : "error"](line, "disk level changed");
-      // The warning level and worse leave an audit entry (docs/retention.md).
       if (previous !== null || level !== "ok") {
         try {
           await this.opts.metadata.appendAudit({ action: "instance.disk_level_changed", details: fields });
@@ -161,7 +152,7 @@ export class Worker {
       });
       this.recountAll = false;
       if (emergency) {
-        // Data removed before its configured retention: one line per project.
+        // docs/retention.md: emergency expiry is logged per project with the count.
         for (const p of result.perProject) {
           this.opts.log.warn(
             { project_id: p.projectId, deleted_events: p.deleted, retention_days: p.retentionDays },

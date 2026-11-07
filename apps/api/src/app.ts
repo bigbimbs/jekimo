@@ -28,9 +28,9 @@ export interface AppDeps {
   metadata: MetadataRepository;
   events: EventStore;
   queue: Queue<IngestJob>;
-  /** Per-project rate limits and quotas. Absent: ingest is not limited, for tests only. */
+  /** Absent only in tests: ingest is then not limited. */
   limits?: IngestLimitStore;
-  /** Free space on the database volume. Absent: not checked, for tests only. */
+  /** Absent only in tests: disk space is then not checked. */
   disk?: DiskMonitor;
   config?: Partial<ApiConfig>;
   /** The one-time setup token, or null when setup is closed. */

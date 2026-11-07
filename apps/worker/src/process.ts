@@ -31,6 +31,7 @@ import {
 } from "@jekimo/storage-postgres";
 import { fingerprintOf, issueTitle } from "./fingerprint.js";
 import { RedactorCache, redactEvent } from "./redact.js";
+import type { ExpiryOptions } from "./types/expiry.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -151,33 +152,10 @@ export interface ExpiryResult {
   projectsTouched: number;
   dedupePruned: number;
   countersPruned: number;
-  /** Projects that lost events in this pass, with the retention applied. */
   perProject: { projectId: string; deleted: number; retentionDays: number }[];
 }
 
-export interface ExpiryOptions {
-  /**
-   * Disk at the critical level (docs/retention.md, "Disk safety"): every
-   * project's retention is min(configured, 7 days) for this pass.
-   */
-  emergency?: boolean;
-  /**
-   * Recount every project's issues, not only those that lost events here.
-   * Set for the first pass after a start and after a failed pass, so events
-   * an interrupted pass removed are reflected in issue counts.
-   */
-  recountAll?: boolean;
-  /** JEKIMO_RETENTION_DEFAULT_DAYS: for a stored period that is not valid. */
-  retentionDefaultDays?: number;
-  /** JEKIMO_RETENTION_MAX_DAYS: longer stored periods are cut to it. */
-  retentionMaxDays?: number;
-}
-
-/**
- * The retention period the expiry pass applies to a project: its stored
- * setting when valid, else the instance default, and never more than the
- * instance maximum (docs/retention.md, "Project retention period").
- */
+/** docs/retention.md, "Project retention period". */
 export function projectRetentionDays(
   stored: number,
   defaultDays: number = RETENTION.DEFAULT_DAYS,
@@ -190,14 +168,9 @@ export function projectRetentionDays(
 /**
  * One expiry pass (docs/retention.md, "Expiry mechanics"): drop each
  * project's days whose newest possible event has passed retention, oldest
- * day first, recount the issues of each project that lost events from the
- * event store, prune the deduplication index, drop daily counters older than
+ * day first, recount the issues of each project that lost events, prune the deduplication index, drop daily counters older than
  * 13 months with counter idempotency keys older than the deduplication
  * window, and create the next week's partitions.
- *
- * Idempotent and safe to interrupt: expireDay is, an expired day yields
- * nothing the second time, and a pass that stopped before recounting is
- * followed by one with `recountAll`.
  */
 export async function runExpiryPass(
   deps: ProcessDeps,

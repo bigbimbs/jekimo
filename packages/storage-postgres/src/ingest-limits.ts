@@ -1,104 +1,43 @@
 /**
  * Per-project ingestion rate limits and daily quotas (docs/ingestion-protocol.md,
- * "Rate limits and quotas"; docs/retention.md, "Quotas").
- *
- * Usage is counted in PostgreSQL, one row per project holding the events
- * admitted in the current UTC minute (a fixed window) and the current UTC
- * day. Every API process reads and updates that row under a row lock, so the
- * limits hold with more than one API process and a restart does not reset a
- * project to a full window.
+ * "Rate limits and quotas"; docs/retention.md, "Quotas"). Usage is one row per
+ * project, updated under a row lock, so the limits hold across API processes
+ * and survive restarts.
  */
 
 import { assertProjectAccess, type ProjectAccess } from "./access.js";
+import { INGEST_LIMIT_BOUNDS, type IngestChargeOutcome } from "./constants/ingest-limits.js";
 import { insertAudit } from "./metadata.js";
 import { type Pool, withTransaction } from "./pool.js";
+import type {
+  IngestChargeResult,
+  IngestLimitSettings,
+  IngestLimitStore,
+  IngestLimits,
+  IngestUsage,
+  IngestUsageRow,
+} from "./types/ingest-limits.js";
 import type { Actor } from "./types.js";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-/** Accepted values for per-project settings and the instance-wide defaults. */
-export const INGEST_LIMIT_BOUNDS = {
-  /** One full request of 100 events must always fit in a window. */
-  MIN_PER_MINUTE: 100,
-  MAX_PER_MINUTE: 1_000_000,
-  MIN_PER_DAY: 1,
-  MAX_PER_DAY: 1_000_000_000_000,
-} as const;
-
-/** The default rate limit, events per minute per project. */
-export const DEFAULT_RATE_LIMIT_PER_MINUTE = 1000;
-
-/** A project's own settings. Null inherits the instance-wide default. */
-export interface IngestLimitSettings {
-  rateLimitPerMinute: number | null;
-  /** Daily quota in events. Null inherits the instance default, which may be no quota. */
-  eventsPerDay: number | null;
-}
-
-/** The limits that apply to a project after defaults are resolved. */
-export interface IngestLimits {
-  ratePerMinute: number;
-  /** Null when the project has no quota. */
-  eventsPerDay: number | null;
-}
-
-/** Events admitted so far in the current UTC minute and day. */
-export interface IngestUsage {
-  minuteEvents: number;
-  dayEvents: number;
-}
-
-export type IngestChargeOutcome = "admitted" | "rate_limited" | "quota_exceeded";
-
-export interface IngestChargeResult extends IngestUsage {
-  outcome: IngestChargeOutcome;
-}
-
-/** The stored row, or what an absent row stands for. */
-export interface IngestUsageRow {
-  minuteStart: Date;
-  minuteEvents: number;
-  day: string;
-  dayEvents: number;
-}
-
-export interface IngestLimitStore {
-  /** The project's settings and current usage, or null when the project does not exist. */
-  read(projectId: string, now: Date): Promise<(IngestLimitSettings & IngestUsage) | null>;
-  /**
-   * Charges one request's events against the project's minute and day in one
-   * atomic step. See decideCharge for the rules.
-   */
-  charge(projectId: string, now: Date, events: number, limits: IngestLimits): Promise<IngestChargeResult>;
-  /** Readable by anyone who can read the project. */
-  getSettings(access: ProjectAccess): Promise<IngestLimitSettings>;
-  /** Instance admins only (docs/retention.md, "Quotas"). Validated; returns what was stored. */
-  setSettings(
-    actor: Actor,
-    access: ProjectAccess,
-    settings: IngestLimitSettings,
-    sourceIp?: string,
-  ): Promise<IngestLimitSettings>;
-}
-
-/** Start of the UTC minute that contains `now`. */
 export function minuteStart(now: Date): Date {
   return new Date(Math.floor(now.getTime() / MINUTE_MS) * MINUTE_MS);
 }
 
-/** Whole seconds, at least 1, until the current UTC minute ends. */
+/** Whole seconds, at least 1. */
 export function secondsUntilNextMinute(now: Date): number {
   return Math.max(1, Math.ceil((minuteStart(now).getTime() + MINUTE_MS - now.getTime()) / 1000));
 }
 
-/** Whole seconds, at least 1, until the next midnight UTC. */
+/** Whole seconds, at least 1. */
 export function secondsUntilNextUtcDay(now: Date): number {
   const midnight = Math.floor(now.getTime() / DAY_MS) * DAY_MS + DAY_MS;
   return Math.max(1, Math.ceil((midnight - now.getTime()) / 1000));
 }
 
-/** Usage in the minute and day that contain `now`; counts from earlier windows are zero. */
+/** Counts from an earlier minute or day are zero. */
 export function currentUsage(row: IngestUsageRow | null, now: Date): IngestUsage {
   if (!row) return { minuteEvents: 0, dayEvents: 0 };
   return {
@@ -108,16 +47,10 @@ export function currentUsage(row: IngestUsageRow | null, now: Date): IngestUsage
 }
 
 /**
- * Decides one request of `events` events, quota first (processing step 2),
- * then the rate limit (step 3):
- *
- * - Over the daily quota: `quota_exceeded`. The events still count toward the
- *   minute, so a project over quota stays bounded by its rate limit.
- * - Over the minute: `rate_limited`, nothing counted.
- * - Otherwise `admitted`, counted toward both.
- *
- * A request is admitted only when all of its events fit, so a window admits
- * exactly `limit` events and never `limit + 1`.
+ * Quota first (processing step 2), then the rate limit (step 3). A request is
+ * admitted only when all its events fit, so a window admits exactly the
+ * limit. Events refused for quota still count toward the minute, so a project
+ * over quota stays bounded by its rate limit.
  */
 export function decideCharge(
   row: IngestUsageRow | null,
@@ -213,13 +146,12 @@ export class PostgresIngestLimitStore implements IngestLimitStore {
 
   charge(projectId: string, now: Date, events: number, limits: IngestLimits): Promise<IngestChargeResult> {
     return withTransaction(this.pool, async (client) => {
-      // Make sure the row exists, then lock it: concurrent requests for the
-      // project, from any API process, are decided one at a time.
       await client.query(
         `INSERT INTO project_ingest_usage (project_id, minute_start, day) VALUES ($1, $2, $3::date)
          ON CONFLICT (project_id) DO NOTHING`,
         [projectId, minuteStart(now).toISOString(), now.toISOString().slice(0, 10)],
       );
+      // The row lock serializes concurrent requests for the project from every API process.
       const { rows } = await client.query<UsageRow>(
         `SELECT minute_start, minute_events, to_char(day, 'YYYY-MM-DD') AS day, day_events
          FROM project_ingest_usage WHERE project_id = $1 FOR UPDATE`,

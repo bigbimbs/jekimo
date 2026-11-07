@@ -36,7 +36,7 @@ const JSON_CONTENT_TYPE = /^application\/json\s*(;\s*charset\s*=\s*"?utf-8"?\s*)
 const RETRY_AFTER_SECONDS = 5;
 /** A full queue drains at the worker's pace, so clients wait longer. */
 const QUEUE_FULL_RETRY_AFTER_SECONDS = 30;
-/** docs/retention.md, "Disk safety": the full level answers 503 with Retry-After: 60. */
+/** docs/retention.md, "Disk safety". */
 const DISK_FULL_RETRY_AFTER_SECONDS = 60;
 
 class IngestError extends Error {
@@ -60,11 +60,10 @@ export interface IngestRouteOptions {
   queue: Queue<IngestJob>;
   clock: () => Date;
   maxBodyBytes?: number;
-  /** Rate limits and quotas (processing steps 2 and 3). Absent: no limits, for tests only. */
+  /** Absent only in tests: ingest is then not limited. */
   limits?: IngestLimitStore;
-  /** Instance-wide defaults for projects without their own settings. */
   limitDefaults?: IngestLimits;
-  /** Free space on the database volume. Absent: not checked, for tests only. */
+  /** Absent only in tests: disk space is then not checked. */
   disk?: DiskMonitor;
 }
 
@@ -83,7 +82,7 @@ function rateLimited(limits: IngestLimits, now: Date): IngestError {
   );
 }
 
-/** Over quota until midnight UTC (docs/retention.md, "Quotas"). */
+/** docs/retention.md, "Quotas": refused until midnight UTC. */
 function quotaExceeded(limits: IngestLimits, now: Date): IngestError {
   return new IngestError(
     "quota_exceeded",
@@ -187,8 +186,7 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
     ) {
       throw new IngestError("unauthorized", "missing, malformed, unknown, or revoked ingestion key");
     }
-    // The project is known from here on, so every response carries the
-    // X-RateLimit-* headers. A 401 has none: no project was identified.
+    // A 401 carries no X-RateLimit-* headers: no project is known.
     let limits: IngestLimits | undefined;
     let usage: { minuteEvents: number; dayEvents: number } | undefined;
     if (opts.limits) {
@@ -202,8 +200,6 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
       setRateLimitHeaders(reply, limits, read.minuteEvents, receivedAt);
     }
     if (record.projectDisabled) throw new IngestError("project_disabled", "project is disabled");
-    // Disk safety: refuse new events before the database volume fills. The
-    // monitor fails closed, so an unknown free space also refuses.
     if (opts.disk && (await opts.disk.status()).level === "full") {
       throw new IngestError(
         "unavailable",
@@ -211,9 +207,8 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
         DISK_FULL_RETRY_AFTER_SECONDS,
       );
     }
-    // Steps 2 and 3 before the body is read: a full minute refuses at once.
-    // A project over quota whose minute still has room is read so its events
-    // can be counted as dropped, and the charge after parsing refuses it.
+    // A full minute refuses before the body is read. A project over quota
+    // with room in its minute is read so its dropped events can be counted.
     if (limits && usage && usage.minuteEvents >= limits.ratePerMinute) {
       const overQuota = limits.eventsPerDay !== null && usage.dayEvents >= limits.eventsPerDay;
       throw overQuota ? quotaExceeded(limits, receivedAt) : rateLimited(limits, receivedAt);
@@ -248,14 +243,11 @@ export async function ingestRoutes(app: FastifyInstance, opts: IngestRouteOption
       reply.status(result.status).send(result.response);
       return;
     }
-    // Steps 2 and 3, exactly: charge every event in the request against the
-    // project's day and minute in one atomic step, shared by all API processes.
     if (opts.limits && limits) {
       const events = result.accepted.length + result.duplicates.length + result.rejected.length;
       const charged = await opts.limits.charge(projectId, receivedAt, events, limits);
       setRateLimitHeaders(reply, limits, charged.minuteEvents, receivedAt);
       if (charged.outcome === "quota_exceeded") {
-        // Dropped, not queued (docs/retention.md, "Quotas"), and counted.
         // Best effort, like the rejected counter below.
         try {
           await opts.metadata.incrementDailyCounters(projectId, {

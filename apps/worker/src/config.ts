@@ -13,9 +13,7 @@ export interface WorkerConfig {
   pollMs: number;
   /** docs/retention.md requires an expiry pass at least every 15 minutes. */
   expiryIntervalMinutes: number;
-  /** For projects whose stored retention is not valid. */
   retentionDefaultDays: number;
-  /** No project keeps events longer than this. */
   retentionMaxDays: number;
 }
 

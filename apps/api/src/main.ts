@@ -70,7 +70,6 @@ async function main(): Promise<void> {
     disk: new DiskMonitor({
       probe: diskProbeFor(disk, pool),
       thresholds: disk.thresholds,
-      // Ingest refuses while the probe fails; say why in the logs.
       onError: (err) => app.log.error({ err }, "disk probe failed; refusing ingestion"),
     }),
     config,

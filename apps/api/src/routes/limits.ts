@@ -1,30 +1,13 @@
-/**
- * A project's ingestion rate limit and daily quota (docs/ingestion-protocol.md,
- * "Rate limits and quotas"; docs/retention.md, "Quotas"). Anyone who can read
- * the project can see them; only instance admins can change them.
- */
+/** Only instance admins change a project's limits (docs/retention.md, "Quotas"). */
 
-import {
-  INGEST_LIMIT_BOUNDS,
-  type IngestLimitSettings,
-  type IngestLimitStore,
-  type IngestLimits,
-} from "@jekimo/storage-postgres";
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import { INGEST_LIMIT_BOUNDS, type IngestLimitSettings, type IngestLimits } from "@jekimo/storage-postgres";
+import type { FastifyInstance } from "fastify";
 import { ApiError } from "../errors.js";
 import { actorOf, projectAccessOf } from "../session.js";
-
-export interface LimitRouteOptions {
-  limits: IngestLimitStore;
-  session: preHandlerHookHandler;
-  projectAccess: preHandlerHookHandler;
-  /** Instance-wide defaults, for the effective values. */
-  defaults: IngestLimits;
-}
+import type { LimitRouteOptions } from "../types/limits.js";
 
 function publicLimits(settings: IngestLimitSettings, defaults: IngestLimits) {
   return {
-    // null: the project inherits the instance-wide default.
     settings: { rate_limit_per_minute: settings.rateLimitPerMinute, events_per_day: settings.eventsPerDay },
     effective: {
       rate_limit_per_minute: settings.rateLimitPerMinute ?? defaults.ratePerMinute,

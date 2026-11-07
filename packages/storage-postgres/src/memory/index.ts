@@ -16,20 +16,17 @@ import {
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess, type ProjectAccess } from "../access.js";
 import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
-import {
-  checkIngestLimitSettings,
-  currentUsage,
-  decideCharge,
-  type IngestChargeResult,
-  type IngestLimitSettings,
-  type IngestLimitStore,
-  type IngestLimits,
-  type IngestUsage,
-  type IngestUsageRow,
-  requireInstanceAdmin,
-} from "../ingest-limits.js";
+import { checkIngestLimitSettings, currentUsage, decideCharge, requireInstanceAdmin } from "../ingest-limits.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
 import { DEFAULT_QUEUE_POLICY, decideFailure, describeError, QueueFullError, type QueuePolicy } from "../queue.js";
+import type {
+  IngestChargeResult,
+  IngestLimitSettings,
+  IngestLimitStore,
+  IngestLimits,
+  IngestUsage,
+  IngestUsageRow,
+} from "../types/index.js";
 import type {
   Actor,
   AppendEvent,
@@ -640,10 +637,9 @@ export class MemoryQueue<T> implements Queue<T> {
 
 /** Ingestion limits over a MemoryMetadataRepository's projects. */
 export class MemoryIngestLimitStore implements IngestLimitStore {
-  /** project id -> settings; absent means both inherit the defaults. */
   readonly settings = new Map<string, IngestLimitSettings>();
   readonly usage = new Map<string, IngestUsageRow>();
-  /** Test hook: when set, read and charge throw it. */
+  /** When set, read and charge throw it. */
   failWith: Error | undefined;
 
   constructor(private readonly metadata: MemoryMetadataRepository) {}
