@@ -51,8 +51,9 @@ Day-to-day commands, all run from the repository root:
 | `npm run typecheck` | Type-checks every TypeScript project with `tsc -b`. |
 | `npm test` | Runs the Vitest unit tests. |
 | `npm run check` | Runs `lint`, `typecheck`, and `test` in that order, as CI does. |
+| `npm run build --workspaces --if-present` | Builds every workspace that has a `build` script: `packages/event-schema` and `packages/storage-postgres` to `dist/` with `tsc -b`, `apps/api` and `apps/worker` to `dist/*.mjs` bundles with esbuild, and `packages/sdk-node` to its published `dist/`. |
 
-Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. A build command will be added to the root `package.json` when the first package needs one.
+Each app lives under `apps/` and each shared library under `packages/`. See the README in each directory for its purpose. Build output (`dist/`, `*.tsbuildinfo`) is ignored by git.
 
 ### Editor setup
 
@@ -60,11 +61,26 @@ Install the Biome extension for your editor; VS Code offers it automatically fro
 
 ### TypeScript configuration
 
-Shared compiler options live in [`tsconfig.base.json`](tsconfig.base.json): ES2022, NodeNext modules, `strict`, `exactOptionalPropertyTypes`, and `noUncheckedIndexedAccess`. The root [`tsconfig.json`](tsconfig.json) is a solution file: it compiles nothing itself and lists each TypeScript project under `references`, so `tsc -b` checks them all. Root-level config files such as `vitest.config.ts` are covered by `tsconfig.config.json`.
+Shared compiler options live in [`tsconfig.base.json`](tsconfig.base.json): ES2022, NodeNext modules, `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and `noEmit`. The root [`tsconfig.json`](tsconfig.json) is a solution file: it compiles nothing itself and lists each TypeScript project under `references`, so `tsc -b` checks them all. Root-level config files such as `vitest.config.ts` are covered by `tsconfig.config.json`.
+
+Workspaces depend on each other through package names (`@jekimo/event-schema`, `@jekimo/storage-postgres/memory`) and project `references`; no tsconfig includes another workspace's `src/`. (The one relative import across workspaces, `apps/api/test/slice.test.ts` loading the worker, also resolves through the reference to `apps/worker`.) There are two kinds of project:
+
+- **Libraries other workspaces import** (`packages/event-schema`, `packages/storage-postgres`, and `apps/worker`, which `apps/api`'s end-to-end test imports). `tsconfig.json` covers `src/` only and emits to `dist/` (JavaScript, declarations, and source maps; `apps/worker` emits declarations only, since its runtime build is the esbuild bundle). Tests have their own project in `test/tsconfig.json`, which references the package. Each `exports` entry in `package.json` lists three conditions in this order:
+
+  ```json
+  ".": {
+    "@jekimo/source": "./src/index.ts",
+    "types": "./dist/index.d.ts",
+    "default": "./dist/index.js"
+  }
+  ```
+
+  `tsc -b` ignores `@jekimo/source` and resolves `types`, which it builds from the referenced project first. Vitest (`vitest.config.ts`), the esbuild app and SDK bundles, and `tsx` (`npm run dev`, `npm run migrate`) set the `@jekimo/source` condition and read the TypeScript sources directly, so tests, dev servers, and bundles need no prior build. Plain Node.js without the condition loads `dist/`.
+- **Leaf projects** (`apps/api`, `packages/sdk-node`) that nothing imports. `tsconfig.json` covers `src/` and `test/` and emits nothing.
 
 When a workspace gets its first source file, wire it in within the same pull request:
 
-1. Add `tsconfig.json` to the workspace:
+1. Add `tsconfig.json` to the workspace. For a leaf project:
 
    ```json
    {
@@ -73,13 +89,16 @@ When a workspace gets its first source file, wire it in within the same pull req
        "composite": true,
        "types": ["node"]
      },
-     "include": ["src", "test"]
+     "include": ["src", "test"],
+     "references": [{ "path": "../../packages/event-schema" }]
    }
    ```
 
-   Adjust `types` to what the workspace runs on (the dashboard will want DOM libraries rather than Node types). If it imports another workspace, add that workspace to its own `references`.
-2. Add `{ "path": "./apps/<name>" }` or `{ "path": "./packages/<name>" }` to `references` in the root `tsconfig.json`.
+   List every workspace it imports under `references`. Adjust `types` to what the workspace runs on (the dashboard will want DOM libraries rather than Node types). For a library, copy [`packages/storage-postgres/tsconfig.json`](packages/storage-postgres/tsconfig.json) and [`packages/storage-postgres/test/tsconfig.json`](packages/storage-postgres/test/tsconfig.json), add the three-condition `exports`, and add `"build": "tsc -b"` to its scripts.
+2. Add `{ "path": "./apps/<name>" }` or `{ "path": "./packages/<name>" }` to `references` in the root `tsconfig.json`, plus `<path>/test` for a library.
 3. Run `npm run check`. Biome and Vitest already pick up every workspace, so they need no changes.
+
+`apps/web` has a placeholder `tsconfig.json` that checks no files; replace its `files` with `include` when the dashboard gets source.
 
 ## Making changes
 

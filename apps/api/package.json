@@ -5,10 +5,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --conditions=@jekimo/source src/main.ts",
     "start": "node dist/main.mjs",
     "build": "node ../../scripts/build-app.mjs apps/api main=src/main.ts migrate=../../packages/storage-postgres/src/migrate-cli.ts",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -b",
     "test": "vitest run --root ../.. apps/api"
   },
   "dependencies": {

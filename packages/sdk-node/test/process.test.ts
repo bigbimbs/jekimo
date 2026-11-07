@@ -20,6 +20,7 @@ beforeAll(async () => {
   await build({
     entryPoints: [join(import.meta.dirname, "../src/index.ts")],
     bundle: true,
+    conditions: ["@jekimo/source"],
     platform: "node",
     format: "esm",
     outfile: join(dir, "sdk.mjs"),

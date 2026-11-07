@@ -63,11 +63,11 @@ npm run typecheck  # tsc -b over the solution tsconfig and its project reference
 npm test           # Vitest unit tests; PostgreSQL integration tests run when DATABASE_URL is set
 npm run check      # lint, typecheck, then test; CI runs the same three steps
 npm run migrate -w @jekimo/storage-postgres   # apply migrations to DATABASE_URL
-npm run build --workspaces --if-present       # bundle apps/api and apps/worker into dist/
+npm run build --workspaces --if-present       # build libraries, app bundles, and the SDK into dist/
 docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build   # local stack
 ```
 
-Biome (`biome.json`) is the only linter and formatter; do not add ESLint or Prettier. Run `npm run lint:fix` before committing. Each package with source has its own `tsconfig.json` that extends `tsconfig.base.json` and is listed in the root `tsconfig.json` references; see "TypeScript configuration" in [CONTRIBUTING.md](CONTRIBUTING.md).
+Biome (`biome.json`) is the only linter and formatter; do not add ESLint or Prettier. Run `npm run lint:fix` before committing. Each package with source has its own `tsconfig.json` that extends `tsconfig.base.json` and is listed in the root `tsconfig.json` references. Import another workspace by its package name and add it to `references`; never add another workspace's `src/` to a tsconfig `include`. `packages/event-schema` and `packages/storage-postgres` build to `dist/` and export an `@jekimo/source` condition that Vitest, esbuild, and `tsx` use, so nothing needs building before tests or bundles. See "TypeScript configuration" in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Local agent configuration
 

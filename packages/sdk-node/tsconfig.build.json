@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "composite": false,
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
+    "customConditions": ["@jekimo/source"],
     "rootDir": "../.."
   },
   "include": ["src/**/*.ts"]
