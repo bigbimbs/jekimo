@@ -40,6 +40,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface ProcessDeps {
   metadata: MetadataRepository;
   events: EventStore;
+  /** Audit log retention (JEKIMO_AUDIT_LOG_DAYS). Defaults to RETENTION.AUDIT_LOG_DAYS. */
+  auditLogDays?: number;
 }
 
 export interface ProcessContext {
@@ -174,6 +176,7 @@ export interface ExpiryResult {
   dedupePruned: number;
   countersPruned: number;
   perProject: { projectId: string; deleted: number; retentionDays: number }[];
+  auditPruned: number;
 }
 
 /** docs/retention.md, "Project retention period". */
@@ -233,6 +236,10 @@ export async function runExpiryPass(
   const dedupeCutoff = new Date(now.getTime() - RETENTION.DEDUPE_WINDOW_DAYS * DAY_MS);
   const dedupePruned = await deps.events.pruneDedupe(dedupeCutoff);
   const counters = await deps.metadata.pruneDailyCounters(counterRetentionStart(now), dedupeCutoff);
+  // Audit entries are instance-wide and outlive the projects they mention.
+  const auditPruned = await deps.metadata.pruneAudit(
+    new Date(now.getTime() - (deps.auditLogDays ?? RETENTION.AUDIT_LOG_DAYS) * DAY_MS),
+  );
   await deps.events.prepareDays(daysFrom(new Date(now.getTime() - DAY_MS), 9));
   return {
     deletedEvents,
@@ -240,5 +247,6 @@ export async function runExpiryPass(
     dedupePruned,
     countersPruned: counters.counters,
     perProject,
+    auditPruned,
   };
 }

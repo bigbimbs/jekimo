@@ -1,4 +1,5 @@
 export { hasProjectPermission, type ProjectAccess } from "./access.js";
+export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
 export * from "./constants/index.js";
 export {
   DiskMonitor,

@@ -20,6 +20,10 @@ export interface ApiConfig {
   rateLimitPerMinute: number;
   /** Null: no quota. */
   quotaEventsPerDay: number | null;
+  inviteExpiryDays: number;
+  keyRotationGraceHours: number;
+  /** Null: invitation and reset links are paths, not URLs. */
+  publicUrl: string | null;
 }
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace"] as const;
@@ -37,6 +41,9 @@ export const DEFAULT_API_CONFIG: ApiConfig = {
   retentionMaxDays: RETENTION.MAX_DAYS,
   rateLimitPerMinute: DEFAULT_RATE_LIMIT_PER_MINUTE,
   quotaEventsPerDay: null,
+  inviteExpiryDays: 7,
+  keyRotationGraceHours: 24,
+  publicUrl: null,
 };
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
@@ -60,6 +67,20 @@ function logLevel(env: NodeJS.ProcessEnv, fallback: LogLevel): LogLevel {
   if (raw === undefined || raw === "") return fallback;
   if ((LOG_LEVELS as readonly string[]).includes(raw)) return raw as LogLevel;
   throw new Error(`JEKIMO_LOG_LEVEL must be one of ${LOG_LEVELS.join(", ")}`);
+}
+
+function publicUrl(env: NodeJS.ProcessEnv): string | null {
+  const raw = env.JEKIMO_PUBLIC_URL;
+  if (raw === undefined || raw === "") return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("JEKIMO_PUBLIC_URL must be an http or https URL");
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.search !== "" || url.hash !== "" || url.username)
+    throw new Error("JEKIMO_PUBLIC_URL must be an http or https URL without credentials, query, or fragment");
+  return url.toString().replace(/\/+$/, "");
 }
 
 /** Throws an Error naming the first invalid variable. */
@@ -100,5 +121,8 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       env.JEKIMO_QUOTA_EVENTS_PER_DAY === undefined || env.JEKIMO_QUOTA_EVENTS_PER_DAY === ""
         ? d.quotaEventsPerDay
         : int(env, "JEKIMO_QUOTA_EVENTS_PER_DAY", 0, INGEST_LIMIT_BOUNDS.MIN_PER_DAY, INGEST_LIMIT_BOUNDS.MAX_PER_DAY),
+    inviteExpiryDays: int(env, "JEKIMO_INVITE_EXPIRY_DAYS", d.inviteExpiryDays, 1, 90),
+    keyRotationGraceHours: int(env, "JEKIMO_KEY_ROTATION_GRACE_HOURS", d.keyRotationGraceHours, 0, 720),
+    publicUrl: publicUrl(env),
   };
 }

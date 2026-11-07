@@ -40,6 +40,9 @@ describe("loadApiConfig", () => {
         JEKIMO_RETENTION_MAX_DAYS: "60",
         JEKIMO_RATE_LIMIT_PER_MINUTE: "250",
         JEKIMO_QUOTA_EVENTS_PER_DAY: "50000",
+        JEKIMO_INVITE_EXPIRY_DAYS: "3",
+        JEKIMO_KEY_ROTATION_GRACE_HOURS: "0",
+        JEKIMO_PUBLIC_URL: "https://jekimo.example.test/",
       }),
     ).toEqual({
       host: "0.0.0.0",
@@ -53,6 +56,9 @@ describe("loadApiConfig", () => {
       retentionMaxDays: 60,
       rateLimitPerMinute: 250,
       quotaEventsPerDay: 50000,
+      inviteExpiryDays: 3,
+      keyRotationGraceHours: 0,
+      publicUrl: "https://jekimo.example.test",
     });
   });
 
@@ -78,6 +84,11 @@ describe("loadApiConfig", () => {
     [{ JEKIMO_RETENTION_MAX_DAYS: String(RETENTION.MAX_DAYS + 1) }, "JEKIMO_RETENTION_MAX_DAYS must be an integer"],
     [{ JEKIMO_RATE_LIMIT_PER_MINUTE: "99" }, "JEKIMO_RATE_LIMIT_PER_MINUTE must be an integer from 100 to 1000000"],
     [{ JEKIMO_QUOTA_EVENTS_PER_DAY: "0" }, "JEKIMO_QUOTA_EVENTS_PER_DAY must be an integer from 1"],
+    [{ JEKIMO_INVITE_EXPIRY_DAYS: "0" }, "JEKIMO_INVITE_EXPIRY_DAYS must be an integer from 1 to 90"],
+    [{ JEKIMO_KEY_ROTATION_GRACE_HOURS: "721" }, "JEKIMO_KEY_ROTATION_GRACE_HOURS must be an integer from 0 to 720"],
+    [{ JEKIMO_PUBLIC_URL: "jekimo.example.test" }, "JEKIMO_PUBLIC_URL must be an http or https URL"],
+    [{ JEKIMO_PUBLIC_URL: "ftp://jekimo.example.test" }, "JEKIMO_PUBLIC_URL must be an http or https URL"],
+    [{ JEKIMO_PUBLIC_URL: "https://jekimo.example.test/?a=1" }, "without credentials, query, or fragment"],
   ])("rejects %o", (env, message) => {
     expect(() => loadApiConfig(env)).toThrow(message);
   });

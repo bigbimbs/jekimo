@@ -259,6 +259,55 @@ curl -s -b cookies.txt http://127.0.0.1:8080/api/v1/projects/prj_not_mine/events
 
 `{"error":{"code":"not_found","message":"project not found"}}`: projects you cannot access look like projects that do not exist.
 
+## 9. Invite someone and share the project
+
+There is no outgoing email: an instance admin creates an invitation and hands the link over themselves.
+
+```bash
+curl -s -b cookies.txt -X POST http://127.0.0.1:8080/api/v1/invitations \
+  -H "x-jekimo-csrf-token: $CSRF" -H 'content-type: application/json' \
+  -d '{"email":"dev@example.test"}'
+```
+
+```json
+{"invitation":{"id":"5b0c3f0e-8a77-4c55-9d0e-2f1a6c3d9b10","email":"dev@example.test","instance_role":"member","created_by":"57d867a7-12ad-4cb6-8f17-4ca00904a91a","created_at":"2026-11-06T14:10:02.000Z","expires_at":"2026-11-13T14:10:02.000Z"},"token":"<token, shown once>","link":"/invite#token=<token, shown once>","notice":"This link is shown once and works once. Hand it to the person over a channel you trust."}
+```
+
+Set `JEKIMO_PUBLIC_URL` to get full links. Until the dashboard serves `/invite`, the invitee accepts by posting the token with a password of their choice:
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/api/v1/invitations/accept \
+  -H 'content-type: application/json' \
+  -d '{"token":"<token>","password":"synthetic-password-456"}'
+```
+
+The project admin then adds them to the project with a role, and can rotate the setup key (the old key keeps working for 24 hours by default) or revoke it:
+
+```bash
+curl -s -b cookies.txt -X POST "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/members" \
+  -H "x-jekimo-csrf-token: $CSRF" -H 'content-type: application/json' \
+  -d '{"email":"dev@example.test","role":"viewer"}'
+```
+
+```bash
+curl -s -b cookies.txt -X POST "http://127.0.0.1:8080/api/v1/projects/$PROJECT_ID/keys/<key_id>/rotate" \
+  -H "x-jekimo-csrf-token: $CSRF" -H 'content-type: application/json' -d '{"grace_hours":1}'
+```
+
+Every one of these actions is in the audit log, without tokens or keys:
+
+```bash
+curl -s -b cookies.txt "http://127.0.0.1:8080/api/v1/audit-log?limit=10"
+```
+
+If you lose the admin password, print a reset link on the server:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml exec api jekimo admin reset-password admin@example.test
+```
+
+Every route is listed in [`apps/api/README.md`](../apps/api/README.md#endpoints).
+
 ## Running the services outside Docker
 
 With only `postgres` running from the compose file:

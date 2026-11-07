@@ -15,6 +15,7 @@ export interface WorkerConfig {
   expiryIntervalMinutes: number;
   retentionDefaultDays: number;
   retentionMaxDays: number;
+  auditLogDays: number;
 }
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
@@ -46,5 +47,6 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerCo
       retentionMaxDays,
     ),
     retentionMaxDays,
+    auditLogDays: int(env, "JEKIMO_AUDIT_LOG_DAYS", RETENTION.AUDIT_LOG_DAYS, 1, RETENTION.MAX_DAYS),
   };
 }

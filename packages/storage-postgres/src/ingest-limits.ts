@@ -7,8 +7,8 @@
 
 import { assertProjectAccess, type ProjectAccess } from "./access.js";
 import { INGEST_LIMIT_BOUNDS, type IngestChargeOutcome } from "./constants/ingest-limits.js";
-import { insertAudit } from "./metadata.js";
 import { type Pool, withTransaction } from "./pool.js";
+import { insertAudit } from "./sql-shared.js";
 import type {
   IngestChargeResult,
   IngestLimitSettings,

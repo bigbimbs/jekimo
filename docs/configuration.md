@@ -38,7 +38,8 @@ The API serves plain HTTP. In production it runs behind a TLS-terminating revers
 | `JEKIMO_MEMBERS_CAN_CREATE_PROJECTS` | `true` | Boolean | API | Whether instance members may create projects | [access-model.md](access-model.md#planned-configuration) | implemented |
 | `JEKIMO_SESSION_IDLE_DAYS` | `14` | Integer, 1 to `JEKIMO_SESSION_MAX_DAYS` | API | Session idle timeout | [access-model.md](access-model.md#planned-configuration) | implemented |
 | `JEKIMO_SESSION_MAX_DAYS` | `30` | Integer, 1 to 365 | API | Session absolute lifetime | [access-model.md](access-model.md#planned-configuration) | implemented |
-| `JEKIMO_INVITE_EXPIRY_DAYS` | `7` | Integer | API | Invitation and reset link lifetime | [access-model.md](access-model.md#planned-configuration) | planned |
+| `JEKIMO_INVITE_EXPIRY_DAYS` | `7` | Integer, 1 to 90 | API | Invitation and reset link lifetime | [access-model.md](access-model.md#planned-configuration) | implemented |
+| `JEKIMO_PUBLIC_URL` | unset | An `http` or `https` URL without credentials, query, or fragment | API | Address the dashboard is served on, used to build invitation and reset links. Unset, the links are paths such as `/invite#token=...`. The production Compose file defaults it to `https://$JEKIMO_DOMAIN`. | — | implemented |
 | `JEKIMO_SMTP_URL` | unset | An SMTP URL | API | When set, invitations and resets are emailed | [access-model.md](access-model.md#planned-configuration) | planned |
 
 ## Ingestion
@@ -48,6 +49,7 @@ The API serves plain HTTP. In production it runs behind a TLS-terminating revers
 | `JEKIMO_RATE_LIMIT_PER_MINUTE` | `1000` | Integer, 100 to 1000000 | API | Instance-wide default for each project's rate limit, in events per UTC minute; over-limit requests get `429 rate_limited`. A project's own `rate_limit_per_minute` overrides it. | [ingestion-protocol.md](ingestion-protocol.md#rate-limits-and-quotas) | implemented |
 | `JEKIMO_QUOTA_EVENTS_PER_DAY` | unset (no quota) | Integer, 1 to 1000000000000 | API | Instance-wide default for each project's daily quota, in events per UTC day; over-quota requests get `429 quota_exceeded` until midnight UTC. A project's own `events_per_day` overrides it. | [retention.md](retention.md#quotas) | implemented |
 | `JEKIMO_QUEUE_MAX_DEPTH` | `10000` | Positive integer. Any other value falls back to the default without an error. | API | Pending and running ingest jobs (one per accepted request) the queue holds. When it is full, `POST /api/v1/ingest` returns `503 unavailable` with `Retry-After: 30`. Dead-lettered jobs do not count. Concurrent requests can overshoot it by a few jobs. | — | implemented |
+| `JEKIMO_KEY_ROTATION_GRACE_HOURS` | `24` | Integer, 0 to 720 | API | How long a rotated ingestion key keeps working. A rotation request can set its own `grace_hours`. | [ingestion-protocol.md](ingestion-protocol.md#rules) | implemented |
 | `JEKIMO_QUEUE_MAX_ATTEMPTS` | `5` | Positive integer. Any other value falls back to the default without an error. | API | Attempts before a queued ingest job is dead-lettered. Stamped on each job at enqueue time. | — | implemented |
 
 How rate limits and quotas behave:
@@ -80,9 +82,9 @@ Dead-lettered jobs stay in the `queue_jobs` table with `status = 'dead'` and a p
 | `JEKIMO_DISK_WARN_PERCENT` | `20` | Number, 0 to 100, at least `JEKIMO_DISK_CRITICAL_PERCENT` | API, worker | Free space warning level: the worker logs it and writes an `instance.disk_level_changed` audit entry | [retention.md](retention.md#planned-configuration) | implemented |
 | `JEKIMO_DISK_CRITICAL_PERCENT` | `10` | Number, 0 to 100, at least `JEKIMO_DISK_FULL_PERCENT` | API, worker | Emergency expiry level: the expiry pass runs every minute with every project's retention cut to at most 7 days, oldest days first, until free space is back above the warning level, and logs each project's removed event count | [retention.md](retention.md#planned-configuration) | implemented |
 | `JEKIMO_DISK_FULL_PERCENT` | `5` | Number, 0 to 100 | API, worker | Ingestion refusal level: `POST /api/v1/ingest` answers `503 unavailable` with `Retry-After: 60` | [retention.md](retention.md#planned-configuration) | implemented |
-| `JEKIMO_DISK_PATH` | `/` | Path | API, worker | A path on the filesystem that holds the PostgreSQL data directory, as this process sees it; free space is read with `statfs`. In containers, mount the database volume read-only and point this at it. | [retention.md](retention.md#disk-safety) | implemented |
+| `JEKIMO_DISK_PATH` | `/` | Path | API, worker | A path on the filesystem that holds the PostgreSQL data directory, as this process sees it; free space is read with `statfs`. On one Docker host the default measures the disk that also holds the Docker volumes. | [retention.md](retention.md#disk-safety) | implemented |
 | `JEKIMO_DISK_BUDGET_BYTES` | unset | Positive integer | API, worker | For PostgreSQL whose disk this process cannot see: the database size you allow. Free space is then `1 - pg_database_size / budget`, and `JEKIMO_DISK_PATH` is ignored. | [retention.md](retention.md#disk-safety) | implemented |
-| `JEKIMO_AUDIT_LOG_DAYS` | `365` | Integer | — | Audit log retention | [retention.md](retention.md#planned-configuration) | planned |
+| `JEKIMO_AUDIT_LOG_DAYS` | `365` | Integer, 1 to 3650 | worker | Audit log retention. The expiry pass deletes older entries, including those about deleted projects. | [retention.md](retention.md#planned-configuration) | implemented |
 
 What happens at each disk level is in [retention.md](retention.md#disk-safety) and [install-vps.md](install-vps.md#12-disk-space). The API reads free space at most every 5 seconds and the worker every minute. If it cannot be read, the API refuses ingestion with `503`, and the worker deletes nothing early.
 

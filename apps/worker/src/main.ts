@@ -45,6 +45,7 @@ async function main(): Promise<void> {
       thresholds: disk.thresholds,
       onError: (err) => log.error({ err }, "disk probe failed"),
     }),
+    auditLogDays: config.auditLogDays,
   });
 
   const shutdown = async (signal: string) => {

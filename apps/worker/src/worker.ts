@@ -18,6 +18,7 @@ export interface WorkerOptions {
   batchSize: number;
   pollMs: number;
   expiryIntervalMs: number;
+  auditLogDays?: number;
   clock?: () => Date;
   disk?: DiskMonitor;
   /** Default 60000. */
@@ -167,6 +168,7 @@ export class Worker {
           dedupe_pruned: result.dedupePruned,
           counters_pruned: result.countersPruned,
           emergency,
+          audit_pruned: result.auditPruned,
         },
         "expiry pass done",
       );
