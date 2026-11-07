@@ -63,9 +63,9 @@ Install the Biome extension for your editor; VS Code offers it automatically fro
 
 Shared compiler options live in [`tsconfig.base.json`](tsconfig.base.json): ES2022, NodeNext modules, `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and `noEmit`. The root [`tsconfig.json`](tsconfig.json) is a solution file: it compiles nothing itself and lists each TypeScript project under `references`, so `tsc -b` checks them all. Root-level config files such as `vitest.config.ts` are covered by `tsconfig.config.json`.
 
-Workspaces depend on each other through package names (`@jekimo/event-schema`, `@jekimo/storage-postgres/memory`) and project `references`; no tsconfig includes another workspace's `src/`. (The one relative import across workspaces, `apps/api/test/slice.test.ts` loading the worker, also resolves through the reference to `apps/worker`.) There are two kinds of project:
+Workspaces depend on each other through package names (`@jekimo/event-schema`, `@jekimo/storage-postgres/memory`) and project `references`; no tsconfig includes another workspace's `src/`. (The relative imports across workspaces, `apps/api/test/slice.test.ts` loading the worker and `apps/api/test/sdk.test.ts` loading the worker and the Node SDK, also resolve through the references to `apps/worker` and `packages/sdk-node`.) There are two kinds of project:
 
-- **Libraries other workspaces import** (`packages/event-schema`, `packages/storage-postgres`, and `apps/worker`, which `apps/api`'s end-to-end test imports). `tsconfig.json` covers `src/` only and emits to `dist/` (JavaScript, declarations, and source maps; `apps/worker` emits declarations only, since its runtime build is the esbuild bundle). Tests have their own project in `test/tsconfig.json`, which references the package. Each `exports` entry in `package.json` lists three conditions in this order:
+- **Libraries other workspaces import** (`packages/event-schema`, `packages/storage-postgres`, and `apps/worker` and `packages/sdk-node`, which `apps/api`'s end-to-end tests import). `tsconfig.json` covers `src/` only and emits to `dist/` (JavaScript, declarations, and source maps; `apps/worker` and `packages/sdk-node` emit declarations only, to `dist/types/`, since their runtime builds are esbuild bundles; the SDK's published declarations come from `tsconfig.build.json`). Tests have their own project in `test/tsconfig.json`, which references the package. Each `exports` entry in `package.json` of a library imported by package name lists three conditions in this order:
 
   ```json
   ".": {
@@ -76,7 +76,7 @@ Workspaces depend on each other through package names (`@jekimo/event-schema`, `
   ```
 
   `tsc -b` ignores `@jekimo/source` and resolves `types`, which it builds from the referenced project first. Vitest (`vitest.config.ts`), the esbuild app and SDK bundles, and `tsx` (`npm run dev`, `npm run migrate`) set the `@jekimo/source` condition and read the TypeScript sources directly, so tests, dev servers, and bundles need no prior build. Plain Node.js without the condition loads `dist/`.
-- **Leaf projects** (`apps/api`, `packages/sdk-node`) that nothing imports. `tsconfig.json` covers `src/` and `test/` and emits nothing.
+- **Leaf projects** (`apps/api`) that nothing imports. `tsconfig.json` covers `src/` and `test/` and emits nothing.
 
 When a workspace gets its first source file, wire it in within the same pull request:
 

@@ -5,6 +5,7 @@
     { "path": "./packages/event-schema" },
     { "path": "./packages/event-schema/test" },
     { "path": "./packages/sdk-node" },
+    { "path": "./packages/sdk-node/test" },
     { "path": "./packages/storage-postgres" },
     { "path": "./packages/storage-postgres/test" },
     { "path": "./apps/api" },

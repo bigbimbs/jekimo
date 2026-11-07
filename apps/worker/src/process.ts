@@ -11,10 +11,12 @@
  */
 
 import {
+  deriveFingerprint,
   type EventEnvelope,
   type IssueCode,
   isExpired,
   RETENTION,
+  redactEvent,
   shouldKeepEvent,
   validateEvent,
 } from "@jekimo/event-schema";
@@ -27,8 +29,8 @@ import {
   type IssueSummary,
   type MetadataRepository,
 } from "@jekimo/storage-postgres";
-import { fingerprintOf, issueTitle } from "./fingerprint.js";
-import { RedactorCache, redactEvent } from "./redact.js";
+import { issueTitle } from "./issue.js";
+import { RedactorCache } from "./redact.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -100,7 +102,7 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
     const stored: AppendEvent = {
       receivedAt,
       keyId: job.key_id,
-      event: { ...event, fingerprint: fingerprintOf(event) },
+      event: { ...event, fingerprint: deriveFingerprint(event) },
     };
     if (job.skew_ms !== undefined) stored.skewMs = job.skew_ms;
     append.push(stored);
