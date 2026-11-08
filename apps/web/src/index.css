@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Theme tokens, shadcn/ui style. Text colors meet WCAG AA (4.5:1) on the
+   background, muted, and popover surfaces of their theme. */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.006 285.9);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 285.9);
+  --sidebar: oklch(0.985 0.001 286);
+  --muted: oklch(0.967 0.001 286.4);
+  --muted-foreground: oklch(0.47 0.013 285.9);
+  --border: oklch(0.92 0.004 286.3);
+  --input: oklch(0.87 0.006 286.3);
+  --primary: oklch(0.511 0.262 276.97);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.004 286.3);
+  --secondary-foreground: oklch(0.21 0.006 285.9);
+  --ring: oklch(0.511 0.262 276.97);
+  --destructive: oklch(0.505 0.213 27.5);
+  --destructive-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.555 0.163 49);
+  --success: oklch(0.527 0.154 150);
+  --severity-debug: oklch(0.6 0.01 286);
+  --severity-info: oklch(0.588 0.158 241.97);
+  --severity-warning: oklch(0.666 0.179 58.3);
+  --severity-error: oklch(0.577 0.245 27.3);
+  --severity-fatal: oklch(0.496 0.265 301.9);
+}
+
+.dark {
+  --background: oklch(0.17 0.005 285.8);
+  --foreground: oklch(0.96 0.003 286);
+  --popover: oklch(0.21 0.006 285.9);
+  --popover-foreground: oklch(0.96 0.003 286);
+  --sidebar: oklch(0.19 0.005 285.8);
+  --muted: oklch(0.24 0.006 286);
+  --muted-foreground: oklch(0.74 0.012 286);
+  --border: oklch(0.29 0.006 286);
+  --input: oklch(0.36 0.008 286);
+  --primary: oklch(0.72 0.15 277);
+  --primary-foreground: oklch(0.17 0.005 285.8);
+  --secondary: oklch(0.27 0.006 286);
+  --secondary-foreground: oklch(0.96 0.003 286);
+  --ring: oklch(0.72 0.15 277);
+  --destructive: oklch(0.704 0.191 22.2);
+  --destructive-foreground: oklch(0.17 0.005 285.8);
+  --warning: oklch(0.828 0.189 84.4);
+  --success: oklch(0.792 0.209 151.7);
+  --severity-debug: oklch(0.6 0.01 286);
+  --severity-info: oklch(0.746 0.16 232.7);
+  --severity-warning: oklch(0.828 0.189 84.4);
+  --severity-error: oklch(0.704 0.191 22.2);
+  --severity-fatal: oklch(0.714 0.203 305.5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-severity-debug: var(--severity-debug);
+  --color-severity-info: var(--severity-info);
+  --color-severity-warning: var(--severity-warning);
+  --color-severity-error: var(--severity-error);
+  --color-severity-fatal: var(--severity-fatal);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}

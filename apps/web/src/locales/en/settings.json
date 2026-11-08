@@ -1,0 +1,67 @@
+{
+  "title": "Settings",
+  "project": {
+    "title": "Project",
+    "name": "Name",
+    "id": "Project ID",
+    "retention": "Retention",
+    "retentionDays": "{days, plural, one {# day} other {# days}}",
+    "sampleRate": "Sample rate",
+    "created": "Created"
+  },
+  "keys": {
+    "title": "Ingestion keys",
+    "intro": "SDKs send events with an ingestion key. Keys are listed by ID only; the full key is shown once, when it is created or rotated.",
+    "create": "Create key",
+    "noPermission": "You need the keys.manage permission to see and manage this project's ingestion keys.",
+    "emptyTitle": "No ingestion keys",
+    "emptyBody": "Create a key to start sending events to this project.",
+    "unnamed": "Unnamed",
+    "rotate": "Rotate",
+    "revoke": "Revoke",
+    "rowActions": "Actions for key {keyId}",
+    "table": {
+      "keyId": "Key ID",
+      "name": "Name",
+      "status": "Status",
+      "created": "Created",
+      "expires": "Stops working",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "rotating": "Rotating",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    }
+  },
+  "createDialog": {
+    "title": "Create an ingestion key",
+    "body": "Name the key after where it is used, so you know which one to rotate or revoke later.",
+    "name": "Name",
+    "namePlaceholder": "billing-api production",
+    "submit": "Create key",
+    "submitting": "Creating…"
+  },
+  "rotateDialog": {
+    "title": "Rotate key {keyId}?",
+    "body": "A new key replaces this one. The old key keeps working for the rotation grace period so you can roll out the new one, then stops.",
+    "submit": "Rotate key"
+  },
+  "revokeDialog": {
+    "title": "Revoke key {keyId}?",
+    "body": "Requests with this key are refused immediately. This cannot be undone.",
+    "submit": "Revoke key"
+  },
+  "secret": {
+    "title": "Copy your new ingestion key",
+    "intro": "Configure your SDK with this key.",
+    "oldKeyExpires": "The old key {keyId} keeps working until {time}.",
+    "warning": "This key will not be shown again. Copy it and store it in your secret manager now.",
+    "label": "Ingestion key {keyId}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copying failed. Select the key and copy it yourself.",
+    "done": "Done"
+  }
+}

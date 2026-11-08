@@ -67,6 +67,7 @@ services:
       - no-new-privileges:true
     depends_on:
       - api
+      - web
 
   api:
     <<: *jekimo
@@ -134,12 +135,21 @@ services:
         condition: service_healthy
         required: false
 
-  # Dashboard placeholder until the web image exists (issue #31).
-  # web:
-  #   <<: *jekimo
-  #   image: ghcr.io/bigbimbs/jekimo-web:${JEKIMO_VERSION}
-  #   expose:
-  #     - "8080"
+  # The dashboard: static files served by Caddy as a non-root user. It needs
+  # no database or secrets; it calls the API through the front Caddy.
+  web:
+    image: ghcr.io/bigbimbs/jekimo-web:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
+    restart: unless-stopped
+    logging: *logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "8080"
 
   # POSTGRES_ADMIN_PASSWORD is used only to initialise an empty volume;
   # postgres-init/ then removes the superuser's password (docs/database-setup.md).

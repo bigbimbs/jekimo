@@ -1,0 +1,45 @@
+{
+  "appName": "Jekimo",
+  "skipToContent": "Skip to content",
+  "nav": {
+    "main": "Project",
+    "issues": "Issues",
+    "settings": "Settings"
+  },
+  "theme": {
+    "label": "Color theme",
+    "system": "System theme",
+    "light": "Light theme",
+    "dark": "Dark theme"
+  },
+  "projectSwitcher": {
+    "label": "Project",
+    "current": "Project: {name}. Switch project",
+    "choose": "Choose a project",
+    "switch": "Switch project"
+  },
+  "account": {
+    "menu": "Account",
+    "signedInAs": "Signed in as",
+    "instanceAdmin": "Instance admin",
+    "signOut": "Sign out"
+  },
+  "actions": {
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "close": "Close"
+  },
+  "states": {
+    "loading": "Loading…",
+    "errorTitle": "Something went wrong",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The address may be mistyped, or the page may have moved.",
+    "goHome": "Go to the dashboard"
+  },
+  "projects": {
+    "noneTitle": "No projects yet",
+    "noneBody": "You are not a member of any project. Ask an instance admin to add you to one.",
+    "notFoundTitle": "Project not found",
+    "notFoundBody": "This project does not exist, or you do not have access to it."
+  }
+}

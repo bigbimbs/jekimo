@@ -9,15 +9,20 @@
 	}
 
 	# Readiness names internal dependencies; keep it off the internet.
-	respond /readyz 404
+	handle /readyz {
+		respond 404
+	}
 
-	# Once the dashboard image exists (issue #31):
-	#   handle /api/* {
-	#   	reverse_proxy api:8080
-	#   }
-	#   handle {
-	#   	reverse_proxy web:8080
-	#   }
+	handle /api/* {
+		reverse_proxy api:8080
+	}
 
-	reverse_proxy api:8080
+	handle /healthz {
+		reverse_proxy api:8080
+	}
+
+	# Everything else is the dashboard, a single-page app.
+	handle {
+		reverse_proxy web:8080
+	}
 }

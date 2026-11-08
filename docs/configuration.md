@@ -128,3 +128,4 @@ Read by [`deploy/docker-compose/docker-compose.dev.yml`](../deploy/docker-compos
 | `POSTGRES_PASSWORD` | required | Password of the local PostgreSQL container. | implemented |
 | `JEKIMO_DEV_POSTGRES_PORT` | `5432` | Loopback port PostgreSQL is published on. | implemented |
 | `JEKIMO_DEV_API_PORT` | `8080` | Loopback port the API is published on. | implemented |
+| `JEKIMO_DEV_WEB_PORT` | `8081` | Loopback port the dashboard is published on. | implemented |

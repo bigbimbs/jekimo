@@ -1,6 +1,6 @@
 # Local development
 
-This walkthrough runs the whole vertical slice on one machine: PostgreSQL, the API, and the worker in Docker Compose, then setup, a project, an ingestion key, one event sent with curl, and the same event read back. Everything here uses synthetic data.
+This walkthrough runs the whole vertical slice on one machine: PostgreSQL, the API, the worker, and the dashboard in Docker Compose, then setup, a project, an ingestion key, one event sent with curl, and the same event read back. Everything here uses synthetic data.
 
 You need Docker with Compose v2, curl, [jq](https://jqlang.org/), and Node.js 22 (only for running tests and the services outside Docker). Run every command from the repository root.
 
@@ -14,7 +14,7 @@ cp .env.example .env
 docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build
 ```
 
-This starts four services:
+This starts five services:
 
 | Service | What it does |
 | --- | --- |
@@ -22,6 +22,7 @@ This starts four services:
 | `migrate` | Applies `packages/storage-postgres/migrations/*.sql` and creates event partitions for the coming week, then exits. |
 | `api` | The API on `127.0.0.1:8080` (`JEKIMO_DEV_API_PORT` to change it). Starts after `migrate` succeeds. |
 | `worker` | Drains the ingest queue and runs the expiry pass. Starts after `migrate` succeeds. |
+| `web` | The dashboard on `http://localhost:8081` (`JEKIMO_DEV_WEB_PORT` to change it), proxying `/api` to the `api` service. |
 
 If port 5432 is already taken by a local PostgreSQL, set `JEKIMO_DEV_POSTGRES_PORT=55432` in `.env` and use the same port in `JEKIMO_DATABASE_URL`.
 
@@ -42,6 +43,10 @@ curl -s http://127.0.0.1:8080/readyz
 ```
 
 `GET /readyz` answers `503` with `{"status":"unavailable","checks":{...},"error":{"code":"not_ready",...}}` naming the unreachable dependency while PostgreSQL or the queue table cannot be reached. `GET /healthz` only reports that the API process is up and never touches the database.
+
+### The dashboard
+
+Open <http://localhost:8081>. The session cookie is `Secure`, which browsers accept over plain HTTP only from `localhost`; Chrome also accepts `127.0.0.1`, other browsers may not. On a fresh database the dashboard opens its setup page; paste the setup token from step 3 below and choose the first admin's email, password, and project name. It shows the project's ingestion key once, with a copy button, then signs you in. The rest of this walkthrough uses `curl` so every API call is visible; the dashboard shows the same data under **Issues**, and the project's keys under **Settings**.
 
 ## 2. Migrate
 
@@ -273,7 +278,7 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:8080/api/v1/invitations \
 {"invitation":{"id":"5b0c3f0e-8a77-4c55-9d0e-2f1a6c3d9b10","email":"dev@example.test","instance_role":"member","created_by":"57d867a7-12ad-4cb6-8f17-4ca00904a91a","created_at":"2026-11-06T14:10:02.000Z","expires_at":"2026-11-13T14:10:02.000Z"},"token":"<token, shown once>","link":"/invite#token=<token, shown once>","notice":"This link is shown once and works once. Hand it to the person over a channel you trust."}
 ```
 
-Set `JEKIMO_PUBLIC_URL` to get full links. Until the dashboard serves `/invite`, the invitee accepts by posting the token with a password of their choice:
+Set `JEKIMO_PUBLIC_URL` to get full links; with `JEKIMO_PUBLIC_URL=http://localhost:8081` the link opens the dashboard's invitation page. From a shell, the invitee accepts by posting the token with a password of their choice:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/invitations/accept \
@@ -327,6 +332,12 @@ npm run dev -w @jekimo/api
 ```bash
 npm run dev -w @jekimo/worker
 ```
+
+```bash
+npm run dev -w @jekimo/web
+```
+
+The dashboard's dev server runs on <http://localhost:5173> with hot reload and proxies `/api` to the API on `127.0.0.1:8080` (`JEKIMO_DEV_API_URL` to change it).
 
 ## Tests
 

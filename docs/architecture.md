@@ -61,6 +61,10 @@ The dashboard in `apps/web` is a single-page app built with:
 
 The built dashboard is static files served by the instance. Every script, stylesheet, font, and icon is bundled into the build; the dashboard loads nothing from a CDN or other third-party host, so it works on private networks and a user's browser contacts only the Jekimo instance.
 
+The files ship in their own image, `jekimo-web`: Caddy serving them on port 8080 as a non-root user with a Content-Security-Policy limited to the instance's origin. The front Caddy sends `/api/*` and `/healthz` to the API and every other path to the dashboard, so the dashboard and the API share one origin and the session cookie needs no cross-site rules. The API serves no files.
+
+The dashboard has light and dark themes, defined once as CSS variables with text that meets WCAG AA in both. It follows the operating system's preference until the user picks one, and remembers that choice per browser.
+
 ### Translation
 
 The dashboard ships in English only, but it is built so other languages can be added without touching components:

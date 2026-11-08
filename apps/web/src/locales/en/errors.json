@@ -1,0 +1,21 @@
+{
+  "unknown": "Something went wrong. Try again.",
+  "already_member": "This user is already a member of the project.",
+  "csrf_failed": "Your session could not be verified. Reload the page and try again.",
+  "email_taken": "An account with this email already exists.",
+  "forbidden": "You do not have permission to do this.",
+  "internal": "The server ran into a problem. Try again in a moment.",
+  "invalid_credentials": "The email or password is incorrect.",
+  "invalid_json": "The request could not be read. Reload the page and try again.",
+  "invalid_request": "Some of the information is not valid. Check it and try again.",
+  "invalid_token": "This link is invalid, already used, or expired. Ask an instance admin for a new one.",
+  "key_already_revoked": "This key is already revoked.",
+  "key_not_active": "Only active keys can be rotated.",
+  "key_not_found": "This key no longer exists.",
+  "last_admin": "A project needs at least one admin.",
+  "network": "The server could not be reached. Check your connection and try again.",
+  "not_found": "This could not be found. It may have been removed, or you may not have access to it.",
+  "role_escalation": "You cannot grant or change a role with more permissions than your own.",
+  "unauthorized": "You are not signed in, or the setup token is wrong.",
+  "weak_password": "Choose a password of 12 to 128 characters."
+}

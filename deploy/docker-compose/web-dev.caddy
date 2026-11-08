@@ -1,0 +1,6 @@
+# Mounted into the dev stack's web container (docker-compose.dev.yml): sends
+# API calls to the api service so the dashboard and its session cookie share
+# one origin, as behind the production Caddyfile.
+handle /api/* {
+	reverse_proxy api:8080
+}

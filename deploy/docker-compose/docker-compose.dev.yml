@@ -1,5 +1,5 @@
 # Local development stack: PostgreSQL 16, a one-shot migration job, the API,
-# and the worker. Not a production deployment. Run from the repository root:
+# the worker, and the dashboard. Not a production deployment. Run from the repository root:
 #
 #   cp .env.example .env
 #   docker compose --env-file .env -f deploy/docker-compose/docker-compose.dev.yml up -d --build
@@ -66,6 +66,21 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: jekimo-web:dev
+    volumes:
+      - ./web-dev.caddy:/etc/caddy/conf.d/web-dev.caddy:ro
+    ports:
+      # Open http://localhost:8081: browsers accept the API's Secure session
+      # cookie over plain HTTP only from localhost.
+      - "127.0.0.1:${JEKIMO_DEV_WEB_PORT:-8081}:8080"
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

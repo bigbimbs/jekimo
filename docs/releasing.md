@@ -43,7 +43,7 @@ It needs `contents: write`, granted to that job only.
 
 ### Images (`images.yml`, tags `v*` and pushes to `main`)
 
-Builds `ghcr.io/bigbimbs/jekimo-api` from `apps/api/Dockerfile` and `ghcr.io/bigbimbs/jekimo-worker` from `apps/worker/Dockerfile` for `linux/amd64` and `linux/arm64` with Docker Buildx and the GitHub Actions cache, and pushes them to GitHub Container Registry.
+Builds `ghcr.io/bigbimbs/jekimo-api` from `apps/api/Dockerfile`, `ghcr.io/bigbimbs/jekimo-worker` from `apps/worker/Dockerfile`, and `ghcr.io/bigbimbs/jekimo-web` (the dashboard) from `apps/web/Dockerfile` for `linux/amd64` and `linux/arm64` with Docker Buildx and the GitHub Actions cache, and pushes them to GitHub Container Registry.
 
 | Trigger | Image tags |
 | --- | --- |
