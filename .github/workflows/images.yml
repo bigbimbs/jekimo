@@ -3,6 +3,7 @@
 # Images:
 #   ghcr.io/bigbimbs/jekimo-api     from apps/api/Dockerfile
 #   ghcr.io/bigbimbs/jekimo-worker  from apps/worker/Dockerfile
+#   ghcr.io/bigbimbs/jekimo-web     from apps/web/Dockerfile (the dashboard)
 #
 # Tags:
 #   push to main      -> edge, sha-<short sha>
@@ -46,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, worker]
+        app: [api, worker, web]
     steps:
       - uses: actions/checkout@v7
         with:

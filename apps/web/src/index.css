@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Theme tokens, shadcn/ui style: cool neutrals carry the UI, indigo is kept
+   for actions, links, focus, and selection, and severities follow log-level
+   conventions. test/contrast.test.ts checks every text pair for WCAG AA
+   (4.5:1) and every meaningful non-text color for 3:1, in both themes. */
+:root {
+  --background: #ffffff;
+  --foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+  --sidebar: #f6f7f9;
+  --code: #f6f7f9;
+  --muted: #eef0f3;
+  --muted-foreground: #5b6170;
+  --border: #e4e6eb;
+  --input: #858b97;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #16181d;
+  --ring: #4f46e5;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --warning: #b45309;
+  --success: #15803d;
+  --severity-debug: #6b7280;
+  --severity-info: #2563eb;
+  --severity-warning: #b45309;
+  --severity-error: #dc2626;
+  --severity-fatal: #a21caf;
+}
+
+.dark {
+  --background: #0f1115;
+  --foreground: #e6e8ee;
+  --popover: #171a21;
+  --popover-foreground: #e6e8ee;
+  --sidebar: #171a21;
+  --code: #171a21;
+  --muted: #1f232b;
+  --muted-foreground: #9aa1ae;
+  --border: #262a33;
+  --input: #5f6675;
+  --primary: #818cf8;
+  --primary-foreground: #0f1115;
+  --secondary: #1f232b;
+  --secondary-foreground: #e6e8ee;
+  --ring: #818cf8;
+  --destructive: #f87171;
+  --destructive-foreground: #0f1115;
+  --warning: #fbbf24;
+  --success: #4ade80;
+  --severity-debug: #8b919e;
+  --severity-info: #60a5fa;
+  --severity-warning: #fbbf24;
+  --severity-error: #f87171;
+  --severity-fatal: #e879f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-code: var(--code);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-severity-debug: var(--severity-debug);
+  --color-severity-info: var(--severity-info);
+  --color-severity-warning: var(--severity-warning);
+  --color-severity-error: var(--severity-error);
+  --color-severity-fatal: var(--severity-fatal);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@theme {
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-fade-out: fade-out 100ms ease-in;
+  --animate-pop-in: pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-pop-out: pop-out 100ms ease-in;
+  --animate-dialog-in: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-dialog-out: dialog-out 120ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animate-fade-in: none;
+    --animate-fade-out: none;
+    --animate-pop-in: none;
+    --animate-pop-out: none;
+    --animate-dialog-in: none;
+    --animate-dialog-out: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  html {
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 40%, transparent) transparent;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    font-size: 0.875rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-feature-settings: normal;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}

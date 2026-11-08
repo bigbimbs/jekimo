@@ -1,0 +1,90 @@
+{
+  "title": "Issues",
+  "intro": "Errors, crashes, and logs from {project}, grouped by fingerprint.",
+  "filters": {
+    "label": "Filter issues",
+    "status": "Status",
+    "kind": "Kind",
+    "severity": "Severity",
+    "period": "Last seen",
+    "any": "Any",
+    "clear": "Clear filters"
+  },
+  "status": {
+    "unresolved": "Unresolved",
+    "resolved": "Resolved",
+    "ignored": "Ignored",
+    "all": "All statuses"
+  },
+  "kind": {
+    "exception": "Exception",
+    "log": "Log",
+    "event": "Event"
+  },
+  "severity": {
+    "debug": "Debug",
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error",
+    "fatal": "Fatal"
+  },
+  "period": {
+    "1h": "Last hour",
+    "24h": "Last 24 hours",
+    "7d": "Last 7 days",
+    "14d": "Last 14 days",
+    "30d": "Last 30 days",
+    "all": "Any time"
+  },
+  "table": {
+    "caption": "Issues in {project}",
+    "issue": "Issue",
+    "severity": "Severity",
+    "status": "Status",
+    "events": "Events",
+    "lastSeen": "Last seen",
+    "firstSeen": "First seen"
+  },
+  "emptyTitle": "No issues match these filters",
+  "emptyBody": "Try another status, kind, severity, or time range.",
+  "noneTitle": "No unresolved issues",
+  "noneBody": "Issues appear here when your services send errors and logs. To start, create an ingestion key in settings and configure an SDK with it.",
+  "toSettings": "Open settings",
+  "loadMore": "Load more",
+  "shown": "{count, plural, one {Showing # issue} other {Showing # issues}}",
+  "actions": {
+    "label": "Issue status",
+    "resolve": "Resolve",
+    "ignore": "Ignore",
+    "reopen": "Reopen"
+  },
+  "detail": {
+    "back": "All issues",
+    "events": "Events",
+    "firstSeen": "First seen",
+    "lastSeen": "Last seen",
+    "environments": "Environments",
+    "release": "Release",
+    "environment": "Environment",
+    "service": "Service",
+    "fingerprint": "Fingerprint",
+    "none": "None",
+    "message": "Message",
+    "exception": "Exception",
+    "stackTrace": "Stack trace",
+    "appFramesOnly": "Only app frames",
+    "noStackTrace": "No stack trace was captured.",
+    "context": "Context",
+    "attributes": "Attributes",
+    "latestEvent": "Latest event",
+    "eventId": "Event ID",
+    "occurredAt": "Occurred",
+    "receivedAt": "Received",
+    "sdk": "SDK",
+    "noLatestEvent": "The latest event is no longer stored. It may have expired under the project's retention period.",
+    "notFoundTitle": "Issue not found",
+    "notFoundBody": "It may belong to another project or no longer exist.",
+    "details": "Details",
+    "frames": "{count, plural, one {# frame} other {# frames}}"
+  }
+}

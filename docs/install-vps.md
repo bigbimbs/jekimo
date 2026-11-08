@@ -226,6 +226,8 @@ It prints `{"status":"ok"}`. `/readyz` is answered with `404` from outside; it i
 
 ## 9. Create the first admin and project
 
+The quickest way is the dashboard: open `https://jekimo.example.com/setup`, paste the setup token described below, and fill in your email, a password of 12 to 128 characters, and a project name. It shows the project's first ingestion key once, with a copy button, and signs you in. The same steps with `curl` follow.
+
 On the first start, with no users in the database, the API prints a one-time **setup token** to its console ([access-model.md](access-model.md#setup-flow)). Anyone with the token can take over the instance until setup is done, so do this straight away and do not paste the token anywhere else.
 
 ```bash
@@ -244,7 +246,7 @@ Setup creates the first **instance admin**, the first **project**, and that proj
 
 The response contains `ingestion_key.key`, in the form `jk_<key_id>_<secret>`. It is shown **once**: copy it into your secret manager now. The database keeps only its hash, and logs record only its `key_id`. After setup succeeds, `/api/v1/setup` answers `404` and the token stops working.
 
-Sign-in, more projects, and more keys are shown in [local-development.md](local-development.md) sections 4 and 5; use `https://jekimo.example.com` in place of `http://127.0.0.1:8080`.
+Sign in at `https://jekimo.example.com` to see each project's issues and manage its ingestion keys under **Settings**. The API calls for sign-in, more projects, and more keys are shown in [local-development.md](local-development.md) sections 4 and 5; use `https://jekimo.example.com` in place of `http://127.0.0.1:8080`.
 
 ## 10. Send a first event
 
