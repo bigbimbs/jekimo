@@ -13,11 +13,11 @@ import type { IngestionKey, IssuedKey, KeyStatus } from "../../types/api";
 import { useProjectPermissions } from "../projects/permissions";
 import { ConfirmDialog, CreateKeyDialog, SecretKeyDialog } from "./key-dialogs";
 
-const STATUS_DOT: Record<KeyStatus, string> = {
-  active: "bg-success",
-  rotating: "bg-warning",
-  expired: "bg-muted-foreground",
-  revoked: "bg-destructive",
+const STATUS_STYLE: Record<KeyStatus, { dot: string; tint: string }> = {
+  active: { dot: "bg-success", tint: "border-success/30 bg-success/10" },
+  rotating: { dot: "bg-warning", tint: "border-warning/30 bg-warning/10" },
+  expired: { dot: "bg-muted-foreground", tint: "bg-muted" },
+  revoked: { dot: "bg-destructive", tint: "border-destructive/30 bg-destructive/10" },
 };
 
 type Pending = { action: "rotate" | "revoke"; key: IngestionKey } | null;
@@ -105,7 +105,9 @@ export function KeysSection({ projectId }: { projectId: string }) {
                   {key.name || <span className="text-muted-foreground">{t("keys.unnamed")}</span>}
                 </TableCell>
                 <TableCell>
-                  <Badge dot={STATUS_DOT[key.status]}>{t(`keys.status.${key.status}`)}</Badge>
+                  <Badge dot={STATUS_STYLE[key.status].dot} className={STATUS_STYLE[key.status].tint}>
+                    {t(`keys.status.${key.status}`)}
+                  </Badge>
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   <time dateTime={key.created_at} title={format.dateTime(key.created_at)}>

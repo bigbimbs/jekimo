@@ -26,9 +26,24 @@ The link pages read the token from the fragment and remove it from the address b
 - **Sessions.** The API client sends cookies same-origin and the CSRF token from the session response in `x-jekimo-csrf-token` on every state change. The token lives in memory only. A `401` on a signed-in request clears every cache and returns to sign-in.
 - **Text.** Every user-visible string comes from the ICU catalogues in `src/locales/en/<namespace>.json` (`common`, `auth`, `issues`, `settings`, `errors`) through react-i18next with i18next-icu. Keys are typed from the English catalogue, so a missing key fails `npm run typecheck`, and `test/catalogues.test.ts` checks every locale for missing or extra keys, empty values, invalid ICU, and mismatched variables. API errors are rendered from `error.code`, with the English `message` only for codes the catalogue lacks. Captured event data is never translated. Dates and numbers use `Intl`; layouts use logical properties.
 
-## Themes
+## Themes and palette
 
-Light and dark themes are defined once as CSS variables in `src/index.css` (shadcn/ui's token approach), with text colors that meet WCAG AA in both. The theme follows the operating system until the user picks System, Light, or Dark in the toggle; the choice is kept in `localStorage` (`jekimo.theme`) for that browser. `public/theme.js` applies it before the first paint, so the page never flashes the wrong theme; it is a file rather than an inline script so the Content-Security-Policy keeps `script-src 'self'`.
+Light and dark themes are defined once as CSS variables in `src/index.css` (shadcn/ui's token approach). The palette is the calm, low-glare look of developer tools:
+
+| Role | Light | Dark |
+| --- | --- | --- |
+| Background | `#ffffff` | `#0f1115` |
+| Surfaces, sidebar, code | `#f6f7f9` | `#171a21` |
+| Borders | `#e4e6eb` | `#262a33` |
+| Text | `#16181d` | `#e6e8ee` |
+| Secondary text | `#5b6170` | `#9aa1ae` |
+| Accent: primary actions, links, focus, selection only | `#4f46e5` | `#818cf8` |
+| Severity `debug` / `info` / `warning` / `error` / `fatal` | `#6b7280` / `#2563eb` / `#b45309` / `#dc2626` / `#a21caf` | `#8b919e` / `#60a5fa` / `#fbbf24` / `#f87171` / `#e879f9` |
+| Success, resolved | `#15803d` | `#4ade80` |
+
+Neutrals carry the UI; color is the exception. Severity, status, and key badges have a soft tint, a colored dot or icon, and their text label in the foreground color, so color is never the only signal and text contrast never depends on the hue. Stack traces use the system monospace stack on the code surface: app frames at full contrast with the function name emphasized, library frames dimmed, and positions in secondary text, with no syntax colors.
+
+`test/contrast.test.ts` reads the tokens from `src/index.css` and checks, for both themes, 4.5:1 for every text pair (text and secondary text on every surface, button text, links, error text, and text on each tinted badge) and 3:1 for focus rings, field borders, and status colors (WCAG 2.2, 1.4.3 and 1.4.11). Change a token and the test tells you if it falls short. The theme follows the operating system until the user picks System, Light, or Dark in the toggle; the choice is kept in `localStorage` (`jekimo.theme`) for that browser. `public/theme.js` applies it before the first paint, so the page never flashes the wrong theme; it is a file rather than an inline script so the Content-Security-Policy keeps `script-src 'self'`.
 
 ## Code layout
 

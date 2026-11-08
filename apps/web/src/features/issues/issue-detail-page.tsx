@@ -134,7 +134,7 @@ export function IssueDetailPage() {
       ) : (
         <>
           <Section title={t("detail.message")}>
-            <p className="whitespace-pre-wrap break-words rounded-md border border-border bg-muted/40 px-4 py-3 font-mono text-sm">
+            <p className="whitespace-pre-wrap break-words rounded-md border border-border bg-code px-4 py-3 font-mono text-sm">
               {event.message}
             </p>
           </Section>

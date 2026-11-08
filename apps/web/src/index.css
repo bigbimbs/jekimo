@@ -2,58 +2,62 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Theme tokens, shadcn/ui style. Text colors meet WCAG AA (4.5:1) on the
-   background, muted, and popover surfaces of their theme. */
+/* Theme tokens, shadcn/ui style: cool neutrals carry the UI, indigo is kept
+   for actions, links, focus, and selection, and severities follow log-level
+   conventions. test/contrast.test.ts checks every text pair for WCAG AA
+   (4.5:1) and every meaningful non-text color for 3:1, in both themes. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.21 0.006 285.9);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.006 285.9);
-  --sidebar: oklch(0.985 0.001 286);
-  --muted: oklch(0.967 0.001 286.4);
-  --muted-foreground: oklch(0.47 0.013 285.9);
-  --border: oklch(0.92 0.004 286.3);
-  --input: oklch(0.87 0.006 286.3);
-  --primary: oklch(0.511 0.262 276.97);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.955 0.004 286.3);
-  --secondary-foreground: oklch(0.21 0.006 285.9);
-  --ring: oklch(0.511 0.262 276.97);
-  --destructive: oklch(0.505 0.213 27.5);
-  --destructive-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.555 0.163 49);
-  --success: oklch(0.527 0.154 150);
-  --severity-debug: oklch(0.6 0.01 286);
-  --severity-info: oklch(0.588 0.158 241.97);
-  --severity-warning: oklch(0.666 0.179 58.3);
-  --severity-error: oklch(0.577 0.245 27.3);
-  --severity-fatal: oklch(0.496 0.265 301.9);
+  --background: #ffffff;
+  --foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+  --sidebar: #f6f7f9;
+  --code: #f6f7f9;
+  --muted: #eef0f3;
+  --muted-foreground: #5b6170;
+  --border: #e4e6eb;
+  --input: #858b97;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #16181d;
+  --ring: #4f46e5;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --warning: #b45309;
+  --success: #15803d;
+  --severity-debug: #6b7280;
+  --severity-info: #2563eb;
+  --severity-warning: #b45309;
+  --severity-error: #dc2626;
+  --severity-fatal: #a21caf;
 }
 
 .dark {
-  --background: oklch(0.17 0.005 285.8);
-  --foreground: oklch(0.96 0.003 286);
-  --popover: oklch(0.21 0.006 285.9);
-  --popover-foreground: oklch(0.96 0.003 286);
-  --sidebar: oklch(0.19 0.005 285.8);
-  --muted: oklch(0.24 0.006 286);
-  --muted-foreground: oklch(0.74 0.012 286);
-  --border: oklch(0.29 0.006 286);
-  --input: oklch(0.36 0.008 286);
-  --primary: oklch(0.72 0.15 277);
-  --primary-foreground: oklch(0.17 0.005 285.8);
-  --secondary: oklch(0.27 0.006 286);
-  --secondary-foreground: oklch(0.96 0.003 286);
-  --ring: oklch(0.72 0.15 277);
-  --destructive: oklch(0.704 0.191 22.2);
-  --destructive-foreground: oklch(0.17 0.005 285.8);
-  --warning: oklch(0.828 0.189 84.4);
-  --success: oklch(0.792 0.209 151.7);
-  --severity-debug: oklch(0.6 0.01 286);
-  --severity-info: oklch(0.746 0.16 232.7);
-  --severity-warning: oklch(0.828 0.189 84.4);
-  --severity-error: oklch(0.704 0.191 22.2);
-  --severity-fatal: oklch(0.714 0.203 305.5);
+  --background: #0f1115;
+  --foreground: #e6e8ee;
+  --popover: #171a21;
+  --popover-foreground: #e6e8ee;
+  --sidebar: #171a21;
+  --code: #171a21;
+  --muted: #1f232b;
+  --muted-foreground: #9aa1ae;
+  --border: #262a33;
+  --input: #5f6675;
+  --primary: #818cf8;
+  --primary-foreground: #0f1115;
+  --secondary: #1f232b;
+  --secondary-foreground: #e6e8ee;
+  --ring: #818cf8;
+  --destructive: #f87171;
+  --destructive-foreground: #0f1115;
+  --warning: #fbbf24;
+  --success: #4ade80;
+  --severity-debug: #8b919e;
+  --severity-info: #60a5fa;
+  --severity-warning: #fbbf24;
+  --severity-error: #f87171;
+  --severity-fatal: #e879f9;
 }
 
 @theme inline {
@@ -62,6 +66,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-sidebar: var(--sidebar);
+  --color-code: var(--code);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
@@ -97,6 +102,9 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 25%, transparent);
   }
   :focus-visible {
     outline: 2px solid var(--ring);

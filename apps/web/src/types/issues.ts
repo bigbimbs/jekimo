@@ -8,8 +8,17 @@ export interface IssueFilters {
   period: IssuePeriod;
 }
 
+/** A V8 frame split for display: `at <fn> (<location><position>)`. */
+export interface StackFrameParts {
+  lead: string;
+  fn: string;
+  location: string;
+  position: string;
+}
+
 export interface StackLine {
   text: string;
   frame: boolean;
   inApp: boolean;
+  parts?: StackFrameParts;
 }
