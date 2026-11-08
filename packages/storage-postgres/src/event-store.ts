@@ -4,6 +4,7 @@
 // the two stores.
 
 import { EVENT_KINDS, type EventEnvelope, SEVERITIES, type Severity, utcDay } from "@jekimo/event-schema";
+import { DEFAULT_STREAM_PAGE_SIZE, MAX_STREAM_PAGE_SIZE } from "./constants/event-store.js";
 import { MESSAGE_VECTOR } from "./constants/sql.js";
 import { withTransaction } from "./pool.js";
 import type {
@@ -12,6 +13,7 @@ import type {
   EventQuery,
   EventStore,
   EventStoreCapabilities,
+  EventStreamQuery,
   FingerprintSummary,
   StoredEvent,
 } from "./types/event-store.js";
@@ -122,6 +124,14 @@ function fromRow(r: EventRow): StoredEvent {
 
 export function encodeCursor(receivedAt: Date, eventId: string): string {
   return Buffer.from(JSON.stringify([receivedAt.toISOString(), eventId])).toString("base64url");
+}
+
+export function streamPageSize(query: EventStreamQuery): number {
+  const size = query.pageSize ?? DEFAULT_STREAM_PAGE_SIZE;
+  if (!Number.isInteger(size) || size < 1 || size > MAX_STREAM_PAGE_SIZE) {
+    throw new RangeError(`pageSize must be a whole number from 1 to ${MAX_STREAM_PAGE_SIZE}`);
+  }
+  return size;
 }
 
 /** Returns null for anything that is not a cursor this store produced. */
@@ -250,6 +260,30 @@ export class PostgresEventStore implements EventStore {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
+  }
+
+  // Keyset pages rather than a server-side cursor, so a slow download does not
+  // hold a pooled connection or a transaction open for its whole length.
+  async *streamEvents(projectId: string, query: EventStreamQuery): AsyncGenerator<StoredEvent> {
+    const pageSize = streamPageSize(query);
+    let after: { receivedAt: string; eventId: string } | null = null;
+    for (;;) {
+      const params: unknown[] = [projectId, query.from.toISOString(), query.to.toISOString(), pageSize];
+      let where = "project_id = $1 AND received_at >= $2 AND received_at < $3";
+      if (after) {
+        params.push(after.receivedAt, after.eventId);
+        where += " AND (received_at, event_id) > ($5::timestamptz, $6)";
+      }
+      const { rows } = await this.pool.query<EventRow>(
+        `SELECT ${COLUMN_LIST} FROM events WHERE ${where}
+         ORDER BY received_at, event_id LIMIT $4`,
+        params,
+      );
+      for (const row of rows) yield fromRow(row);
+      const last = rows.at(-1);
+      if (rows.length < pageSize || !last) return;
+      after = { receivedAt: last.received_at.toISOString(), eventId: last.event_id };
+    }
   }
 
   async getEvent(projectId: string, eventId: string): Promise<StoredEvent | null> {

@@ -17,7 +17,7 @@ import {
 import { assertProjectAccess, mintProjectAccess } from "../access.js";
 import type { IssueStatus } from "../constants/issues.js";
 import { DEFAULT_QUEUE_POLICY } from "../constants/queue.js";
-import { decodeCursor, encodeCursor, searchWords } from "../event-store.js";
+import { decodeCursor, encodeCursor, searchWords, streamPageSize } from "../event-store.js";
 import { checkIngestLimitSettings, currentUsage, decideCharge, requireInstanceAdmin } from "../ingest-limits.js";
 import { decodeIssueCursor, encodeIssueCursor, issueStatusAction, mergeEnvironments } from "../issues.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "../project-settings.js";
@@ -36,6 +36,7 @@ import type {
   EventQuery,
   EventStore,
   EventStoreCapabilities,
+  EventStreamQuery,
   FingerprintSummary,
   StoredEvent,
 } from "../types/event-store.js";
@@ -515,6 +516,16 @@ export class MemoryEventStore implements EventStore {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
+  }
+
+  async *streamEvents(projectId: string, query: EventStreamQuery): AsyncGenerator<StoredEvent> {
+    streamPageSize(query);
+    const matching = this.rows
+      .filter((r) => r.projectId === projectId && r.receivedAt >= query.from && r.receivedAt < query.to)
+      .sort(
+        (a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || (a.event.event_id < b.event.event_id ? -1 : 1),
+      );
+    for (const { projectId: _, ...e } of matching) yield structuredClone(e);
   }
 
   async getEvent(projectId: string, eventId: string): Promise<StoredEvent | null> {

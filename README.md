@@ -161,7 +161,7 @@ The repository is a TypeScript monorepo using npm workspaces.
 
 | Path | Contents | State |
 | --- | --- | --- |
-| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, the event query API, and the issue API | Vertical slice |
+| `apps/api` | Fastify API: setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, the event query API, the issue API, and per-project export | Vertical slice |
 | `apps/worker` | Queue consumer: sampling, redaction, fingerprinting, event storage, issue summaries, and expiry | Vertical slice |
 | `apps/web` | React dashboard | Not started |
 | `packages/event-schema` | Event envelope v1, ingestion protocol helpers, retention, sampling, and permission model | Implemented |
@@ -170,7 +170,7 @@ The repository is a TypeScript monorepo using npm workspaces.
 | `deploy/docker-compose` | `docker-compose.dev.yml` for local development; the VPS deployment is still to come | Development only |
 | `docs` | Specifications and operating guides | |
 
-One thin path works end to end: create the first admin, sign in, create a project and an ingestion key, send an event, and read it back. [docs/local-development.md](docs/local-development.md) walks through it. Invitations, password reset links, memberships, key rotation and revocation, and the audit log are available through the API. Per-project rate limits and quotas and disk-safety checks are in place. The dashboard and the production deployment are not implemented yet.
+One thin path works end to end: create the first admin, sign in, create a project and an ingestion key, send an event, and read it back. [docs/local-development.md](docs/local-development.md) walks through it. Invitations, password reset links, memberships, key rotation and revocation, and the audit log are available through the API. Per-project rate limits and quotas, disk-safety checks, and per-project NDJSON export are in place. The dashboard and the production deployment are not implemented yet.
 
 ## Contributing
 

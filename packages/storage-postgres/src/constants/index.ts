@@ -1,6 +1,7 @@
 export * from "./access.js";
 export * from "./audit.js";
 export * from "./disk.js";
+export * from "./event-store.js";
 export * from "./ingest-limits.js";
 export * from "./issues.js";
 export * from "./project-settings.js";

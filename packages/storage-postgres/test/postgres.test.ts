@@ -19,6 +19,7 @@ import {
 import { createTestDatabase, hasDatabase, type TestDatabase } from "../src/testing.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 function makeEvent(
   projectId: string,
@@ -177,6 +178,62 @@ describe.skipIf(!hasDatabase)("PostgreSQL storage", () => {
     expect(p2.events.map((e) => e.event.event_id)).toEqual([ids[0]]);
     expect(p2.nextCursor).toBeUndefined();
   });
+
+  it("streams one project's events in bounded pages, oldest first, scoped in the query", async () => {
+    const ulid = (n: number) =>
+      `01JBQ4Z3H8X9T2K7M${[...n.toString(32).padStart(9, "0")].map((d) => CROCKFORD[parseInt(d, 32)]).join("")}`;
+    const start = Date.now() - 2 * DAY_MS;
+    const total = 12_345;
+    const mine: AppendEvent[] = [];
+    const theirs: AppendEvent[] = [];
+    for (let i = 0; i < total; i++) {
+      // Groups of seven share a millisecond, so page boundaries fall inside ties.
+      const at = new Date(start + Math.floor(i / 7) * 10);
+      mine.push(makeEvent("prj_stream_a", ulid(total - i), at));
+      if (i % 5 === 0) theirs.push(makeEvent("prj_stream_b", ulid(total - i), at, { message: "other project" }));
+    }
+    for (let i = 0; i < mine.length; i += 2000) await store.appendEvents("prj_stream_a", mine.slice(i, i + 2000));
+    for (let i = 0; i < theirs.length; i += 2000) await store.appendEvents("prj_stream_b", theirs.slice(i, i + 2000));
+
+    const pages: number[] = [];
+    const counting = {
+      query: async (...args: Parameters<typeof db.pool.query>) => {
+        const result = await (db.pool.query as (...a: unknown[]) => Promise<{ rows: unknown[] }>)(...args);
+        pages.push(result.rows.length);
+        return result;
+      },
+    } as unknown as typeof db.pool;
+    const streaming = new PostgresEventStore(counting);
+    const range = { from: new Date(start - 1), to: new Date(), pageSize: 1000 };
+
+    let count = 0;
+    let previous = "";
+    for await (const e of streaming.streamEvents("prj_stream_a", range)) {
+      expect(e.event.project_id).toBe("prj_stream_a");
+      const key = `${e.receivedAt.toISOString()} ${e.event.event_id}`;
+      expect(key > previous).toBe(true);
+      previous = key;
+      count++;
+    }
+    expect(count).toBe(total);
+    expect(Math.max(...pages)).toBe(1000);
+    expect(pages).toHaveLength(Math.ceil(total / 1000));
+
+    pages.length = 0;
+    for await (const _ of streaming.streamEvents("prj_stream_a", range)) break;
+    expect(pages).toEqual([1000]);
+
+    const middle = new Date(start + 1000 * 10);
+    const ranged = [];
+    for await (const e of store.streamEvents("prj_stream_b", { from: middle, to: new Date(), pageSize: 333 })) {
+      ranged.push(e);
+    }
+    expect(ranged.length).toBe(theirs.filter((e) => e.receivedAt >= middle).length);
+    expect(ranged.every((e) => e.event.message === "other project")).toBe(true);
+    await expect(async () => {
+      for await (const _ of store.streamEvents("prj_stream_a", { ...range, pageSize: 0 })) break;
+    }).rejects.toThrow(RangeError);
+  }, 60_000);
 
   it("expires one project's day, keeps others, and drops the emptied partition", async () => {
     const old = new Date(Date.now() - 40 * DAY_MS);

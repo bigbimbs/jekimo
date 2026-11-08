@@ -1,6 +1,6 @@
 # API service
 
-Fastify server for setup, sign-in, accounts and invitations, projects and memberships, ingestion keys, the audit log, event ingestion, the event query API, and the issue API. It enforces project access at every route and never writes SQL itself; storage goes through `@jekimo/storage-postgres`.
+Fastify server for setup, sign-in, accounts and invitations, projects and memberships, ingestion keys, the audit log, event ingestion, the event query API, the issue API, and per-project export. It enforces project access at every route and never writes SQL itself; storage goes through `@jekimo/storage-postgres`.
 
 Fastify was chosen over Hono because it is Node-native and mature, gives per-route body parsers and encapsulated plugins (the ingest endpoint has its own parser, error format, and no session middleware), ships structured logging with redaction, and has `inject()` for tests without a socket.
 
@@ -45,6 +45,7 @@ NestJS was considered and not chosen. Its dependency injection relies on decorat
 | `POST /api/v1/projects/:id/keys/:key_id/revoke` | session + CSRF, `keys.manage` | Revokes a key; the next ingest request with it gets `401`. `409 key_already_revoked`. |
 | `GET /api/v1/projects/:id/events` | session, `project.read` | Events, newest first, by `from`, `to` (RFC 3339, on `received_at`), `severity` and `kind` (comma lists), `environment`, `release`, and `fingerprint` (exact match), `q` (words of the message), `limit` (1 to 500), and `cursor`. |
 | `GET /api/v1/projects/:id/events/:event_id` | session, `project.read` | One event. `404` when the id is unknown or belongs to another project. |
+| `GET /api/v1/projects/:id/export` | session, `data.export` | Streams the project's events as NDJSON in stored form, oldest first, by `from` and `to` (RFC 3339, on `received_at`, default the whole project up to now), with `compression=gzip` for a `.ndjson.gz` download. Audit-logged as `data.exported`. See [docs/object-storage.md](../../docs/object-storage.md), "Exports". |
 | `GET /api/v1/projects/:id/issues` | session, `project.read` | Issues, newest `last_seen` first, by `status` (`unresolved`, `resolved`, `ignored`), `kind`, and `severity` (comma lists; severity is the latest event's), `environment` (seen at least once), `from` (last seen at or after) and `to` (first seen before), RFC 3339, `limit` (1 to 200, default 50), and `cursor`. |
 | `GET /api/v1/projects/:id/issues/:issue_id` | session, `project.read` | One issue and its latest event (`latest_event`, or `null` if none is recorded). `404` when the id is unknown or belongs to another project. |
 | `POST /api/v1/projects/:id/issues/:issue_id/resolve`, `/ignore`, `/reopen` | session + CSRF, `issues.manage` | Sets the status to `resolved`, `ignored`, or `unresolved` and returns the issue. Each change is audit-logged as `issue.resolved`, `issue.ignored`, or `issue.reopened` with the status before and after; repeating the current status changes and logs nothing. `404` as above. |

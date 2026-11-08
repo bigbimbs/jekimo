@@ -10,6 +10,8 @@ import { authRoutes } from "./modules/auth/routes.js";
 import { AuthService, SetupGate } from "./modules/auth/service.js";
 import { eventRoutes } from "./modules/events/routes.js";
 import { EventService } from "./modules/events/service.js";
+import { exportRoutes } from "./modules/export/routes.js";
+import { ExportService } from "./modules/export/service.js";
 import { ingestRoutes } from "./modules/ingest/routes.js";
 import { IngestService } from "./modules/ingest/service.js";
 import { issueRoutes } from "./modules/issues/routes.js";
@@ -178,6 +180,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       session,
       projectAccess,
       rotationGraceHours: config.keyRotationGraceHours,
+    });
+    await dashboard.register(exportRoutes, {
+      service: new ExportService({ metadata, events, clock }),
+      session,
+      projectAccess,
     });
     await dashboard.register(issueRoutes, { service: new IssueService({ metadata, events }), session, projectAccess });
     if (deps.limits) {
