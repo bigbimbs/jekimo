@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2Icon } from "lucide-react";
+import { CheckCircle2Icon, LoaderCircleIcon, PartyPopperIcon, RocketIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
@@ -62,7 +62,12 @@ export function SetupPage() {
 
   if (issued) {
     return (
-      <AuthLayout title={t("setup.doneTitle")} intro={t("setup.doneBody", { project: issued.project })}>
+      <AuthLayout
+        wide
+        icon={<PartyPopperIcon aria-hidden="true" />}
+        title={t("setup.doneTitle")}
+        intro={t("setup.doneBody", { project: issued.project })}
+      >
         <div className="grid gap-5">
           <SecretKey issued={issued.key} />
           <Button
@@ -85,7 +90,7 @@ export function SetupPage() {
     return (
       <AuthLayout title={t("setup.closedTitle")}>
         <EmptyState
-          className="py-4"
+          className="py-2"
           icon={<CheckCircle2Icon />}
           title={t("setup.closedBody")}
           action={
@@ -102,7 +107,7 @@ export function SetupPage() {
     setForm((f) => ({ ...f, [name]: e.target.value }));
 
   return (
-    <AuthLayout title={t("setup.title")} intro={t("setup.intro")}>
+    <AuthLayout wide icon={<RocketIcon aria-hidden="true" />} title={t("setup.title")} intro={t("setup.intro")}>
       <form className="grid gap-4" onSubmit={onSubmit}>
         {problem && (
           <Alert variant="destructive">
@@ -123,6 +128,7 @@ export function SetupPage() {
             onChange={update("token")}
           />
         </Field>
+        <div aria-hidden="true" className="h-px bg-border" />
         <Field id="setup-email" label={t("setup.email")}>
           <Input
             id="setup-email"
@@ -140,10 +146,12 @@ export function SetupPage() {
           onConfirm={setConfirm}
           label={t("setup.password")}
         />
+        <div aria-hidden="true" className="h-px bg-border" />
         <Field id="setup-project" label={t("setup.projectName")}>
           <Input id="setup-project" required maxLength={128} value={form.project} onChange={update("project")} />
         </Field>
-        <Button type="submit" className="mt-2 w-full" disabled={complete.isPending}>
+        <Button type="submit" className="mt-1 w-full" disabled={complete.isPending}>
+          {complete.isPending && <LoaderCircleIcon className="animate-spin" aria-hidden="true" />}
           {complete.isPending ? t("setup.submitting") : t("setup.submit")}
         </Button>
       </form>

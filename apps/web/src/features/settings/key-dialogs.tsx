@@ -1,3 +1,4 @@
+import { KeyRoundIcon, LoaderCircleIcon, RefreshCwIcon, ShieldAlertIcon } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "../../components/ui/alert";
@@ -14,8 +15,23 @@ import {
 import { Input } from "../../components/ui/input";
 import { useErrorMessage } from "../../lib/errors";
 import { useFormat } from "../../lib/format";
+import { cn } from "../../lib/utils";
 import type { IssuedKey } from "../../types/api";
 import { SecretKey } from "./secret-key";
+
+function DialogIcon({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "destructive" }) {
+  return (
+    <div
+      className={cn(
+        "mb-1 flex size-9 items-center justify-center rounded-lg border shadow-xs [&_svg]:size-4.5",
+        tone === "default" && "border-border bg-sidebar text-muted-foreground",
+        tone === "destructive" && "border-destructive/30 bg-destructive/10 text-destructive",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** Shows a new key once. Closing drops it: the parent clears `issued`. */
 export function SecretKeyDialog({ issued, onClose }: { issued: IssuedKey | null; onClose(): void }) {
@@ -27,6 +43,9 @@ export function SecretKeyDialog({ issued, onClose }: { issued: IssuedKey | null;
       {issued && (
         <DialogContent closeLabel={tc("actions.close")} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
+            <DialogIcon>
+              <KeyRoundIcon aria-hidden="true" />
+            </DialogIcon>
             <DialogTitle>{t("secret.title")}</DialogTitle>
             <DialogDescription>
               {issued.rotated?.expires_at
@@ -81,14 +100,17 @@ export function CreateKeyDialog({
       }}
     >
       <DialogContent closeLabel={tc("actions.close")}>
-        <form className="grid gap-4" onSubmit={submit}>
+        <form className="grid gap-5" onSubmit={submit}>
           <DialogHeader>
+            <DialogIcon>
+              <KeyRoundIcon aria-hidden="true" />
+            </DialogIcon>
             <DialogTitle>{t("createDialog.title")}</DialogTitle>
             <DialogDescription>{t("createDialog.body")}</DialogDescription>
           </DialogHeader>
           {error != null && <Alert variant="destructive">{message(error)}</Alert>}
           <div className="grid gap-1.5">
-            <label htmlFor="key-name" className="text-sm font-medium">
+            <label htmlFor="key-name" className="text-[0.8125rem] font-medium">
               {t("createDialog.name")}
             </label>
             <Input
@@ -104,6 +126,7 @@ export function CreateKeyDialog({
               <Button variant="outline">{tc("actions.cancel")}</Button>
             </DialogClose>
             <Button type="submit" disabled={pending}>
+              {pending && <LoaderCircleIcon className="animate-spin" aria-hidden="true" />}
               {pending ? t("createDialog.submitting") : t("createDialog.submit")}
             </Button>
           </DialogFooter>
@@ -140,6 +163,9 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent closeLabel={tc("actions.close")}>
         <DialogHeader>
+          <DialogIcon tone={destructive ? "destructive" : "default"}>
+            {destructive ? <ShieldAlertIcon aria-hidden="true" /> : <RefreshCwIcon aria-hidden="true" />}
+          </DialogIcon>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{body}</DialogDescription>
         </DialogHeader>
@@ -149,6 +175,7 @@ export function ConfirmDialog({
             <Button variant="outline">{tc("actions.cancel")}</Button>
           </DialogClose>
           <Button variant={destructive ? "destructive" : "default"} disabled={pending} onClick={onConfirm}>
+            {pending && <LoaderCircleIcon className="animate-spin" aria-hidden="true" />}
             {confirm}
           </Button>
         </DialogFooter>

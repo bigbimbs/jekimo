@@ -1,5 +1,5 @@
 import type { EventKind, Severity } from "@jekimo/event-schema";
-import { CheckIcon, CircleDotIcon, EyeOffIcon } from "lucide-react";
+import { ActivityIcon, CheckIcon, CircleDotIcon, EyeOffIcon, ScrollTextIcon, ZapIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "../../components/ui/badge";
@@ -14,13 +14,20 @@ const SEVERITY_STYLE: Record<Severity, { dot: string; tint: string }> = {
 };
 
 const STATUS_STYLE: Record<IssueStatus, { icon: ReactNode; tint: string }> = {
-  unresolved: { icon: <CircleDotIcon aria-hidden="true" className="text-muted-foreground" />, tint: "" },
+  unresolved: { icon: <CircleDotIcon aria-hidden="true" className="text-muted-foreground" />, tint: "bg-background" },
   resolved: {
     icon: <CheckIcon aria-hidden="true" className="text-success" />,
     tint: "border-success/30 bg-success/10",
   },
   ignored: { icon: <EyeOffIcon aria-hidden="true" className="text-muted-foreground" />, tint: "bg-muted" },
 };
+
+const KIND_ICONS = { exception: ZapIcon, log: ScrollTextIcon, event: ActivityIcon } as const;
+
+function KindIcon({ kind }: { kind: EventKind }) {
+  const Icon = KIND_ICONS[kind];
+  return <Icon aria-hidden="true" />;
+}
 
 export function SeverityBadge({ severity }: { severity: Severity }) {
   const { t } = useTranslation("issues");
@@ -44,5 +51,9 @@ export function StatusBadge({ status }: { status: IssueStatus }) {
 
 export function KindBadge({ kind }: { kind: EventKind }) {
   const { t } = useTranslation("issues");
-  return <Badge className="bg-muted text-muted-foreground">{t(`kind.${kind}`)}</Badge>;
+  return (
+    <Badge icon={<KindIcon kind={kind} />} className="border-transparent bg-muted text-muted-foreground">
+      {t(`kind.${kind}`)}
+    </Badge>
+  );
 }

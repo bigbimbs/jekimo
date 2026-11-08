@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2Icon, LinkIcon } from "lucide-react";
+import { CheckCircle2Icon, KeyRoundIcon, LinkIcon, LoaderCircleIcon, MailOpenIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -48,7 +48,7 @@ export function LinkPasswordPage({ mode }: { mode: "invite" | "reset" }) {
   if (!token) {
     return (
       <AuthLayout title={t(`${mode}.title`)}>
-        <EmptyState className="py-4" icon={<LinkIcon />} title={t("link.missingTitle")} body={t("link.missingBody")} />
+        <EmptyState className="py-2" icon={<LinkIcon />} title={t("link.missingTitle")} body={t("link.missingBody")} />
       </AuthLayout>
     );
   }
@@ -56,13 +56,17 @@ export function LinkPasswordPage({ mode }: { mode: "invite" | "reset" }) {
   if (submit.isSuccess) {
     return (
       <AuthLayout title={t(`${mode}.doneTitle`)}>
-        <EmptyState className="py-4" icon={<CheckCircle2Icon />} title={t(`${mode}.doneBody`)} action={toSignIn} />
+        <EmptyState className="py-2" icon={<CheckCircle2Icon />} title={t(`${mode}.doneBody`)} action={toSignIn} />
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout title={t(`${mode}.title`)} intro={t(`${mode}.intro`)}>
+    <AuthLayout
+      icon={mode === "invite" ? <MailOpenIcon aria-hidden="true" /> : <KeyRoundIcon aria-hidden="true" />}
+      title={t(`${mode}.title`)}
+      intro={t(`${mode}.intro`)}
+    >
       <form className="grid gap-4" onSubmit={onSubmit}>
         {problem && (
           <Alert variant="destructive">
@@ -71,7 +75,8 @@ export function LinkPasswordPage({ mode }: { mode: "invite" | "reset" }) {
         )}
         {submit.isError && <Alert variant="destructive">{message(submit.error)}</Alert>}
         <PasswordFields password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
-        <Button type="submit" className="mt-2 w-full" disabled={submit.isPending}>
+        <Button type="submit" className="mt-1 w-full" disabled={submit.isPending}>
+          {submit.isPending && <LoaderCircleIcon className="animate-spin" aria-hidden="true" />}
           {submit.isPending ? t(`${mode}.submitting`) : t(`${mode}.submit`)}
         </Button>
       </form>

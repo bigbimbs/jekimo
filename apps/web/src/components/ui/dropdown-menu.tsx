@@ -16,7 +16,7 @@ export function DropdownMenuContent({
       <MenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-48 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
+          "z-50 min-w-52 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-black/5 data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in dark:shadow-black/40",
           className,
         )}
         {...props}
@@ -26,7 +26,7 @@ export function DropdownMenuContent({
 }
 
 const itemClass =
-  "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled]:pointer-events-none data-[highlighted]:bg-muted data-[disabled]:opacity-50 [&_svg]:size-4";
+  "relative flex h-8 cursor-default select-none items-center gap-2 rounded-md px-2 text-[0.8125rem] outline-none transition-colors data-[disabled]:pointer-events-none data-[highlighted]:bg-muted data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground";
 
 export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof MenuPrimitive.Item>) {
   return <MenuPrimitive.Item className={cn(itemClass, className)} {...props} />;
@@ -50,7 +50,12 @@ export function DropdownMenuRadioItem({
 }
 
 export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof MenuPrimitive.Label>) {
-  return <MenuPrimitive.Label className={cn("px-2 py-1.5 text-xs text-muted-foreground", className)} {...props} />;
+  return (
+    <MenuPrimitive.Label
+      className={cn("px-2 pb-1 pt-1.5 text-xs font-medium text-muted-foreground", className)}
+      {...props}
+    />
+  );
 }
 
 export function DropdownMenuSeparator({ className, ...props }: ComponentProps<typeof MenuPrimitive.Separator>) {

@@ -16,12 +16,12 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-2 py-0.5 text-xs font-medium [&_svg]:size-3.5 [&_svg]:shrink-0",
+        "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-1.5 text-xs font-medium leading-none [&_svg]:size-3 [&_svg]:shrink-0",
         className,
       )}
       {...props}
     >
-      {dot && <span aria-hidden="true" className={cn("size-2 rounded-full", dot)} />}
+      {dot && <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", dot)} />}
       {icon}
       {children}
     </span>

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, EyeOffIcon, RotateCcwIcon } from "lucide-react";
+import { CheckIcon, EyeOffIcon, LoaderCircleIcon, RotateCcwIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../components/ui/button";
 import { ACTIONS_FOR_STATUS, type IssueAction } from "../../constants/issues";
@@ -32,8 +32,8 @@ export function IssueActions({ projectId, issue }: { projectId: string; issue: I
   if (!permissions.has("issues.manage")) return null;
 
   return (
-    <div className="grid justify-items-end gap-2">
-      <fieldset className="flex gap-2">
+    <div className="grid justify-items-end gap-2 animate-fade-in">
+      <fieldset className="flex flex-wrap gap-2">
         <legend className="sr-only">{t("actions.label")}</legend>
         {ACTIONS_FOR_STATUS[issue.status].map((action, i) => {
           const Icon = ICONS[action];
@@ -41,18 +41,21 @@ export function IssueActions({ projectId, issue }: { projectId: string; issue: I
             <Button
               key={action}
               variant={i === 0 ? "default" : "outline"}
-              size="sm"
               disabled={change.isPending}
               onClick={() => change.mutate(action)}
             >
-              <Icon aria-hidden="true" />
+              {change.isPending && change.variables === action ? (
+                <LoaderCircleIcon className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Icon aria-hidden="true" />
+              )}
               {t(`actions.${action}`)}
             </Button>
           );
         })}
       </fieldset>
       {change.isError && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="max-w-xs text-end text-xs text-destructive">
           {message(change.error)}
         </p>
       )}

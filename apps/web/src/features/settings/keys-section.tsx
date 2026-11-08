@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRoundIcon, LockIcon, PlusIcon } from "lucide-react";
+import { KeyRoundIcon, LockIcon, PlusIcon, RefreshCwIcon, TrashIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EmptyState, ErrorState, PageLoader } from "../../components/states";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Table, TableCell, TableHead, TableRow } from "../../components/ui/table";
+import { Card, CardHeader } from "../../components/ui/card";
+import { Table, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { useApi } from "../../lib/api-context";
 import { useFormat } from "../../lib/format";
 import { queryKeys } from "../../lib/query-keys";
+import { cn } from "../../lib/utils";
 import type { IngestionKey, IssuedKey, KeyStatus } from "../../types/api";
 import { useProjectPermissions } from "../projects/permissions";
 import { ConfirmDialog, CreateKeyDialog, SecretKeyDialog } from "./key-dialogs";
@@ -83,7 +85,7 @@ export function KeysSection({ projectId }: { projectId: string }) {
     body = (
       <Table>
         <caption className="sr-only">{t("keys.title")}</caption>
-        <thead>
+        <TableHeader>
           <TableRow>
             <TableHead>{t("keys.table.keyId")}</TableHead>
             <TableHead className="w-full">{t("keys.table.name")}</TableHead>
@@ -94,14 +96,14 @@ export function KeysSection({ projectId }: { projectId: string }) {
               <span className="sr-only">{t("keys.table.actions")}</span>
             </TableHead>
           </TableRow>
-        </thead>
+        </TableHeader>
         <tbody>
           {keys.data.map((key) => {
             const live = key.status === "active" || key.status === "rotating";
             return (
-              <TableRow key={key.key_id}>
-                <TableCell className="whitespace-nowrap font-mono text-xs">{key.key_id}</TableCell>
-                <TableCell className="max-w-0 truncate">
+              <TableRow key={key.key_id} className={cn("hover:bg-sidebar", !live && "text-muted-foreground")}>
+                <TableCell className="whitespace-nowrap py-2.5 font-mono text-xs font-medium">{key.key_id}</TableCell>
+                <TableCell className="max-w-0 truncate font-medium">
                   {key.name || <span className="text-muted-foreground">{t("keys.unnamed")}</span>}
                 </TableCell>
                 <TableCell>
@@ -109,12 +111,12 @@ export function KeysSection({ projectId }: { projectId: string }) {
                     {t(`keys.status.${key.status}`)}
                   </Badge>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-[0.8125rem] text-muted-foreground">
                   <time dateTime={key.created_at} title={format.dateTime(key.created_at)}>
                     {format.relative(key.created_at)}
                   </time>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-[0.8125rem] text-muted-foreground">
                   {key.expires_at ? (
                     <time dateTime={key.expires_at} title={format.dateTime(key.expires_at)}>
                       {format.relative(key.expires_at)}
@@ -128,16 +130,17 @@ export function KeysSection({ projectId }: { projectId: string }) {
                     <fieldset className="flex justify-end gap-1">
                       <legend className="sr-only">{t("keys.rowActions", { keyId: key.key_id })}</legend>
                       {key.status === "active" && (
-                        <Button variant="ghost" size="sm" onClick={() => setConfirming({ action: "rotate", key })}>
+                        <Button variant="ghost" size="xs" onClick={() => setConfirming({ action: "rotate", key })}>
+                          <RefreshCwIcon aria-hidden="true" />
                           {t("keys.rotate")}
                         </Button>
                       )}
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
+                        variant="destructive-ghost"
+                        size="xs"
                         onClick={() => setConfirming({ action: "revoke", key })}
                       >
+                        <TrashIcon aria-hidden="true" />
                         {t("keys.revoke")}
                       </Button>
                     </fieldset>
@@ -153,22 +156,21 @@ export function KeysSection({ projectId }: { projectId: string }) {
   const action = confirming?.action === "rotate" ? rotate : revoke;
 
   return (
-    <section className="grid gap-4" aria-labelledby="keys-title">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="grid gap-1">
-          <h2 id="keys-title" className="text-base font-semibold">
-            {t("keys.title")}
-          </h2>
-          <p className="max-w-2xl text-sm text-muted-foreground">{t("keys.intro")}</p>
-        </div>
-        {canManage && (
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon aria-hidden="true" />
-            {t("keys.create")}
-          </Button>
-        )}
-      </div>
-      <div className="rounded-lg border border-border">{body}</div>
+    <Card aria-labelledby="keys-title">
+      <CardHeader
+        title={t("keys.title")}
+        titleId="keys-title"
+        description={t("keys.intro")}
+        actions={
+          canManage && (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <PlusIcon aria-hidden="true" />
+              {t("keys.create")}
+            </Button>
+          )
+        }
+      />
+      {body}
 
       <CreateKeyDialog
         open={creating}
@@ -198,6 +200,6 @@ export function KeysSection({ projectId }: { projectId: string }) {
         onConfirm={() => confirming && action.mutate(confirming.key.key_id)}
       />
       <SecretKeyDialog issued={issued} onClose={() => setIssued(null)} />
-    </section>
+    </Card>
   );
 }

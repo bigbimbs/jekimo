@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { cn } from "../../lib/utils";
 import type { IssuedKey } from "../../types/api";
 
 /**
@@ -32,16 +33,16 @@ export function SecretKey({ issued }: { issued: IssuedKey }) {
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <Alert variant="warning">
         <TriangleAlertIcon aria-hidden="true" />
         <p>{t("secret.warning")}</p>
       </Alert>
       <div className="grid gap-1.5">
-        <label htmlFor="secret-key" className="text-sm font-medium">
+        <label htmlFor="secret-key" className="text-[0.8125rem] font-medium">
           {t("secret.label", { keyId: issued.key_id })}
         </label>
-        <div className="flex gap-2">
+        <div className="flex rounded-md shadow-xs">
           <Input
             ref={input}
             id="secret-key"
@@ -49,10 +50,18 @@ export function SecretKey({ issued }: { issued: IssuedKey }) {
             value={issued.key}
             spellCheck={false}
             autoComplete="off"
-            className="font-mono text-xs"
+            className="rounded-e-none font-mono text-xs shadow-none focus-visible:z-10"
             onFocus={(e) => e.currentTarget.select()}
           />
-          <Button variant="outline" onClick={copyKey} aria-live="polite">
+          <Button
+            variant="outline"
+            onClick={copyKey}
+            aria-live="polite"
+            className={cn(
+              "-ms-px h-9 min-w-24 rounded-s-none border-input shadow-none",
+              copy === "copied" && "[&_svg]:text-success",
+            )}
+          >
             {copy === "copied" ? <CheckIcon aria-hidden="true" /> : <CopyIcon aria-hidden="true" />}
             {copy === "copied" ? t("secret.copied") : t("secret.copy")}
           </Button>

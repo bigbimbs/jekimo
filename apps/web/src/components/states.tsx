@@ -19,14 +19,15 @@ export function EmptyState({
   className?: string | undefined;
 }) {
   return (
-    <div className={cn("flex flex-col items-center px-6 py-16 text-center", className)}>
+    <div className={cn("flex flex-col items-center px-6 py-14 text-center animate-fade-in", className)}>
       {icon && (
-        <div className="mb-4 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5">
+        <div className="relative isolate mb-4 flex size-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground shadow-sm [&_svg]:size-5">
+          <span aria-hidden="true" className="absolute -inset-2 -z-10 rounded-2xl bg-muted/60" />
           {icon}
         </div>
       )}
-      <h2 className="text-base font-semibold">{title}</h2>
-      {body && <p className="mt-1 max-w-md text-sm text-muted-foreground">{body}</p>}
+      <h2 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h2>
+      {body && <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">{body}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -60,11 +61,36 @@ export function ErrorState({
   );
 }
 
+export function PageHeader({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <header className="grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="grid min-w-0 gap-1">
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+      {children}
+    </header>
+  );
+}
+
 export function PageLoader({ className }: { className?: string | undefined }) {
   const { t } = useTranslation();
   return (
     <div role="status" className={cn("flex items-center justify-center p-16 text-muted-foreground", className)}>
-      <LoaderCircleIcon className="size-5 animate-spin" aria-hidden="true" />
+      <LoaderCircleIcon className="size-5 animate-spin opacity-70" aria-hidden="true" />
       <span className="sr-only">{t("states.loading")}</span>
     </div>
   );

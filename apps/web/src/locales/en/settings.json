@@ -1,5 +1,6 @@
 {
   "title": "Settings",
+  "intro": "Configuration and ingestion keys for {project}.",
   "project": {
     "title": "Project",
     "name": "Name",

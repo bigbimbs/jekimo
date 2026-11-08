@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Card, CardHeader } from "../../components/ui/card";
+import { Switch } from "../../components/ui/switch";
 import { cn } from "../../lib/utils";
 import type { StackLine } from "../../types/issues";
 import { parseStack } from "./stack";
@@ -13,11 +15,11 @@ function Frame({ line }: { line: StackLine }) {
       <span className="text-muted-foreground">{parts.lead}</span>
       {parts.fn && (
         <>
-          <span className={cn(!dim && "font-semibold")}>{parts.fn}</span>
+          <span className={cn(!dim && "font-semibold text-foreground")}>{parts.fn}</span>
           <span className="text-muted-foreground"> (</span>
         </>
       )}
-      <span>{parts.location}</span>
+      <span className={cn(!dim && "text-foreground")}>{parts.location}</span>
       <span className="text-muted-foreground">
         {parts.position}
         {parts.fn && ")"}
@@ -26,40 +28,48 @@ function Frame({ line }: { line: StackLine }) {
   );
 }
 
-export function StackTrace({ stacktrace }: { stacktrace: string }) {
+export function StackTrace({ title, stacktrace }: { title: string; stacktrace: string }) {
   const { t } = useTranslation("issues");
+  const switchId = useId();
   const [appOnly, setAppOnly] = useState(false);
   const lines = parseStack(stacktrace);
+  const frames = lines.filter((l) => l.frame).length;
   const hasLibraryFrames = lines.some((l) => l.frame && !l.inApp);
   const visible = appOnly ? lines.filter((l) => !l.frame || l.inApp) : lines;
 
   return (
-    <div className="grid gap-2">
-      {hasLibraryFrames && (
-        <label className="flex items-center gap-2 justify-self-end text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            className="size-4 accent-(--primary)"
-            checked={appOnly}
-            onChange={(e) => setAppOnly(e.target.checked)}
-          />
-          {t("detail.appFramesOnly")}
-        </label>
-      )}
+    <Card aria-labelledby={`${switchId}-title`}>
+      <CardHeader
+        title={title}
+        titleId={`${switchId}-title`}
+        actions={
+          <>
+            <span className="text-xs tabular-nums text-muted-foreground">{t("detail.frames", { count: frames })}</span>
+            {hasLibraryFrames && (
+              <div className="flex items-center gap-2 border-s border-border ps-3">
+                <Switch id={switchId} checked={appOnly} onCheckedChange={setAppOnly} />
+                <label htmlFor={switchId} className="cursor-pointer select-none text-[0.8125rem] text-muted-foreground">
+                  {t("detail.appFramesOnly")}
+                </label>
+              </div>
+            )}
+          </>
+        }
+      />
       <pre
-        className="overflow-x-auto rounded-md border border-border bg-code py-3 font-mono text-[0.8125rem] leading-6"
+        className="overflow-x-auto bg-code py-2.5 font-mono text-[0.8125rem] leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard
         tabIndex={0}
       >
-        <code>
+        <code className="block min-w-max">
           {visible.map((line, i) => (
             <span
               // biome-ignore lint/suspicious/noArrayIndexKey: stack lines repeat and have no identity beyond position
               key={i}
               className={cn(
-                "block border-s-2 border-transparent px-4",
-                !line.frame && "font-semibold",
-                line.frame && line.inApp && "border-muted-foreground bg-muted text-foreground",
+                "block border-s-2 border-transparent px-4 transition-colors hover:bg-muted/70",
+                !line.frame && "pb-1 font-semibold text-foreground",
+                line.frame && line.inApp && "border-muted-foreground bg-background/70 dark:bg-muted/40",
                 line.frame && !line.inApp && "text-muted-foreground",
               )}
             >
@@ -68,6 +78,6 @@ export function StackTrace({ stacktrace }: { stacktrace: string }) {
           ))}
         </code>
       </pre>
-    </div>
+    </Card>
   );
 }

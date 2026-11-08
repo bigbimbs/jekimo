@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { PageHeader } from "../../components/states";
+import { Card, CardHeader } from "../../components/ui/card";
 import { useFormat } from "../../lib/format";
 import { useProject } from "../projects/use-project";
 import { KeysSection } from "./keys-section";
@@ -23,21 +25,19 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-10 p-6 lg:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-      <section className="grid gap-4" aria-labelledby="project-title">
-        <h2 id="project-title" className="text-base font-semibold">
-          {t("project.title")}
-        </h2>
-        <dl className="grid gap-x-6 gap-y-4 rounded-lg border border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <PageHeader title={t("title")} description={t("intro", { project: project.name })} />
+      <Card aria-labelledby="project-title">
+        <CardHeader title={t("project.title")} titleId="project-title" />
+        <dl className="grid gap-x-8 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map(([label, value]) => (
-            <div key={label} className="grid gap-0.5">
+            <div key={label} className="grid min-w-0 gap-1">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="min-w-0 break-all text-sm">{value}</dd>
+              <dd className="min-w-0 break-all text-[0.8125rem] font-medium">{value}</dd>
             </div>
           ))}
         </dl>
-      </section>
+      </Card>
       <KeysSection projectId={project.id} />
     </div>
   );

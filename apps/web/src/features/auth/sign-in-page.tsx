@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { LoaderCircleIcon, LogInIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
@@ -36,7 +37,7 @@ export function SignInPage() {
   }
 
   return (
-    <AuthLayout title={t("signIn.title")}>
+    <AuthLayout icon={<LogInIcon aria-hidden="true" />} title={t("signIn.title")}>
       <form className="grid gap-4" onSubmit={submit} noValidate={false}>
         {signIn.isError && <Alert variant="destructive">{message(signIn.error)}</Alert>}
         <Field id="email" label={t("signIn.email")}>
@@ -60,10 +61,13 @@ export function SignInPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
-        <Button type="submit" className="mt-2 w-full" disabled={signIn.isPending}>
+        <Button type="submit" className="mt-1 w-full" disabled={signIn.isPending}>
+          {signIn.isPending && <LoaderCircleIcon className="animate-spin" aria-hidden="true" />}
           {signIn.isPending ? t("signIn.submitting") : t("signIn.submit")}
         </Button>
-        <p className="text-xs text-muted-foreground">{t("signIn.forgot")}</p>
+        <p className="border-t border-border pt-4 text-center text-xs leading-relaxed text-muted-foreground">
+          {t("signIn.forgot")}
+        </p>
       </form>
     </AuthLayout>
   );

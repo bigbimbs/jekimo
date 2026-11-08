@@ -19,7 +19,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         if (next) setPreference(next);
       }}
       aria-label={t("theme.label")}
-      className={cn("inline-flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5", className)}
+      className={cn("inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5", className)}
     >
       {THEME_PREFERENCES.map((p) => {
         const Icon = ICONS[p];
@@ -29,9 +29,9 @@ export function ThemeToggle({ className }: { className?: string }) {
             value={p}
             aria-label={t(`theme.${p}`)}
             title={t(`theme.${p}`)}
-            className="inline-flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=on]:bg-muted data-[state=on]:text-foreground"
+            className="inline-flex h-6 min-w-7 flex-1 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,box-shadow] duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs data-[state=on]:ring-1 data-[state=on]:ring-border"
           >
-            <Icon className="size-4" aria-hidden="true" />
+            <Icon className="size-3.5" aria-hidden="true" />
           </ToggleGroup.Item>
         );
       })}
