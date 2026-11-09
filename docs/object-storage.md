@@ -143,6 +143,18 @@ Where [retention.md](retention.md) says the critical level caps retention at 7 d
 
 When a bucket is configured, per-project exports are written under the project's `exports/` prefix and served through presigned URLs with a 15-minute lifetime. Export objects expire after 7 days. Without a bucket, exports are streamed directly from the API.
 
+### Without a bucket
+
+`GET /api/v1/projects/:id/export` streams one project's events. It requires `data.export` on the project; users outside the project get `404` ([access-model.md](access-model.md)).
+
+- The body is newline-delimited JSON (`application/x-ndjson`), one event envelope per line in stored form ([event-format.md](event-format.md)), so every line validates with `validateEvent(line, { mode: "stored" })`. Lines carry no ingestion key id, receive metadata, or any other storage field.
+- `from` (inclusive) and `to` (exclusive) are optional RFC 3339 times on when the event was received. Without `from` the export starts at the project's first event; without `to` it ends at the time of the request, so events arriving during a long download are not included. Events are ordered oldest first.
+- `compression=gzip` returns the same lines gzip-compressed as `application/gzip`, named `jekimo-<project>.ndjson.gz`.
+- Rows are read from the event store in pages of 500 and written as the client reads, so memory use does not depend on project size. The project id comes from the access check and is a parameter of every page query; nothing is filtered afterwards.
+- Every export is audit-logged as `data.exported` with the actor, the project, the requested range, and the compression, never the content. The entry is written before the first row is sent, so an abandoned download is still recorded.
+- A failure after the first byte ends the response without the final chunk, so clients see a truncated transfer rather than a complete-looking file. Retry the export; it is read-only and can be repeated.
+- Exports keep working when the disk is full ([retention.md](retention.md), "Disk safety"), so data can be moved out.
+
 ## Large payloads (planned)
 
 Stack traces and attachments above a threshold will be stored as content-addressed blobs under the project prefix, with PostgreSQL holding the reference. This is additive and not part of the first object storage release.

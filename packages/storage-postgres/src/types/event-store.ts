@@ -50,6 +50,15 @@ export interface EventStoreCapabilities {
   textSearch: boolean;
 }
 
+export interface EventStreamQuery {
+  /** Inclusive lower bound on received_at. */
+  from: Date;
+  /** Exclusive upper bound on received_at. */
+  to: Date;
+  /** Rows per round trip; DEFAULT_STREAM_PAGE_SIZE when omitted. */
+  pageSize?: number;
+}
+
 export interface EventPage {
   events: StoredEvent[];
   nextCursor?: string;
@@ -74,6 +83,11 @@ export interface EventStore {
   appendEvents(projectId: string, events: AppendEvent[]): Promise<{ inserted: string[] }>;
   /** Newest first by received_at. Throws RangeError for an invalid cursor or unsupported filter. */
   queryEvents(projectId: string, query: EventQuery): Promise<EventPage>;
+  /**
+   * Every event of one project in the range, oldest first by received_at,
+   * fetched a page at a time so memory does not grow with the project.
+   */
+  streamEvents(projectId: string, query: EventStreamQuery): AsyncIterable<StoredEvent>;
   /** Another project's event_id is null, never its event. */
   getEvent(projectId: string, eventId: string): Promise<StoredEvent | null>;
   /** Derived counts per fingerprint, for issue summaries. All fingerprints when omitted. */

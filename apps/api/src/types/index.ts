@@ -3,6 +3,7 @@ export type * from "./app.js";
 export type * from "./auth.js";
 export type * from "./config.js";
 export type * from "./events.js";
+export type * from "./export.js";
 export type * from "./fastify.js";
 export type * from "./ingest.js";
 export type * from "./issues.js";

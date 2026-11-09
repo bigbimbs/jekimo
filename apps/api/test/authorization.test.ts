@@ -70,6 +70,13 @@ const ROUTES: Route[] = [
     request: (id) => at(`/api/v1/projects/${id}/events/${MATRIX_EVENT_ID}`)(),
   },
   {
+    name: "GET export",
+    method: "GET",
+    permission: "data.export",
+    ok: 200,
+    request: (id) => at(`/api/v1/projects/${id}/export`)(),
+  },
+  {
     name: "POST keys",
     method: "POST",
     permission: "keys.manage",

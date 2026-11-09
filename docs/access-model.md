@@ -154,6 +154,7 @@ Recorded events include:
 - Ingestion key created, rotated, revoked.
 - Retention, quota, or sample rate changed.
 - Bulk deletion of events or issues.
+- Project data exported, with the requested time range and compression, never the content.
 - Issue resolved, ignored, or reopened, with the status before and after, and an issue reopened by a regression (no actor).
 - Instance settings changed.
 

@@ -37,6 +37,7 @@ export const AUDIT_ACTIONS = [
   "issue.reopened",
   "issue.regressed",
   "data.bulk_deleted",
+  "data.exported",
   "instance.settings_updated",
   "instance.disk_level_changed",
 ] as const;
