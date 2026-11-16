@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "i18next": "^27.0.1",
     "i18next-icu": "^2.7.0",
-    "intl-messageformat": "^12.1.4",
+    "intl-messageformat": "^12.1.5",
     "lucide-react": "^1.70.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
