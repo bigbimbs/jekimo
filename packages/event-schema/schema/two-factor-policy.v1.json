@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Jekimo two-factor policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["required"],
+  "properties": { "required": { "type": "boolean" } }
+}

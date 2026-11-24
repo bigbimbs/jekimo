@@ -12,6 +12,7 @@ import { isApiError } from "../../lib/errors";
 import { useFormat } from "../../lib/format";
 import { queryKeys } from "../../lib/query-keys";
 import { useProject } from "../projects/use-project";
+import { TraceLink } from "../traces/trace-link";
 import { KindBadge, SeverityBadge, StatusBadge } from "./badges";
 import { IssueActions } from "./issue-actions";
 import { StackTrace } from "./stack-trace";
@@ -106,6 +107,9 @@ export function IssueDetailPage() {
     <article className={page}>
       <header className="grid gap-3">
         {back}
+        {latest && (
+          <TraceLink projectId={project.id} traceId={latest.event.context?.trace_id} receivedAt={latest.received_at} />
+        )}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="grid min-w-0 gap-2.5">
             <h1 className="break-words text-xl font-semibold leading-snug tracking-tight">{issue.title}</h1>

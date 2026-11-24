@@ -5,11 +5,16 @@ import { accountLink, newAccountToken } from "./account-links.js";
 import { DAY_MS } from "./constants/index.js";
 import type { AdminCommandDeps } from "./types/index.js";
 
-const ADMIN_USAGE = "usage: jekimo admin reset-password <email>";
+const ADMIN_USAGE = "usage: jekimo admin reset-password <email> | jekimo admin reset-two-factor <email>";
 
 export async function runAdminCommand(args: readonly string[], deps: AdminCommandDeps): Promise<number> {
   const [group, command, email, ...rest] = args;
-  if (group !== "admin" || command !== "reset-password" || !email || rest.length > 0) {
+  if (
+    group !== "admin" ||
+    (command !== "reset-password" && command !== "reset-two-factor") ||
+    !email ||
+    rest.length > 0
+  ) {
     deps.err(ADMIN_USAGE);
     return 2;
   }
@@ -17,6 +22,17 @@ export async function runAdminCommand(args: readonly string[], deps: AdminComman
   if (!user) {
     deps.err("no user with that email");
     return 1;
+  }
+  if (command === "reset-two-factor") {
+    const result = await deps.metadata.mutateTwoFactor({ kind: "reset", userId: user.id, now: deps.clock() });
+    if (!result.ok) {
+      deps.err("two-factor reset failed");
+      return 1;
+    }
+    deps.out(
+      "Two-factor enrollment and recovery codes reset; all sessions revoked. Instance enforcement is unchanged.",
+    );
+    return 0;
   }
   const { token, tokenHash } = newAccountToken();
   const result = await deps.metadata.createPasswordReset(null, {

@@ -58,7 +58,7 @@ export function ProjectSwitcher({ projects, current }: { projects: Project[]; cu
             key={p.id}
             className={cn(p.id === current?.id && "font-medium")}
             onSelect={() => {
-              if (p.id !== current?.id) navigate(`/projects/${encodeURIComponent(p.id)}/issues`);
+              if (p.id !== current?.id) navigate(`/projects/${encodeURIComponent(p.id)}/dashboard`);
             }}
           >
             <ProjectMark name={p.name} className="size-5 text-[0.625rem]" />

@@ -4,7 +4,7 @@ Thank you for your interest in Jekimo. This document explains how to propose cha
 
 ## Project status
 
-Jekimo is working toward its first release. A first vertical slice runs end to end: instance setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API, plus an alpha of the Node.js SDK. The first dashboard pages (setup, sign-in, issues, ingestion keys) are in place; object storage and dashboard pages for members, users, and the audit log are not implemented yet. The product brief in the [README](README.md) describes the whole product. Contributions that are especially welcome:
+Jekimo is working toward its first release. A first vertical slice runs end to end: instance setup, sessions, projects, ingestion keys, `POST /api/v1/ingest`, a durable PostgreSQL queue, the worker, and the event query API, plus an alpha of the Node.js SDK. The first dashboard pages (setup, sign-in, overview, logs, custom events, issues, ingestion keys, project members, account security, admin users, invitations, and the audit log) are in place; object storage and custom role management are not implemented yet. The product brief in the [README](README.md) describes the whole product. Contributions that are especially welcome:
 
 - Feedback on the specs in [`docs/`](docs/README.md): the event envelope, ingestion protocol, retention, access model, and object storage.
 - Design proposals for items listed under "Open decisions" in the README.

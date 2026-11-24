@@ -44,6 +44,8 @@ services:
   api:
     image: jekimo-api:dev
     environment:
+      JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY: ${JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY:-}
+      JEKIMO_MFA_ENCRYPTION_KEY: ${JEKIMO_MFA_ENCRYPTION_KEY:-}
       <<: *database-url
       JEKIMO_LOG_LEVEL: ${JEKIMO_LOG_LEVEL:-info}
       JEKIMO_MEMBERS_CAN_CREATE_PROJECTS: ${JEKIMO_MEMBERS_CAN_CREATE_PROJECTS:-true}
@@ -61,6 +63,8 @@ services:
       dockerfile: apps/worker/Dockerfile
     image: jekimo-worker:dev
     environment:
+      JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY: ${JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY:-}
+      JEKIMO_PUBLIC_URL: ${JEKIMO_PUBLIC_URL:-}
       <<: *database-url
       JEKIMO_LOG_LEVEL: ${JEKIMO_LOG_LEVEL:-info}
     depends_on:

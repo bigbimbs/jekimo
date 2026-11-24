@@ -46,7 +46,11 @@ curl -s http://127.0.0.1:8080/readyz
 
 ### The dashboard
 
-Open <http://localhost:8081>. The session cookie is `Secure`, which browsers accept over plain HTTP only from `localhost`; Chrome also accepts `127.0.0.1`, other browsers may not. On a fresh database the dashboard opens its setup page; paste the setup token from step 3 below and choose the first admin's email, password, and project name. It shows the project's ingestion key once, with a copy button, then signs you in. The rest of this walkthrough uses `curl` so every API call is visible; the dashboard shows the same data under **Issues**, and the project's keys under **Settings**.
+Open <http://localhost:8081>. The session cookie is `Secure`, which browsers accept over plain HTTP only from `localhost`; Chrome also accepts `127.0.0.1`, other browsers may not. On a fresh database the dashboard opens its setup page; paste the setup token from step 3 below and choose the first admin's email, password, and project name. It shows the project's ingestion key once, with a copy button, then signs you in. The rest of this walkthrough uses `curl` so every API call is visible; the dashboard shows the same data under **Issues**, the project's keys under **Settings**, and its membership under **Members**.
+
+In **Members**, users with `members.manage` can add an existing instance account by email, choose an assignable role, change a member's role, or confirm removal. New users first need an invitation from an instance admin through the API; this page does not create accounts or send email. Removing membership leaves the instance account and other project memberships intact. The API prevents removing or demoting the last project admin through the dashboard. Changing your own role refreshes your controls; removing yourself removes your access unless you are an instance admin.
+
+Open the account menu for **Account security** and, as an instance admin, **Audit log**. Authenticator setup requires `JEKIMO_MFA_ENCRYPTION_KEY` in the API environment; see [two-factor-authentication.md](two-factor-authentication.md).
 
 ## 2. Migrate
 

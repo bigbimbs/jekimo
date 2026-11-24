@@ -11,6 +11,8 @@ import type { PasswordHasher } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 
 export interface AppDeps {
+  cron?: import("@jekimo/storage-postgres").CronRepository;
+  notifications?: import("./notifications.js").NotificationDeps;
   metadata: MetadataRepository;
   events: EventStore;
   queue: Queue<IngestJob>;

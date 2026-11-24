@@ -46,6 +46,7 @@ describe("loadApiConfig", () => {
         JEKIMO_PUBLIC_URL: "https://jekimo.example.test/",
       }),
     ).toEqual({
+      mfaEncryptionKey: null,
       host: "0.0.0.0",
       port: 9090,
       logLevel: "debug",
@@ -61,6 +62,14 @@ describe("loadApiConfig", () => {
       keyRotationGraceHours: 0,
       publicUrl: "https://jekimo.example.test",
     });
+  });
+
+  it("validates the authenticator encryption key without exposing it in errors", () => {
+    const key = Buffer.alloc(32, 5).toString("base64");
+    expect(loadApiConfig({ JEKIMO_MFA_ENCRYPTION_KEY: key }).mfaEncryptionKey).toBe(key);
+    expect(() => loadApiConfig({ JEKIMO_MFA_ENCRYPTION_KEY: "synthetic-invalid-key" })).toThrow(
+      "JEKIMO_MFA_ENCRYPTION_KEY must be",
+    );
   });
 
   it.each(["fatal", "error", "warn", "info", "debug", "trace"])("accepts log level %s", (level) => {

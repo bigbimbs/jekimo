@@ -29,6 +29,7 @@ NestJS was considered and not chosen. Its dependency injection relies on decorat
 | `POST /api/v1/invitations` | session + CSRF, instance admin | Invites `email` with an `instance_role` (default `member`). Returns the invitation and a single-use `token` and `link`, once. Replaces any pending invitation for the email; `409 email_taken` when the email has an account. |
 | `GET /api/v1/invitations` | session, instance admin | Pending invitations, without tokens. |
 | `DELETE /api/v1/invitations/:invitation_id` | session + CSRF, instance admin | Revokes a pending invitation. |
+| `GET /api/v1/audit-log/actions` | session, instance admin | Supported audit action identifiers for the dashboard filter. |
 | `GET /api/v1/audit-log` | session, instance admin | Audit entries, newest first, filtered by `actor` (user id), `action`, `from` and `to` (RFC 3339 on the entry time), with `limit` (1 to 500, default 100) and `cursor` (the previous page's `next_cursor`). |
 | `GET /api/v1/projects` | session | Projects the user belongs to (all, for instance admins). |
 | `POST /api/v1/projects` | session + CSRF | Creates a project with built-in roles; the creator becomes its admin. |
@@ -88,3 +89,32 @@ docker compose exec api jekimo admin reset-password admin@example.test
 From a checkout, use `npm run cli -w @jekimo/api -- admin reset-password <email>`, or `node dist/cli.mjs admin reset-password <email>` after a build. The command is audit-logged with no actor and `via: "cli"`.
 
 The container image is built from the repository root with `docker build -f apps/api/Dockerfile .`; see [docs/local-development.md](../../docs/local-development.md). Settings are in [docs/configuration.md](../../docs/configuration.md).
+
+## Two-factor authentication
+
+- `GET /api/v1/auth/two-factor`: session; `{ enabled, required, configured, recovery_codes_remaining }`.
+- `POST /api/v1/auth/two-factor/setup`: session + CSRF + `{ password }`; returns `{ secret, otpauth_uri, expires_at }` once. Setup expires in ten minutes.
+- `POST /api/v1/auth/two-factor/enable`: session + CSRF + `{ code }`; confirms the pending authenticator, verifies the current session, revokes other sessions, and returns `{ recovery_codes }` once.
+- `POST /api/v1/auth/two-factor/disable`: session + CSRF + `{ password, code }`; allowed only while the instance policy is optional; `204` on success.
+- `POST /api/v1/auth/two-factor/recovery-codes`: session + CSRF + `{ password, code }`; replaces the recovery codes and returns the new set once.
+- `GET /api/v1/admin/security`: instance admin session; `{ required }`.
+- `PUT /api/v1/admin/security`: enrolled instance admin session + CSRF + `{ required, password, code }`; changes enforcement.
+
+Login accepts an optional `code` alongside email/password. An enrolled user receives `401 two_factor_required` after a correct password if the code is missing; no cookie is issued. A wrong or replayed code is `400 invalid_two_factor_code`; ten failures in a 15-minute window lead to `429 two_factor_locked`. Successful login and session inspection include `two_factor: { enabled, required }` (login also supplies configuration and recovery-code count).
+
+Required-but-unenrolled sessions can reach only session inspection, logout, 2FA status, setup, and enable. Other session endpoints return `403 two_factor_enrollment_required`; enrolled sessions tied to an old authenticator version return `401`. Ingestion routes are unaffected. Missing or unusable server encryption keys return `503 two_factor_unavailable` for factor verification. See [two-factor-authentication.md](../../docs/two-factor-authentication.md) for the key and operator reset procedure.
+
+
+### Project activity summary
+
+`GET /api/v1/projects/:id/events/summary` requires a session and `project.read`, using the same server-side project access check as event queries. It returns `from`, `to` (ISO timestamps), and `activity`, an array of `{ hour, kind, severity, count }`. The window is the 24 hours before the API's current time: receipt time is inclusive at `from` and exclusive at `to`. `hour` is the UTC hour start; first and last buckets may cover partial hours. Empty groups are omitted. Counts reflect stored rows, including all three kinds, rather than ingestion acknowledgements or a page of query results. Expired, rejected, and sampled-out records are excluded. This endpoint has no client-selected time window, keeping aggregation bounded to 24 hours.
+
+Invitation and password-reset link creation responses use `Cache-Control: no-store`. The admin dashboard presents the returned link once and does not persist it.
+
+## Notifications
+
+SMTP settings, project notification connections, basic issue alerts, and delivery history routes are documented in [notifications](../../docs/notifications.md#api-routes). SMTP configuration requires instance administration; project notification routes require `settings.manage`.
+
+## Database query monitoring
+
+Explicit query capture and callback instrumentation feed the project Database page with durations, failures, slow-query counts, and percentiles. No SQL, parameters, results, or exception messages are collected by the helpers. See [database monitoring](../../docs/database-monitoring.md) for setup, API filters, privacy, and current scope.

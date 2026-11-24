@@ -36,6 +36,7 @@ The API serves plain HTTP. In production it runs behind a TLS-terminating revers
 | Variable | Default | Valid values | Read by | Meaning | Spec | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `JEKIMO_MEMBERS_CAN_CREATE_PROJECTS` | `true` | Boolean | API | Whether instance members may create projects | [access-model.md](access-model.md#planned-configuration) | implemented |
+| `JEKIMO_MFA_ENCRYPTION_KEY` | unset | Canonical base64 for 32 random bytes | API | AES-256-GCM key for authenticator secrets; identical on all API processes; back up separately | [two-factor-authentication.md](two-factor-authentication.md) | implemented |
 | `JEKIMO_SESSION_IDLE_DAYS` | `14` | Integer, 1 to `JEKIMO_SESSION_MAX_DAYS` | API | Session idle timeout | [access-model.md](access-model.md#planned-configuration) | implemented |
 | `JEKIMO_SESSION_MAX_DAYS` | `30` | Integer, 1 to 365 | API | Session absolute lifetime | [access-model.md](access-model.md#planned-configuration) | implemented |
 | `JEKIMO_INVITE_EXPIRY_DAYS` | `7` | Integer, 1 to 90 | API | Invitation and reset link lifetime | [access-model.md](access-model.md#planned-configuration) | implemented |
@@ -129,3 +130,7 @@ Read by [`deploy/docker-compose/docker-compose.dev.yml`](../deploy/docker-compos
 | `JEKIMO_DEV_POSTGRES_PORT` | `5432` | Loopback port PostgreSQL is published on. | implemented |
 | `JEKIMO_DEV_API_PORT` | `8080` | Loopback port the API is published on. | implemented |
 | `JEKIMO_DEV_WEB_PORT` | `8081` | Loopback port the dashboard is published on. | implemented |
+
+## Notification delivery
+
+`JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY` is an optional 64-character hexadecimal key shared by the API and worker. Generate it with `openssl rand -hex 32`; keep it outside the database. It encrypts SMTP credentials and notification destinations. Without it, configuration writes and delivery are unavailable. The worker also reads `JEKIMO_PUBLIC_URL` to build issue links. SMTP fields are configured by instance admins at `/admin/email`. See [notifications.md](notifications.md) for behavior, TLS requirements, limits, and key recovery.

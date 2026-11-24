@@ -1,4 +1,10 @@
-import { type AuditRecord, type InstanceRole, type InvitationRecord, isAuditAction } from "@jekimo/storage-postgres";
+import {
+  AUDIT_ACTIONS,
+  type AuditRecord,
+  type InstanceRole,
+  type InvitationRecord,
+  isAuditAction,
+} from "@jekimo/storage-postgres";
 import type { FastifyInstance } from "fastify";
 import {
   DEFAULT_AUDIT_LIMIT,
@@ -77,17 +83,20 @@ export async function userRoutes(app: FastifyInstance, opts: UserRouteOptions): 
   app.post("/api/v1/users/:user_id/password-reset", admin, async (request, reply) => {
     const { user_id: userId } = request.params as { user_id: string };
     const { reset, token, link } = await service.createPasswordReset(actorOf(request), userId, request.ip);
-    reply.status(201).send({
-      reset: {
-        id: reset.id,
-        user_id: reset.userId,
-        created_at: reset.createdAt.toISOString(),
-        expires_at: reset.expiresAt.toISOString(),
-      },
-      token,
-      link,
-      notice: "This link is shown once and works once. Hand it to the user over a channel you trust.",
-    });
+    reply
+      .header("cache-control", "no-store")
+      .status(201)
+      .send({
+        reset: {
+          id: reset.id,
+          user_id: reset.userId,
+          created_at: reset.createdAt.toISOString(),
+          expires_at: reset.expiresAt.toISOString(),
+        },
+        token,
+        link,
+        notice: "This link is shown once and works once. Hand it to the user over a channel you trust.",
+      });
   });
 
   app.post("/api/v1/invitations", admin, async (request, reply) => {
@@ -97,12 +106,15 @@ export async function userRoutes(app: FastifyInstance, opts: UserRouteOptions): 
       throw new ApiError(400, "invalid_request", "a valid email is required");
     const role = instanceRole(b.instance_role, "member");
     const { invitation, token, link } = await service.invite(actorOf(request), email, role, request.ip);
-    reply.status(201).send({
-      invitation: publicInvitation(invitation),
-      token,
-      link,
-      notice: "This link is shown once and works once. Hand it to the person over a channel you trust.",
-    });
+    reply
+      .header("cache-control", "no-store")
+      .status(201)
+      .send({
+        invitation: publicInvitation(invitation),
+        token,
+        link,
+        notice: "This link is shown once and works once. Hand it to the person over a channel you trust.",
+      });
   });
 
   app.get("/api/v1/invitations", admin, async (request) => ({
@@ -114,6 +126,8 @@ export async function userRoutes(app: FastifyInstance, opts: UserRouteOptions): 
     await service.revokeInvitation(actorOf(request), id, request.ip);
     reply.status(204).send();
   });
+
+  app.get("/api/v1/audit-log/actions", admin, async () => ({ actions: AUDIT_ACTIONS }));
 
   app.get("/api/v1/audit-log", admin, async (request) => {
     const q = request.query as Record<string, unknown>;

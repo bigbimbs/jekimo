@@ -8,6 +8,8 @@ import { accountRoutes } from "./modules/account/routes.js";
 import { AccountService } from "./modules/account/service.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { AuthService, SetupGate } from "./modules/auth/service.js";
+import { cronCheckInRoutes, cronRoutes } from "./modules/cron/routes.js";
+import { CronService } from "./modules/cron/service.js";
 import { eventRoutes } from "./modules/events/routes.js";
 import { EventService } from "./modules/events/service.js";
 import { exportRoutes } from "./modules/export/routes.js";
@@ -22,8 +24,12 @@ import { limitRoutes } from "./modules/limits/routes.js";
 import { LimitService } from "./modules/limits/service.js";
 import { memberRoutes } from "./modules/members/routes.js";
 import { MemberService } from "./modules/members/service.js";
+import { notificationRoutes } from "./modules/notifications/routes.js";
+import { NotificationService } from "./modules/notifications/service.js";
 import { projectRoutes } from "./modules/projects/routes.js";
 import { ProjectService } from "./modules/projects/service.js";
+import { twoFactorRoutes } from "./modules/two-factor/routes.js";
+import { TwoFactorService } from "./modules/two-factor/service.js";
 import { userRoutes } from "./modules/users/routes.js";
 import { UserService } from "./modules/users/service.js";
 import { argon2Hasher } from "./passwords.js";
@@ -134,17 +140,32 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }),
   });
 
+  const cron = deps.cron
+    ? new CronService({ repository: deps.cron, metadata, clock, ...(deps.disk && { disk: deps.disk }) })
+    : null;
+  if (cron) await app.register(cronCheckInRoutes, { service: cron });
+
   await app.register(async (dashboard) => {
     dashboard.addHook("onRequest", rejectAuthorizationHeader);
     await dashboard.register(cookie);
     const session = requireSession({ metadata, idleDays: config.sessionIdleDays, clock });
     const projectAccess = requireProjectPermission(metadata);
+    if (deps.notifications)
+      await dashboard.register(notificationRoutes, {
+        service: new NotificationService(deps.notifications),
+        session,
+        projectAccess,
+      });
+    if (cron) await dashboard.register(cronRoutes, { service: cron, session, projectAccess });
     const hasher = deps.hasher ?? argon2Hasher;
+    const twoFactor = new TwoFactorService({ metadata, hasher, clock, encryptionKey: config.mfaEncryptionKey });
+    await dashboard.register(twoFactorRoutes, { service: twoFactor, session });
 
     await dashboard.register(authRoutes, {
       service: new AuthService({
         metadata,
         hasher,
+        twoFactor,
         setup: new SetupGate(deps.setupToken ?? null),
         sessionMaxDays: config.sessionMaxDays,
         retentionDefaultDays: config.retentionDefaultDays,

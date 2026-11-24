@@ -101,6 +101,8 @@ describe("event filters", () => {
   it.each([
     ["", [4, 3, 2, 1]],
     ["?kind=exception", [1]],
+    ["?kind=log", [4, 2]],
+    ["?kind=event", [3]],
     ["?kind=log,event", [4, 3, 2]],
     ["?severity=info", [3, 2]],
     ["?environment=production", [3, 1]],
@@ -203,5 +205,38 @@ describe("GET /api/v1/projects/:id/events/:event_id", () => {
       headers: { authorization: `Bearer ${key}` },
     });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("project event summary", () => {
+  it("counts only the project's stored records from the last 24 hours", async () => {
+    const res = await h.app.inject({
+      method: "GET",
+      url: `/api/v1/projects/${A}/events/summary`,
+      headers: alice.headers,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.from).toBe(new Date(h.now.value.getTime() - 86_400_000).toISOString());
+    expect(body.to).toBe(h.now.value.toISOString());
+    expect(body.activity.reduce((sum: number, row: { count: number }) => sum + row.count, 0)).toBe(4);
+    expect(body.activity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "exception", severity: "error", count: 1 }),
+        expect.objectContaining({ kind: "event", severity: "info", count: 1 }),
+        expect.objectContaining({ kind: "log", severity: "info", count: 1 }),
+        expect.objectContaining({ kind: "log", severity: "warning", count: 1 }),
+      ]),
+    );
+    expect(JSON.stringify(body)).not.toContain("fatal");
+  });
+
+  it("requires a session and project access", async () => {
+    const url = `/api/v1/projects/${B}/events/summary`;
+    expect((await h.app.inject({ method: "GET", url })).statusCode).toBe(401);
+    expect((await h.app.inject({ method: "GET", url, headers: alice.headers })).statusCode).toBe(404);
+    expect((await h.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${key}` } })).statusCode).toBe(
+      401,
+    );
   });
 });

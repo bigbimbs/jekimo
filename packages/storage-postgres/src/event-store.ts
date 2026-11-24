@@ -6,9 +6,12 @@
 import { EVENT_KINDS, type EventEnvelope, SEVERITIES, type Severity, utcDay } from "@jekimo/event-schema";
 import { DEFAULT_STREAM_PAGE_SIZE, MAX_STREAM_PAGE_SIZE } from "./constants/event-store.js";
 import { MESSAGE_VECTOR } from "./constants/sql.js";
+import { summarizeDatabase } from "./database-queries.js";
 import { withTransaction } from "./pool.js";
+import type { DatabaseWindow } from "./types/database.js";
 import type {
   AppendEvent,
+  EventActivity,
   EventPage,
   EventQuery,
   EventStore,
@@ -66,6 +69,7 @@ interface EventRow {
   sdk_version: string | null;
   context: Record<string, string> | null;
   attributes: EventEnvelope["attributes"] | null;
+  database: EventEnvelope["database"] | null;
 }
 
 function toRow(projectId: string, e: AppendEvent): Record<string, unknown> {
@@ -92,6 +96,7 @@ function toRow(projectId: string, e: AppendEvent): Record<string, unknown> {
     sdk_version: ev.sdk?.version ?? null,
     context: ev.context ?? null,
     attributes: ev.attributes ?? null,
+    database: ev.database ?? null,
   };
 }
 
@@ -117,6 +122,7 @@ function fromRow(r: EventRow): StoredEvent {
   if (r.sdk_name !== null && r.sdk_version !== null) event.sdk = { name: r.sdk_name, version: r.sdk_version };
   if (r.context !== null) event.context = r.context;
   if (r.attributes !== null && r.attributes !== undefined) event.attributes = r.attributes;
+  if (r.database) event.database = r.database;
   const stored: StoredEvent = { receivedAt: r.received_at, keyId: r.key_id, event };
   if (r.skew_ms !== null) stored.skewMs = Number(r.skew_ms);
   return stored;
@@ -152,11 +158,11 @@ export function decodeCursor(cursor: string): { receivedAt: Date; eventId: strin
 const INSERT_COLUMNS = `project_id text, event_id text, received_at timestamptz, key_id text, skew_ms bigint,
   schema_version smallint, "timestamp" text, kind text, severity text, message text, service text,
   environment text, release text, fingerprint text, exception_type text, exception_value text,
-  exception_stacktrace text, sdk_name text, sdk_version text, context jsonb, attributes jsonb`;
+  exception_stacktrace text, sdk_name text, sdk_version text, context jsonb, attributes jsonb, database jsonb`;
 
 const COLUMN_LIST = `project_id, event_id, received_at, key_id, skew_ms, schema_version, "timestamp", kind,
   severity, message, service, environment, release, fingerprint, exception_type, exception_value,
-  exception_stacktrace, sdk_name, sdk_version, context, attributes`;
+  exception_stacktrace, sdk_name, sdk_version, context, attributes, database`;
 
 export class PostgresEventStore implements EventStore {
   readonly capabilities: EventStoreCapabilities = { textSearch: true };
@@ -234,6 +240,8 @@ export class PostgresEventStore implements EventStore {
         (n) => `kind = ANY(${n}::text[])`,
       );
     }
+    if (query.database !== undefined) where += query.database ? " AND database IS NOT NULL" : " AND database IS NULL";
+    if (query.traceId !== undefined) add(query.traceId, (n) => `context->>'trace_id' = ${n}`);
     if (query.environment !== undefined) add(query.environment, (n) => `environment = ${n}`);
     if (query.release !== undefined) add(query.release, (n) => `release = ${n}`);
     if (query.fingerprint !== undefined) add(query.fingerprint, (n) => `fingerprint = ${n}`);
@@ -260,6 +268,21 @@ export class PostgresEventStore implements EventStore {
       page.nextCursor = encodeCursor(last.receivedAt, last.event.event_id);
     }
     return page;
+  }
+
+  summarizeDatabase(projectId: string, query: DatabaseWindow) {
+    return summarizeDatabase(this.pool, projectId, query);
+  }
+
+  async summarizeActivity(projectId: string, from: Date, to: Date): Promise<EventActivity[]> {
+    const { rows } = await this.pool.query<Omit<EventActivity, "count"> & { count: string }>(
+      `SELECT date_trunc('hour', received_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS hour,
+              kind, severity, count(*) AS count
+       FROM events WHERE project_id = $1 AND received_at >= $2 AND received_at < $3
+       GROUP BY 1, kind, severity ORDER BY 1, kind, severity`,
+      [projectId, from.toISOString(), to.toISOString()],
+    );
+    return rows.map((row) => ({ ...row, count: Number(row.count) }));
   }
 
   // Keyset pages rather than a server-side cursor, so a slow download does not
@@ -301,7 +324,7 @@ export class PostgresEventStore implements EventStore {
 
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {
     const params: unknown[] = [projectId];
-    let where = "project_id = $1";
+    let where = "project_id = $1 AND database IS NULL";
     if (fingerprints !== undefined) {
       if (fingerprints.length === 0) return [];
       params.push(fingerprints);

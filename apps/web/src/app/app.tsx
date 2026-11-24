@@ -24,9 +24,14 @@ export function App({ i18n }: { i18n: i18n }) {
     const queryClient = createQueryClient();
     const router = createBrowserRouter(routes);
     const api = createApiClient({
+      onEnrollmentRequired: () => {
+        queryClient.clear();
+        void router.navigate("/security", { replace: true });
+      },
       onUnauthorized: () => {
         const { pathname, search } = router.state.location;
         queryClient.clear();
+        if (pathname === "/sign-in") return;
         void router.navigate(`/sign-in?next=${encodeURIComponent(pathname + search)}`, { replace: true });
       },
     });

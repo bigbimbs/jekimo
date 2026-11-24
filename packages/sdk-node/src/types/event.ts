@@ -3,6 +3,8 @@
 // published, so the emitted declarations must not reference it.
 // test/package.test.ts checks that the two stay in agreement.
 
+import type { DatabaseQuery } from "./database.js";
+
 export type EventKind = "exception" | "log" | "event";
 export type Severity = "debug" | "info" | "warning" | "error" | "fatal";
 
@@ -28,6 +30,7 @@ export interface EventEnvelope {
   release?: string;
   fingerprint?: string;
   exception?: ExceptionInfo;
+  database?: DatabaseQuery;
   sdk?: { name: string; version: string };
   context?: Record<string, string>;
   attributes?: Record<string, AttributeValue>;
@@ -51,6 +54,7 @@ export interface PartialEnvelope {
   release?: string;
   fingerprint?: string;
   exception?: ExceptionInfo;
+  database?: DatabaseQuery;
   context?: Record<string, unknown>;
   attributes?: Record<string, unknown>;
 }

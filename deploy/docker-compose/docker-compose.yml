@@ -75,6 +75,8 @@ services:
     environment:
       <<: [*database, *disk]
       # Caddy is the API's only client.
+      JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY: ${JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY:-}
+      JEKIMO_MFA_ENCRYPTION_KEY: ${JEKIMO_MFA_ENCRYPTION_KEY:-}
       JEKIMO_TRUST_PROXY: "true"
       JEKIMO_MIGRATE_ON_START: "false"
       JEKIMO_MEMBERS_CAN_CREATE_PROJECTS: ${JEKIMO_MEMBERS_CAN_CREATE_PROJECTS:-true}
@@ -106,6 +108,8 @@ services:
     <<: *jekimo
     image: ghcr.io/bigbimbs/jekimo-worker:${JEKIMO_VERSION:?set JEKIMO_VERSION in .env to a released version, for example 0.2.0}
     environment:
+      JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY: ${JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY:-}
+      JEKIMO_PUBLIC_URL: ${JEKIMO_PUBLIC_URL:-https://${JEKIMO_DOMAIN}}
       <<: [*database, *disk]
       JEKIMO_MIGRATE_ON_START: "false"
       JEKIMO_RETENTION_DEFAULT_DAYS: ${JEKIMO_RETENTION_DEFAULT_DAYS:-30}

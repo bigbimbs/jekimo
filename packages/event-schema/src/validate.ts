@@ -1,4 +1,10 @@
 import {
+  DATABASE_OPERATIONS,
+  DATABASE_STATUSES,
+  DATABASE_SYSTEMS,
+  MAX_QUERY_DURATION_MS,
+} from "./constants/database.js";
+import {
   EVENT_KINDS,
   type EventKind,
   SCHEMA_VERSION,
@@ -8,6 +14,7 @@ import {
   ULID_PATTERN,
 } from "./constants/envelope.js";
 import { LIMITS } from "./constants/limits.js";
+import type { DatabaseQuery } from "./types/database.js";
 import type { AttributeValue, EventEnvelope, ExceptionInfo, SdkInfo } from "./types/envelope.js";
 import type {
   IssueCode,
@@ -33,6 +40,7 @@ const TOP_LEVEL_FIELDS = new Set([
   "sdk",
   "context",
   "attributes",
+  "database",
 ]);
 
 const EXCEPTION_FIELDS = new Set(["type", "value", "stacktrace"]);
@@ -140,6 +148,25 @@ function validateException(c: Collector, value: unknown): ExceptionInfo | undefi
   if (exceptionValue !== undefined) out.value = exceptionValue;
   if (stacktrace !== undefined) out.stacktrace = stacktrace;
   return out;
+}
+
+function validateDatabase(c: Collector, value: unknown): DatabaseQuery | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    c.error("/database", "type", "/database must be an object");
+    return undefined;
+  }
+  c.unknownFields("/database", value, new Set(["system", "operation", "name", "duration_ms", "status"]));
+  const system = c.enumValue("/database/system", value.system, DATABASE_SYSTEMS);
+  const operation = c.enumValue("/database/operation", value.operation, DATABASE_OPERATIONS);
+  const status = c.enumValue("/database/status", value.status, DATABASE_STATUSES);
+  const name = c.string("/database/name", value.name, { required: true, max: 128 });
+  const duration = value.duration_ms;
+  if (typeof duration !== "number" || !Number.isFinite(duration) || duration < 0 || duration > MAX_QUERY_DURATION_MS) {
+    c.error("/database/duration_ms", "invalid_number", "/database/duration_ms must be between 0 and 604800000");
+    return undefined;
+  }
+  return system && operation && status && name ? { system, operation, status, name, duration_ms: duration } : undefined;
 }
 
 function validateSdk(c: Collector, value: unknown): SdkInfo | undefined {
@@ -290,6 +317,9 @@ export function validateEvent(input: unknown, options: ValidateOptions = {}): Va
   if (kind === "exception" && input.exception === undefined) {
     c.error("/exception", "required", '/exception is required when /kind is "exception"');
   }
+  const database = validateDatabase(c, input.database);
+  if (input.database !== undefined && kind !== "event")
+    c.error("/database", "forbidden", "/database requires kind event");
   const sdk = validateSdk(c, input.sdk);
   const context = validateContext(c, input.context);
   const attributes = validateAttributes(c, input.attributes);
@@ -320,6 +350,7 @@ export function validateEvent(input: unknown, options: ValidateOptions = {}): Va
   if (fingerprint !== undefined) event.fingerprint = fingerprint;
   if (exception !== undefined) event.exception = exception;
   if (sdk !== undefined) event.sdk = sdk;
+  if (database !== undefined) event.database = database;
   if (context !== undefined) event.context = context;
   if (attributes !== undefined) event.attributes = attributes;
 

@@ -75,6 +75,7 @@ Character limits count UTF-16 code units as reported by JavaScript `string.lengt
 | `release` | string | 1 to 128 characters. Version, tag, or commit of the reporting application. |
 | `fingerprint` | string | 1 to 256 characters. Stable grouping key. When absent, the worker derives one (see "Grouping"). |
 | `exception` | object | REQUIRED when `kind` is `exception`; MAY be attached to other kinds. See below. |
+| `database` | object | Optional database timing metadata, only with `kind: event`. See below. |
 | `sdk` | object | Identity of the reporting SDK: `name` (1 to 64 characters) and `version` (1 to 32 characters), both required when the object is present. |
 | `context` | object | Correlation identifiers. String keys 1 to 64 characters, string values up to 1,024 characters, at most 32 entries. |
 | `attributes` | object | Free-form structured data. See below. |
@@ -86,6 +87,20 @@ Character limits count UTF-16 code units as reported by JavaScript `string.lengt
 | `type` | string | Required. 1 to 256 characters. The exception class or type name. |
 | `value` | string | Up to 4,096 characters. The exception's own message, which may differ from the envelope `message`. |
 | `stacktrace` | string | Up to 65,536 characters. Raw stack trace text as produced by the runtime. Structured frames and source map support are planned as an additive change. |
+
+### `database`
+
+A database-call measurement, independent of error issue grouping. All five fields are required when the object is present:
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `name` | string | 1 to 128 characters. A static operation label, never SQL or parameters. |
+| `system` | enum | `postgresql`, `mysql`, `sqlite`, `mongodb`, `redis`, or `other`. |
+| `operation` | enum | `select`, `insert`, `update`, `delete`, or `other`. |
+| `duration_ms` | number | Finite, 0 to 604800000 inclusive. Fractional milliseconds allowed. |
+| `status` | enum | `ok` or `error`. |
+
+`database` MUST only be attached to `kind: event`. SDK query helpers MUST NOT automatically collect SQL text, parameters, returned data, connection strings, or exception messages. Operators MUST use static, non-sensitive names. Unknown inner fields are dropped with warnings. See [`database-query.json`](../packages/event-schema/examples/database-query.json) and [database-monitoring.md](database-monitoring.md). This is additive within schema version 1; older servers drop the field, so upgrade the server before using query helpers.
 
 ### `context`
 
@@ -135,7 +150,7 @@ The server additionally applies project-level redaction rules configured by the 
 
 ## Unknown fields and forward compatibility
 
-The ingestion API **ignores and drops** top-level fields it does not know, and unknown fields inside `exception` and `sdk`. It does not reject the event. This lets a newer SDK talk to an older server. The reference validator reports each dropped field as a warning with code `unknown_field`.
+The ingestion API **ignores and drops** top-level fields it does not know, and unknown fields inside `exception`, `sdk`, and `database`. It does not reject the event. This lets a newer SDK talk to an older server. The reference validator reports each dropped field as a warning with code `unknown_field`.
 
 SDKs MUST NOT rely on unknown fields being stored.
 
@@ -163,6 +178,8 @@ When `fingerprint` is absent the worker derives one:
 
 - For `kind: exception`: from `exception.type` and the in-app frames of `exception.stacktrace`, with line numbers removed so a release does not split an issue.
 - For other kinds: from `message` with numbers, UUIDs, and hex strings replaced by placeholders.
+
+Database measurements retain fingerprints for event compatibility, but MUST NOT contribute to issue creation or issue counts.
 
 Sending an explicit `fingerprint` overrides this. The derivation algorithm may improve over time; existing issues keep their stored fingerprint.
 

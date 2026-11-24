@@ -1,3 +1,4 @@
+import { ENROLLMENT_ROUTES } from "./constants/two-factor.js";
 // Session authentication for every endpoint except ingest (docs/access-model.md,
 // "Sessions" and "Authorization enforcement"). The cookie holds a random
 // 256-bit token and only its SHA-256 is stored. Ingestion keys are never
@@ -90,6 +91,15 @@ export function requireSession(opts: SessionOptions) {
     if (now.getTime() - session.lastSeenAt.getTime() >= TOUCH_INTERVAL_MS) {
       await opts.metadata.touchSession(session.sessionId, now);
     }
+    const [factor, required] = await Promise.all([
+      opts.metadata.getTwoFactor(session.user.id),
+      opts.metadata.isTwoFactorRequired(),
+    ]);
+    if (factor.secret && session.twoFactorVersion !== factor.version)
+      throw new ApiError(401, "unauthorized", "sign in with two-factor authentication");
+    request.twoFactor = { enabled: factor.secret !== null, required };
+    if (required && !factor.secret && !ENROLLMENT_ROUTES.has(request.routeOptions.url ?? ""))
+      throw new ApiError(403, "two_factor_enrollment_required", "set up two-factor authentication before continuing");
     request.session = session;
     request.actor = { userId: session.user.id, instanceRole: session.user.instanceRole };
   };

@@ -1,0 +1,34 @@
+{
+  "title": "Members",
+  "intro": "People with access to {project}.",
+  "listTitle": "Project members",
+  "readOnly": "You can view members. Managing membership requires the members.manage permission.",
+  "empty": "No project members yet.",
+  "add": "Add member",
+  "edit": "Change role",
+  "remove": "Remove",
+  "email": "Email",
+  "role": "Role",
+  "status": "Status",
+  "joined": "Added",
+  "actions": "Actions",
+  "you": "You",
+  "rowActions": "Actions for {email}",
+  "accountStatus": {
+    "active": "Active",
+    "deactivated": "Deactivated"
+  },
+  "dialog": {
+    "addTitle": "Add member",
+    "addBody": "Enter the email of an existing account on this instance. To invite someone new, ask an instance admin for an invitation link.",
+    "editTitle": "Change role for {email}",
+    "editBody": "Choose the permissions this member should have in this project.",
+    "removeTitle": "Remove {email}?",
+    "removeBody": "This removes their project membership. Their instance account and membership in other projects remain. Instance admins can still access every project.",
+    "selfEdit": "Changing your own role may remove your ability to manage this project.",
+    "selfRemove": "You are removing your own membership. You may lose access to this project.",
+    "chooseRole": "Choose a role",
+    "save": "Save role",
+    "remove": "Remove member"
+  }
+}

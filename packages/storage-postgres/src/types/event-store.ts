@@ -1,4 +1,5 @@
 import type { EventEnvelope, EventKind, Severity } from "@jekimo/event-schema";
+import type { DatabaseSummary, DatabaseWindow } from "./database.js";
 
 /** One event to append, already validated, stamped, and fingerprinted. */
 export interface AppendEvent {
@@ -16,6 +17,8 @@ export interface StoredEvent {
 }
 
 export interface EventQuery {
+  traceId?: string;
+  database?: boolean;
   /** Inclusive lower bound on received_at. */
   from: Date;
   /** Exclusive upper bound on received_at. */
@@ -64,6 +67,13 @@ export interface EventPage {
   nextCursor?: string;
 }
 
+export interface EventActivity {
+  hour: Date;
+  kind: EventKind;
+  severity: Severity;
+  count: number;
+}
+
 export interface FingerprintSummary {
   fingerprint: string;
   eventCount: number;
@@ -83,6 +93,9 @@ export interface EventStore {
   appendEvents(projectId: string, events: AppendEvent[]): Promise<{ inserted: string[] }>;
   /** Newest first by received_at. Throws RangeError for an invalid cursor or unsupported filter. */
   queryEvents(projectId: string, query: EventQuery): Promise<EventPage>;
+  /** Counts stored records by UTC hour, kind, and severity in [from, to). */
+  summarizeDatabase(projectId: string, query: DatabaseWindow): Promise<DatabaseSummary>;
+  summarizeActivity(projectId: string, from: Date, to: Date): Promise<EventActivity[]>;
   /**
    * Every event of one project in the range, oldest first by received_at,
    * fetched a page at a time so memory does not grow with the project.

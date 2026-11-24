@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Opt-in PostgreSQL client/pool query instrumentation and isolated Node SDK request contexts. A new Traces page correlates recorded queries, logs, and errors by trace ID; migration `0015` adds indexed lookup. This is request correlation, not a full distributed timing waterfall.
+
+- Slow-query notification rules with saved duration thresholds, exact environment/operation filters, rule-wide cooldowns, and dashboard editing. Migration `0014` adds durable retry protection; alerts use existing email, Slack, and webhook connections.
+
+- Database query monitoring: explicit Node SDK capture/wrapping without collecting SQL, a project Database page with slow/failing calls and latency percentiles, and an additive database event field. Apply migration `0013` and update the API/worker before using the SDK helpers; see [database monitoring](docs/database-monitoring.md).
+
+- Cron job monitoring with timezone-aware schedules, missed starts and runtime limits, run history, pause/resume, failure/recovery notifications, and a non-blocking Node.js SDK helper.
+
+- SMTP configuration, project email/Slack/signed-webhook connections, basic new-error and regression alerts, and durable notification delivery with retries, cooldowns, and delivery history. See [notifications](docs/notifications.md) for setup and current scope.
+
+- Instance-admin Users and Invitations pages: search/filter accounts, change roles, deactivate/reactivate accounts, create single-use password-reset and invitation links, and revoke pending invitations. Changes use the existing audited APIs; self-demotion/deactivation clears privileged cached data, and the last active admin remains protected. One-time links are kept out of query/mutation caches and their API responses use `Cache-Control: no-store`.
+
+- A project dashboard with server-counted 24-hour record totals, hourly activity, severity breakdown, and recent unresolved issues. Logs and custom events have separate searchable, paginated pages and record details. The project landing page and project switcher now open the dashboard.
+- `GET /api/v1/projects/:id/events/summary` returns project-scoped hourly counts by kind and severity for the last 24 hours, based on stored records.
+- Native dropdowns and date controls now follow the selected light or dark theme, including readable option colors.
+
+- Authenticator-app two-factor authentication with eight single-use recovery codes. Users can opt in from **Account security**; enrolled instance admins can require it for everyone or make it optional. Enforcement covers existing sessions and project APIs. Password resets preserve 2FA. Migration `0010` adds encrypted authenticator state, the instance policy, and verified session versions. Configure and separately back up `JEKIMO_MFA_ENCRYPTION_KEY` on every API process before enrollment; see `docs/two-factor-authentication.md`. The operator command `jekimo admin reset-two-factor <email>` resets one user's enrollment and revokes all their sessions without changing enforcement.
+- An instance-admin **Audit log** dashboard with actor, action, and time filters, readable action and target labels, actor/account emails and project names, expandable change details and technical IDs, and cursor pagination. It includes 2FA lifecycle, verification, recovery, and enforcement events without recording secrets or submitted codes.
+
+- Project members in the dashboard: open **Members** to see project access, add an existing instance user by email, change their role, or remove their membership. Management controls require `members.manage` and offer only roles the operator can assign. Changes refresh access immediately; the dashboard preserves the API's last-admin safeguard and does not force removal. New-account invitations remain available through the instance administration API.
+
 - The web dashboard (`apps/web`). First-run setup, sign-in, and the invitation (`/invite`) and password reset (`/reset-password`) pages for the links the API issues; a project switcher listing only the projects you can access; each project's issues with status, kind, severity, and last-seen filters; an issue's message, exception, stack trace (app frames highlighted), context, attributes, release, environment, first and last seen, and latest event; resolve, ignore, and reopen for users with `issues.manage`; and the project's settings with its ingestion keys by `key_id`, where creating or rotating a key shows the full key once with a copy button. Light and dark themes follow the operating system or a per-browser choice. Every asset is bundled; the browser contacts only your instance.
 - The `ghcr.io/bigbimbs/jekimo-web` image serves the dashboard, and the production Compose file runs it as the `web` service. The production `Caddyfile` now sends `/api/*` and `/healthz` to the API and everything else to the dashboard; take the new `docker-compose.yml` and `Caddyfile` when you upgrade.
 - The development Compose stack starts the dashboard on `http://localhost:8081` (`JEKIMO_DEV_WEB_PORT`), and `npm run dev -w @jekimo/web` runs it with hot reload on `http://localhost:5173`.

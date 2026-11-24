@@ -1,4 +1,5 @@
 export * from "./archive.js";
+export * from "./database.js";
 export * from "./envelope.js";
 export * from "./ingest.js";
 export * from "./limits.js";

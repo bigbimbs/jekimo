@@ -88,8 +88,94 @@ describe("createApiClient", () => {
     );
   });
 
+  it("keeps a 2FA login challenge out of the expired-session flow and sends the next code", async () => {
+    const { api, onUnauthorized, call } = setup([
+      json(401, { error: { code: "two_factor_required", message: "code required" } }),
+      json(200, SESSION),
+    ]);
+    await expect(api.login("a@example.test", "synthetic-password")).rejects.toMatchObject({
+      code: "two_factor_required",
+    });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    await api.login("a@example.test", "synthetic-password", "123456");
+    expect(JSON.parse(String(call(1).init?.body))).toEqual({
+      email: "a@example.test",
+      password: "synthetic-password",
+      code: "123456",
+    });
+  });
+
+  it("routes newly enforced sessions to enrollment when project access is rejected", async () => {
+    const onEnrollmentRequired = vi.fn();
+    const api = createApiClient({
+      onEnrollmentRequired,
+      fetch: vi
+        .fn()
+        .mockResolvedValue(json(403, { error: { code: "two_factor_enrollment_required", message: "enroll" } })),
+    });
+    await expect(api.listProjects()).rejects.toMatchObject({ code: "two_factor_enrollment_required" });
+    expect(onEnrollmentRequired).toHaveBeenCalledOnce();
+  });
+
   it("treats a closed setup as not required", async () => {
     const { api } = setup([json(404, { error: { code: "not_found", message: "not found" } })]);
     await expect(api.setupRequired()).resolves.toBe(false);
+  });
+
+  it("scopes member changes, encodes ids, sends CSRF, and handles a 204 removal", async () => {
+    const member = { user_id: "u/1", email: "member@example.test", role: "viewer" };
+    const { api, call } = setup([
+      json(200, SESSION),
+      json(201, { member }),
+      json(200, { member: { ...member, role: "member" } }),
+      new Response(null, { status: 204 }),
+    ]);
+    await api.getSession();
+    await expect(api.addMember("prj/a", member.email, "viewer")).resolves.toEqual(member);
+    await expect(api.changeMemberRole("prj/a", "u/1", "member")).resolves.toMatchObject({ role: "member" });
+    await expect(api.removeMember("prj/a", "u/1")).resolves.toBeUndefined();
+    expect(call(1).url).toBe("/api/v1/projects/prj%2Fa/members");
+    expect(call(1).init?.method).toBe("POST");
+    expect(JSON.parse(String(call(1).init?.body))).toEqual({ email: member.email, role: "viewer" });
+    expect(call(2).url).toBe("/api/v1/projects/prj%2Fa/members/u%2F1");
+    expect(call(2).init?.method).toBe("PATCH");
+    expect(JSON.parse(String(call(2).init?.body))).toEqual({ role: "member" });
+    expect(call(3).url).toBe(call(2).url);
+    expect(call(3).init?.method).toBe("DELETE");
+    for (const i of [1, 2, 3]) {
+      expect(call(i).headers["x-jekimo-csrf-token"]).toBe("csrf-1");
+      expect(call(i).init?.credentials).toBe("same-origin");
+    }
+  });
+  it("uses admin endpoints with CSRF and discards duplicate raw tokens from link responses", async () => {
+    const account = { ...SESSION.user, status: "active" };
+    const invitation = { id: "i/1", email: "new@example.test" };
+    const reset = { id: "r/1", user_id: "u/1" };
+    const { api, call } = setup([
+      json(200, SESSION),
+      json(200, { users: [account] }),
+      json(200, { user: account }),
+      json(201, { invitation, link: "/invite#token=synthetic", token: "synthetic" }),
+      json(200, { invitations: [invitation] }),
+      new Response(null, { status: 204 }),
+      json(201, { reset, link: "/reset-password#token=synthetic-reset", token: "synthetic-reset" }),
+    ]);
+    await api.getSession();
+    expect(await api.listUsers()).toEqual([account]);
+    await api.updateUser("u/1", { status: "deactivated" });
+    expect(call(2).url).toBe("/api/v1/users/u%2F1");
+    expect(JSON.parse(String(call(2).init?.body))).toEqual({ status: "deactivated" });
+    expect(await api.createInvitation("new@example.test", "member")).toEqual({
+      invitation,
+      link: "/invite#token=synthetic",
+    });
+    expect(JSON.parse(String(call(3).init?.body))).toEqual({ email: "new@example.test", instance_role: "member" });
+    expect(await api.listInvitations()).toEqual([invitation]);
+    await api.revokeInvitation("i/1");
+    expect(call(5).url).toBe("/api/v1/invitations/i%2F1");
+    expect(call(5).init?.method).toBe("DELETE");
+    expect(await api.createPasswordReset("u/1")).toEqual({ reset, link: "/reset-password#token=synthetic-reset" });
+    expect(call(6).url).toBe("/api/v1/users/u%2F1/password-reset");
+    for (const i of [2, 3, 5, 6]) expect(call(i).headers["x-jekimo-csrf-token"]).toBe("csrf-1");
   });
 });

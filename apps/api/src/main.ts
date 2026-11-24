@@ -10,9 +10,12 @@ import {
   INGEST_QUEUE,
   type IngestJob,
   migrateOnStart,
+  notificationKey,
+  PostgresCronRepository,
   PostgresEventStore,
   PostgresIngestLimitStore,
   PostgresMetadataRepository,
+  PostgresNotificationRepository,
   PostgresQueue,
   queuePolicyFromEnv,
   runMigrations,
@@ -30,6 +33,8 @@ async function main(): Promise<void> {
   } catch (err) {
     throw new Error(`invalid configuration: ${err instanceof Error ? err.message : String(err)}`);
   }
+  const notificationsKey = process.env.JEKIMO_NOTIFICATIONS_ENCRYPTION_KEY || null;
+  if (notificationsKey) notificationKey(notificationsKey);
   const pool = createPool({ applicationName: "jekimo-api" });
   if (migrateOnStart()) {
     const applied = await runMigrations(pool);
@@ -59,6 +64,8 @@ async function main(): Promise<void> {
 
   const app = await buildApp({
     metadata,
+    cron: new PostgresCronRepository(pool),
+    notifications: { repository: new PostgresNotificationRepository(pool), encryptionKey: notificationsKey },
     events: new PostgresEventStore(pool),
     queue: new PostgresQueue<IngestJob>(pool, INGEST_QUEUE, queuePolicyFromEnv()),
     limits: new PostgresIngestLimitStore(pool),

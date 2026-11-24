@@ -18,13 +18,14 @@ import type {
   ProjectRetention,
   RedactionRules,
 } from "./projects.js";
+import type { TwoFactorRepository } from "./two-factor.js";
 
 /**
  * Metadata always lives in PostgreSQL behind this boundary, separate from
  * EventStore; no transaction spans the two, and no caller outside this
  * package writes SQL (docs/architecture.md, "Storage engines").
  */
-export interface MetadataRepository extends AccessRepository {
+export interface MetadataRepository extends AccessRepository, TwoFactorRepository {
   // Setup and authentication: instance-level, not project data.
   countUsers(): Promise<number>;
   /** Creates the first instance admin. Returns null when any user already exists. */
@@ -33,6 +34,7 @@ export interface MetadataRepository extends AccessRepository {
   countFailedLogins(userId: string, since: Date): Promise<number>;
   createSession(input: {
     userId: string;
+    twoFactorVersion?: string | null;
     tokenHash: Uint8Array;
     csrfToken: string;
     expiresAt: Date;

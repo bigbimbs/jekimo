@@ -1,8 +1,8 @@
 import type { EventEnvelope } from "@jekimo/event-schema";
-import type { IngestJob } from "@jekimo/storage-postgres";
+import type { IngestJob, NotificationRepository } from "@jekimo/storage-postgres";
 import { MemoryEventStore, MemoryMetadataRepository, MemoryQueue } from "@jekimo/storage-postgres/memory";
 import pino from "pino";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { counterRetentionStart, processIngestJob, runExpiryPass } from "../src/process.js";
 import { recomputeIssues } from "../src/recompute.js";
 import { RedactorCache } from "../src/redact.js";
@@ -522,4 +522,48 @@ describe("recomputeIssues", () => {
     expect(result).toEqual({ projects: 1, fingerprints: 1 });
     expect(metadata.issues.map((i) => [i.title, i.eventCount])).toEqual([["order 1001 shipped", 1]]);
   });
+});
+
+it("stores database timings without generating issues, including retries and recounts", async () => {
+  const query = ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", {
+    kind: "event",
+    database: { system: "postgresql", operation: "select", name: "invoices.list", duration_ms: 350, status: "error" },
+  });
+  const input = job([query]);
+  await processIngestJob(input, { metadata, events }, ctx());
+  await processIngestJob(input, { metadata, events }, ctx());
+  await recomputeIssues({ metadata, events });
+  expect(events.rows).toHaveLength(1);
+  expect(events.rows[0]?.event.database).toEqual(query.database);
+  expect(metadata.issues).toHaveLength(0);
+});
+
+it("retries query alerts after a storage append and uses canonical durations for altered duplicates", async () => {
+  const scheduleQueryAlerts = vi.fn().mockRejectedValueOnce(new Error("synthetic failure")).mockResolvedValue(1);
+  const notifications = { scheduleQueryAlerts } as unknown as NotificationRepository;
+  const query = ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", {
+    kind: "event",
+    database: { system: "postgresql", operation: "select", name: "invoices.list", duration_ms: 500, status: "ok" },
+  });
+  await expect(processIngestJob(job([query]), { metadata, events, notifications }, ctx())).rejects.toThrow(
+    "synthetic failure",
+  );
+  const altered = { ...query, database: { ...query.database!, duration_ms: 9999 } };
+  await processIngestJob(job([altered]), { metadata, events, notifications }, ctx());
+  expect(scheduleQueryAlerts.mock.calls[1]?.[1]).toEqual([expect.objectContaining({ database: query.database })]);
+  expect(events.rows).toHaveLength(1);
+});
+it("uses only the first stored copy of a database event in a batch", async () => {
+  const scheduleQueryAlerts = vi.fn().mockResolvedValue(0);
+  const notifications = { scheduleQueryAlerts } as unknown as NotificationRepository;
+  const query = ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", {
+    kind: "event",
+    database: { system: "postgresql", operation: "select", name: "invoices.list", duration_ms: 10, status: "ok" },
+  });
+  await processIngestJob(
+    job([query, { ...query, database: { ...query.database!, duration_ms: 9999 } }]),
+    { metadata, events, notifications },
+    ctx(),
+  );
+  expect(scheduleQueryAlerts).toHaveBeenCalledWith("prj_test", [expect.objectContaining({ database: query.database })]);
 });

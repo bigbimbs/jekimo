@@ -6,5 +6,6 @@ export * from "./permissions.js";
 export * from "./redact.js";
 export * from "./retention.js";
 export * from "./sampling.js";
+export * from "./two-factor.js";
 export type * from "./types/index.js";
 export * from "./validate.js";

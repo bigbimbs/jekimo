@@ -17,6 +17,18 @@ Specs marked **normative** define contracts that the code in `packages/event-sch
 
 ## Operating an instance
 
+- [request-tracing.md](request-tracing.md): PostgreSQL instrumentation, request correlation, and trace lookup.
+
+- [database-monitoring.md](database-monitoring.md): query instrumentation, performance metrics, privacy, and current limits.
+
+- [cron-monitoring.md](cron-monitoring.md): scheduled-job check-ins, health, timeouts, run history, and notifications.
+
+- [notifications.md](notifications.md): SMTP setup, project integrations, basic issue alerts, delivery history, and webhook verification.
+
+- [Dashboard navigation](dashboard.md): overview counts, separate logs and custom events, filters, and record details.
+
+- [two-factor-authentication.md](two-factor-authentication.md): authenticator enrollment, optional and required 2FA, operator recovery, encryption-key handling, and the audit dashboard.
+
 - [install-vps.md](install-vps.md): installing Jekimo on a VPS with the production Docker Compose file and Caddy, from an empty server to HTTPS, setup, a first event, backups, and upgrades.
 - [configuration.md](configuration.md): every setting, its default, valid values, which service reads it, and whether it is implemented or planned.
 - [backups-and-restore.md](backups-and-restore.md): taking a backup, copying it off the server, restoring into a fresh database, and the monthly restore drill.
