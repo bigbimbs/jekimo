@@ -4,7 +4,16 @@
   "nav": {
     "main": "Project",
     "issues": "Issues",
-    "settings": "Settings"
+    "settings": "Settings",
+    "members": "Members",
+    "dashboard": "Dashboard",
+    "logs": "Logs",
+    "events": "Events",
+    "alerts": "Alerts",
+    "integrations": "Integrations",
+    "cron": "Cron jobs",
+    "database": "Database",
+    "traces": "Traces"
   },
   "theme": {
     "label": "Color theme",
@@ -22,7 +31,11 @@
     "menu": "Account",
     "signedInAs": "Signed in as",
     "instanceAdmin": "Instance admin",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "security": "Account security",
+    "audit": "Audit log",
+    "users": "Users",
+    "invitations": "Invitations"
   },
   "actions": {
     "retry": "Try again",
@@ -30,7 +43,7 @@
     "close": "Close"
   },
   "states": {
-    "loading": "Loading…",
+    "loading": "Loading\u2026",
     "errorTitle": "Something went wrong",
     "notFoundTitle": "Page not found",
     "notFoundBody": "The address may be mistyped, or the page may have moved.",

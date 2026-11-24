@@ -4,6 +4,7 @@ import type { IngestContext } from "./ingest.js";
 
 declare module "fastify" {
   interface FastifyRequest {
+    twoFactor?: { enabled: boolean; required: boolean };
     actor?: Actor;
     session?: SessionRecord;
     projectAccess?: ProjectAccess;

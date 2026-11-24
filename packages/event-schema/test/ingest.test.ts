@@ -106,7 +106,7 @@ describe("validateIngestRequest: per-event results", () => {
     const r = validateIngestRequest({ events }, { now });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.accepted.map((a) => a.index)).toEqual([0, 1, 2]);
+      expect(r.accepted.map((a) => a.index)).toEqual(events.map((_, index) => index));
       expect(r.rejected).toEqual([]);
       expect(r.duplicates).toEqual([]);
       expect(r.response).toEqual({ accepted: events.map((e) => e.event_id), rejected: [] });

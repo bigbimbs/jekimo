@@ -7,7 +7,6 @@ import {
   type ProjectPermission,
 } from "@jekimo/event-schema";
 import { mintProjectAccess } from "./access.js";
-import { PostgresAccessRepository } from "./access-repository.js";
 import type { IssueStatus } from "./constants/issues.js";
 import { PROJECT_COLUMNS, USER_COLUMNS } from "./constants/sql.js";
 import { findIngestionKey, listProjectRetention, listProjectsForActor, toProject } from "./cross-project.js";
@@ -16,6 +15,7 @@ import { withTransaction } from "./pool.js";
 import { checkCounterIncrement, isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 import { firstRow } from "./rows.js";
 import { insertAudit, requirePermission, toUser } from "./sql-shared.js";
+import { PostgresTwoFactorRepository } from "./two-factor-repository.js";
 import type {
   Actor,
   IngestionKeyLookup,
@@ -37,7 +37,7 @@ import type {
 } from "./types/projects.js";
 import type { ProjectRow, UserRow } from "./types/rows.js";
 
-export class PostgresMetadataRepository extends PostgresAccessRepository implements MetadataRepository {
+export class PostgresMetadataRepository extends PostgresTwoFactorRepository implements MetadataRepository {
   async countUsers(): Promise<number> {
     const { rows } = await this.pool.query<{ n: string }>("SELECT count(*) AS n FROM users");
     return Number(firstRow(rows, "count users").n);
@@ -86,6 +86,7 @@ export class PostgresMetadataRepository extends PostgresAccessRepository impleme
 
   async createSession(input: {
     userId: string;
+    twoFactorVersion?: string | null;
     tokenHash: Uint8Array;
     csrfToken: string;
     expiresAt: Date;
@@ -93,8 +94,8 @@ export class PostgresMetadataRepository extends PostgresAccessRepository impleme
     userAgent?: string;
   }): Promise<void> {
     await this.pool.query(
-      `INSERT INTO sessions (user_id, token_hash, csrf_token, expires_at, source_ip, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO sessions (user_id, token_hash, csrf_token, expires_at, source_ip, user_agent, two_factor_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         input.userId,
         Buffer.from(input.tokenHash),
@@ -102,15 +103,23 @@ export class PostgresMetadataRepository extends PostgresAccessRepository impleme
         input.expiresAt.toISOString(),
         input.sourceIp ?? null,
         input.userAgent?.slice(0, 256) ?? null,
+        input.twoFactorVersion ?? null,
       ],
     );
   }
 
   async findSession(tokenHash: Uint8Array, now: Date): Promise<SessionRecord | null> {
     const { rows } = await this.pool.query<
-      UserRow & { session_id: string; csrf_token: string; s_created_at: Date; last_seen_at: Date; expires_at: Date }
+      UserRow & {
+        session_id: string;
+        two_factor_version: string | null;
+        csrf_token: string;
+        s_created_at: Date;
+        last_seen_at: Date;
+        expires_at: Date;
+      }
     >(
-      `SELECT ${USER_COLUMNS}, s.id AS session_id, s.csrf_token, s.created_at AS s_created_at, s.last_seen_at, s.expires_at
+      `SELECT ${USER_COLUMNS}, s.id AS session_id, s.two_factor_version, s.csrf_token, s.created_at AS s_created_at, s.last_seen_at, s.expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND u.status = 'active'`,
       [Buffer.from(tokenHash), now.toISOString()],
@@ -119,6 +128,7 @@ export class PostgresMetadataRepository extends PostgresAccessRepository impleme
     if (!r) return null;
     return {
       sessionId: r.session_id,
+      twoFactorVersion: r.two_factor_version,
       user: toUser(r),
       csrfToken: r.csrf_token,
       createdAt: r.s_created_at,

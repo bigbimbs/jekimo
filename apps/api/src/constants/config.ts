@@ -6,6 +6,7 @@ export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace"] a
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
+  mfaEncryptionKey: null,
   host: "127.0.0.1",
   port: 8080,
   logLevel: "info",

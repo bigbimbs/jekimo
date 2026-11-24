@@ -1,10 +1,11 @@
 import type { IssueCode } from "@jekimo/event-schema";
-import type { EventStore, MetadataRepository } from "@jekimo/storage-postgres";
+import type { EventStore, MetadataRepository, NotificationRepository } from "@jekimo/storage-postgres";
 import type { RedactorCache } from "../redact.js";
 
 export interface ProcessDeps {
   metadata: MetadataRepository;
   events: EventStore;
+  notifications?: NotificationRepository;
   /** Audit log retention (JEKIMO_AUDIT_LOG_DAYS). Defaults to RETENTION.AUDIT_LOG_DAYS. */
   auditLogDays?: number;
 }

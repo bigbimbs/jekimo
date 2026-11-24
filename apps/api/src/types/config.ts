@@ -1,6 +1,7 @@
 import type { LogLevel } from "../constants/index.js";
 
 export interface ApiConfig {
+  mfaEncryptionKey: string | null;
   host: string;
   port: number;
   logLevel: LogLevel;

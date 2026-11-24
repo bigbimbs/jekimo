@@ -106,10 +106,17 @@ export class AuthService {
       await metadata.appendAudit({ ...audit, action: "auth.login_failed" });
       throw fail;
     }
+    const twoFactorVersion = await this.deps.twoFactor.verifyLogin(
+      user.id,
+      found.passwordHash,
+      input.code,
+      input.sourceIp,
+    );
     const token = newSessionToken();
     const csrfToken = newCsrfToken();
     await metadata.createSession({
       userId: user.id,
+      twoFactorVersion,
       tokenHash: hashSessionToken(token),
       csrfToken,
       expiresAt: new Date(now.getTime() + this.deps.sessionMaxDays * DAY_MS),
@@ -117,7 +124,7 @@ export class AuthService {
       ...(input.userAgent !== undefined && { userAgent: input.userAgent }),
     });
     await metadata.appendAudit({ ...audit, action: "auth.login" });
-    return { user, token, csrfToken };
+    return { user, token, csrfToken, two_factor: await this.deps.twoFactor.status(user.id) };
   }
 
   async logout(session: SessionRecord, sourceIp: string): Promise<void> {

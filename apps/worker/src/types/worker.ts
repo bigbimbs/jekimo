@@ -1,10 +1,18 @@
-import type { DiskMonitor, EventStore, IngestJob, MetadataRepository, Queue } from "@jekimo/storage-postgres";
+import type {
+  DiskMonitor,
+  EventStore,
+  IngestJob,
+  MetadataRepository,
+  NotificationRepository,
+  Queue,
+} from "@jekimo/storage-postgres";
 import type { Logger } from "pino";
 
 export interface WorkerOptions {
   queue: Queue<IngestJob>;
   metadata: MetadataRepository;
   events: EventStore;
+  notifications?: NotificationRepository;
   log: Logger;
   batchSize: number;
   pollMs: number;

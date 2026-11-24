@@ -62,6 +62,29 @@ describe.skipIf(!hasDatabase)("PostgreSQL storage", () => {
     await db?.close();
   });
 
+  it("summarizes stored activity by UTC hour with exact window and project boundaries", async () => {
+    const from = new Date("2026-11-11T10:30:00Z");
+    const to = new Date("2026-11-11T12:30:00Z");
+    const records = [
+      makeEvent("prj_summary", "summary-before", new Date(from.getTime() - 1)),
+      makeEvent("prj_summary", "summary-start", from),
+      makeEvent("prj_summary", "summary-same-hour", new Date("2026-11-11T10:45:00Z")),
+      makeEvent("prj_summary", "summary-next-hour", new Date("2026-11-11T11:00:00Z"), {
+        kind: "event",
+        severity: "warning",
+      }),
+      makeEvent("prj_summary", "summary-end", to),
+    ];
+    await store.appendEvents("prj_summary", records);
+    await store.appendEvents("prj_summary", records);
+    await store.appendEvents("prj_summary_other", [makeEvent("prj_summary_other", "summary-other", from)]);
+    expect(await store.summarizeActivity("prj_summary", from, to)).toEqual([
+      { hour: new Date("2026-11-11T10:00:00Z"), kind: "log", severity: "info", count: 2 },
+      { hour: new Date("2026-11-11T11:00:00Z"), kind: "event", severity: "warning", count: 1 },
+    ]);
+    expect(await store.summarizeActivity("prj_summary_empty", from, to)).toEqual([]);
+  });
+
   it("is idempotent on (project_id, event_id) across appends and received days", async () => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - DAY_MS);

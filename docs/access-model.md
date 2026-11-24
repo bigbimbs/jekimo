@@ -123,7 +123,18 @@ The MVP MUST work on a VPS with no outgoing email.
 
 ### Two-factor authentication
 
-TOTP second factor is planned as an additive change. The data model reserves room for it; it is not in the first release.
+Authenticator-app TOTP is available per account. The instance policy is `{ required: boolean }`: `required: false` is the default and users MAY opt in; `required: true` requires every active user, including instance admins, to enroll before accessing project or administrative data. The policy type, validator, JSON Schema, and example live in `packages/event-schema` (`two-factor-policy.v1.json`); the event envelope is unchanged.
+
+- TOTP uses RFC 6238, SHA-1, six digits, 30-second steps, and at most one step of clock skew in either direction. A time step MUST be accepted only once per user, including enrollment and sensitive-account operations. Verification and recovery-code consumption MUST be atomic across API processes. Ten failed code attempts within 15 minutes lock further attempts for the remainder of that window.
+- Setup requires the current password and a valid session with CSRF protection. A pending secret expires after ten minutes. Enrollment becomes active only after a valid authenticator code; the current session is marked verified and other sessions are revoked.
+- Authenticator secrets MUST be encrypted using AES-256-GCM, with the user id as authenticated additional data and `JEKIMO_MFA_ENCRYPTION_KEY` held outside PostgreSQL. Secrets, OTPs, and recovery codes MUST NOT be logged. Setup responses and recovery codes use `Cache-Control: no-store`. QR codes are generated locally in the browser, never through an external service.
+- Enrollment generates eight random 128-bit recovery codes. Each is shown once and stored only as a user-bound SHA-256 hash. A recovery code replaces the authenticator code, never the password, and works once. Regeneration requires the current password and a valid factor, replaces all old codes, and revokes other sessions.
+- An enrolled user's password alone MUST NOT create a dashboard session. A successful sign-in binds the session to the current authenticator version; stale versions are rejected. Password reset MUST preserve 2FA and still revoke all sessions.
+- Mandatory enrollment is enforced on every authenticated API request, including existing sessions. Password-only sessions for unenrolled users can reach only session inspection, logout, authenticator status, setup, and confirmation. All other session routes reject them with `two_factor_enrollment_required`. The dashboard directs these users to **Account security**. Ingestion credentials and ingestion traffic are unaffected.
+- Only an active instance admin with an enrolled, verified session may change the instance policy. Changing it requires the current password and a fresh authenticator or unused recovery code. Disabling enforcement makes enrollment optional; it does not disable anyone's authenticator. Users cannot disable their own authenticator while enforcement is required. When optional, disabling requires password plus a valid factor and revokes other sessions.
+- An operator with shell access can deliberately run `jekimo admin reset-two-factor <email>` to remove that user's enrollment and recovery codes and revoke every session. This is audit-logged with a null actor; it does not change enforcement. If enforcement remains on, the user must enroll again after password sign-in. Password reset links alone never reset 2FA.
+
+The server key is needed for enrollment and factor verification. Missing or unusable keys fail closed for enrolled logins; operators must preserve the key separately from database backups. See [two-factor-authentication.md](two-factor-authentication.md) for setup and recovery.
 
 ### API tokens for people
 

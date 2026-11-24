@@ -1,6 +1,8 @@
 export { hasProjectPermission } from "./access.js";
 export { ingestionKeyStatus, isAuditAction } from "./access-rules.js";
 export * from "./constants/index.js";
+export { PostgresCronRepository } from "./cron-repository.js";
+export { nextCronDate } from "./cron-schedule.js";
 export {
   DiskMonitor,
   databaseBudgetDiskProbe,
@@ -22,6 +24,8 @@ export {
 export { decodeIssueCursor, encodeIssueCursor, isIssueId } from "./issues.js";
 export { PostgresMetadataRepository } from "./metadata.js";
 export { defaultMigrationsDir, loadMigrations, migrate, migrateOnStart, runMigrations } from "./migrate.js";
+export { PostgresNotificationRepository } from "./notification-repository.js";
+export { notificationKey, openNotification, sealNotification } from "./notification-secrets.js";
 export { createPool, databaseUrl, withTransaction } from "./pool.js";
 export { isUtcDay, normalizeRedactionRules } from "./project-settings.js";
 export { decideFailure, PostgresQueue, QueueFullError, queuePolicyFromEnv } from "./queue.js";

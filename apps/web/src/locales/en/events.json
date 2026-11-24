@@ -1,0 +1,42 @@
+{
+  "log": {
+    "title": "Logs",
+    "intro": "Individual log records from {project}, newest first.",
+    "empty": "No logs found",
+    "back": "All logs",
+    "detail": "Log details"
+  },
+  "event": {
+    "title": "Events",
+    "intro": "Custom application events from {project}, newest first.",
+    "empty": "No events found",
+    "back": "All events",
+    "detail": "Event details"
+  },
+  "emptyBody": "Try another filter or time range, or send a record from your application.",
+  "search": "Search messages",
+  "searchPlaceholder": "Words in the message…",
+  "environment": "Environment",
+  "environmentPlaceholder": "Any environment",
+  "apply": "Search",
+  "clear": "Clear filters",
+  "severity": "Severity",
+  "period": "Received",
+  "refresh": "Refresh",
+  "message": "Message",
+  "service": "Service",
+  "received": "Received",
+  "occurred": "Occurred",
+  "release": "Release",
+  "id": "Record ID",
+  "fingerprint": "Fingerprint",
+  "context": "Context",
+  "attributes": "Attributes",
+  "none": "Not provided",
+  "loadMore": "Load more",
+  "shown": "{count, plural, one {Showing # record} other {Showing # records}}",
+  "notFound": "Record not found",
+  "notFoundBody": "It may have expired, belong to another project, or be a different record type.",
+  "window": "{from} to {to}",
+  "raw": "View stored payload"
+}

@@ -1,3 +1,4 @@
+import { encryptionKey } from "./two-factor.js";
 // Documented in docs/configuration.md; safe placeholders live in .env.example.
 
 import { RETENTION } from "@jekimo/event-schema";
@@ -45,6 +46,8 @@ function publicUrl(env: NodeJS.ProcessEnv): string | null {
 /** Throws an Error naming the first invalid variable. */
 export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const d = DEFAULT_API_CONFIG;
+  const mfaEncryptionKey = env.JEKIMO_MFA_ENCRYPTION_KEY || null;
+  if (mfaEncryptionKey) encryptionKey(mfaEncryptionKey);
   const retentionMaxDays = int(
     env,
     "JEKIMO_RETENTION_MAX_DAYS",
@@ -54,6 +57,7 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   );
   const sessionMaxDays = int(env, "JEKIMO_SESSION_MAX_DAYS", d.sessionMaxDays, 1, 365);
   return {
+    mfaEncryptionKey,
     host: env.JEKIMO_API_HOST || d.host,
     port: int(env, "JEKIMO_API_PORT", d.port, 1, 65535),
     logLevel: logLevel(env, d.logLevel),

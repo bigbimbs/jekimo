@@ -29,7 +29,7 @@ export function HomeRedirect() {
     );
   const remembered = lastProject();
   const target = projects.data.find((p) => p.id === remembered) ?? projects.data[0];
-  if (target) return <Navigate to={`/projects/${encodeURIComponent(target.id)}/issues`} replace />;
+  if (target) return <Navigate to={`/projects/${encodeURIComponent(target.id)}/dashboard`} replace />;
   return (
     <AppShell projects={[]} current={undefined}>
       <EmptyState icon={<FolderIcon />} title={t("projects.noneTitle")} body={t("projects.noneBody")} />

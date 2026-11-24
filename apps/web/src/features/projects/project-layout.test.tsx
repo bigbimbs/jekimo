@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { fakeApi, project, renderApp } from "../../test/render";
 import type { IssuePage } from "../../types/api";
+import { DashboardPage } from "../dashboard/dashboard-page";
 import { IssueListPage } from "../issues/issue-list-page";
 import { ProjectLayout } from "./project-layout";
 
@@ -10,7 +11,10 @@ const ROUTES = [
   {
     path: "/projects/:projectId",
     element: <ProjectLayout />,
-    children: [{ path: "issues", element: <IssueListPage /> }],
+    children: [
+      { path: "issues", element: <IssueListPage /> },
+      { path: "dashboard", element: <DashboardPage /> },
+    ],
   },
 ];
 
@@ -46,6 +50,9 @@ describe("ProjectLayout", () => {
     const api = fakeApi({
       listProjects: vi.fn().mockResolvedValue([project("prj_a", "Alpha"), project("prj_b", "Beta")]),
       listIssues,
+      getEventSummary: vi
+        .fn()
+        .mockResolvedValue({ from: "2026-11-08T00:00:00.000Z", to: "2026-11-09T00:00:00.000Z", activity: [] }),
     });
     const user = userEvent.setup();
     const { queryClient } = renderApp(ROUTES, { api, path: "/projects/prj_a/issues" });

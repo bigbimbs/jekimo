@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBQ4Z3H8X9T2K7M5N6P8R9SX",
+  "project_id": "prj_billing",
+  "timestamp": "2026-11-05T09:14:33.412Z",
+  "kind": "event",
+  "severity": "info",
+  "message": "invoices.list",
+  "database": {
+    "system": "postgresql",
+    "operation": "select",
+    "name": "invoices.list",
+    "duration_ms": 240.5,
+    "status": "ok"
+  }
+}

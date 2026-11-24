@@ -1,6 +1,7 @@
 import type { MetadataRepository } from "@jekimo/storage-postgres";
 import type { preHandlerHookHandler } from "fastify";
 import type { AuthService, SetupGate } from "../modules/auth/service.js";
+import type { TwoFactorService } from "../modules/two-factor/service.js";
 
 export interface PasswordHasher {
   hash(password: string): Promise<string>;
@@ -14,6 +15,7 @@ export interface SessionOptions {
 }
 
 export interface AuthServiceDeps {
+  twoFactor: TwoFactorService;
   metadata: MetadataRepository;
   hasher: PasswordHasher;
   setup: SetupGate;
@@ -37,6 +39,7 @@ export interface SetupInput {
 }
 
 export interface LoginInput {
+  code?: string;
   email: string;
   password: string;
   sourceIp: string;

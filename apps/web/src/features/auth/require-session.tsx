@@ -22,6 +22,7 @@ export function RequireSession() {
   const api = useApi();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = useQuery({ queryKey: queryKeys.session, queryFn: api.getSession, retry: false, staleTime: Infinity });
 
   const value = useMemo(
@@ -43,7 +44,11 @@ export function RequireSession() {
     return <ErrorState className="min-h-dvh justify-center" error={session.error} onRetry={() => session.refetch()} />;
   return (
     <SessionContext.Provider value={value}>
-      <Outlet />
+      {session.data?.two_factor?.required && !session.data.two_factor.enabled && location.pathname !== "/security" ? (
+        <Navigate to="/security" replace />
+      ) : (
+        <Outlet />
+      )}
     </SessionContext.Provider>
   );
 }

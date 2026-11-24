@@ -27,71 +27,188 @@
       "maxLength": 64,
       "description": "RFC 3339 date-time of when the event occurred. UTC (Z) recommended."
     },
-    "kind": { "enum": ["exception", "log", "event"] },
-    "severity": { "enum": ["debug", "info", "warning", "error", "fatal"] },
-    "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
-    "service": { "$ref": "#/$defs/shortString" },
-    "environment": { "$ref": "#/$defs/shortString" },
-    "release": { "$ref": "#/$defs/shortString" },
-    "fingerprint": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "kind": {
+      "enum": ["exception", "log", "event"]
+    },
+    "severity": {
+      "enum": ["debug", "info", "warning", "error", "fatal"]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "service": {
+      "$ref": "#/$defs/shortString"
+    },
+    "environment": {
+      "$ref": "#/$defs/shortString"
+    },
+    "release": {
+      "$ref": "#/$defs/shortString"
+    },
+    "fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "exception": {
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "value": { "type": "string", "maxLength": 4096 },
-        "stacktrace": { "type": "string", "maxLength": 65536 }
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "stacktrace": {
+          "type": "string",
+          "maxLength": 65536
+        }
       }
     },
     "sdk": {
       "type": "object",
       "required": ["name", "version"],
       "properties": {
-        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
-        "version": { "type": "string", "minLength": 1, "maxLength": 32 }
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
       }
     },
     "context": {
       "type": "object",
       "maxProperties": 32,
-      "propertyNames": { "minLength": 1, "maxLength": 64 },
-      "additionalProperties": { "type": "string", "maxLength": 1024 }
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      }
     },
     "attributes": {
       "type": "object",
       "maxProperties": 64,
-      "propertyNames": { "minLength": 1, "maxLength": 64 },
-      "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/attributeValue"
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["system", "operation", "name", "duration_ms", "status"],
+      "properties": {
+        "system": {
+          "enum": ["postgresql", "mysql", "sqlite", "mongodb", "redis", "other"]
+        },
+        "operation": {
+          "enum": ["select", "insert", "update", "delete", "other"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "status": {
+          "enum": ["ok", "error"]
+        }
+      }
     }
   },
   "if": {
-    "properties": { "kind": { "const": "exception" } },
+    "properties": {
+      "kind": {
+        "const": "exception"
+      }
+    },
     "required": ["kind"]
   },
   "then": {
     "required": ["exception"],
-    "properties": { "exception": { "$ref": "#/properties/exception" } }
+    "properties": {
+      "exception": {
+        "$ref": "#/properties/exception"
+      }
+    }
   },
   "$defs": {
-    "shortString": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "shortString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
     "attributeValue": {
       "anyOf": [
-        { "type": "string", "maxLength": 1024 },
-        { "type": "number" },
-        { "type": "boolean" },
-        { "type": "null" },
+        {
+          "type": "string",
+          "maxLength": 1024
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
         {
           "type": "array",
           "maxItems": 32,
-          "items": { "$ref": "#/$defs/attributeValue" }
+          "items": {
+            "$ref": "#/$defs/attributeValue"
+          }
         },
         {
           "type": "object",
           "maxProperties": 64,
-          "propertyNames": { "minLength": 1, "maxLength": 64 },
-          "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/attributeValue"
+          }
         }
       ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["database"],
+        "properties": {
+          "database": {}
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "event"
+          }
+        }
+      }
+    }
+  ]
 }

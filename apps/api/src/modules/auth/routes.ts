@@ -50,8 +50,12 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
   });
 
   app.post("/api/v1/auth/login", async (request, reply) => {
-    const { email, password } = readCredentials(bodyOf(request));
-    const { user, token, csrfToken } = await service.login({
+    const body = bodyOf(request);
+    const { email, password } = readCredentials(body);
+    if (body.code !== undefined && (typeof body.code !== "string" || body.code.length > 64))
+      throw new ApiError(400, "invalid_request", "invalid code");
+    const { user, token, csrfToken, two_factor } = await service.login({
+      ...(typeof body.code === "string" && { code: body.code }),
       email,
       password,
       sourceIp: request.ip,
@@ -64,12 +68,17 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
       path: "/",
       maxAge: opts.sessionMaxDays * 24 * 60 * 60,
     });
-    return { user: publicUser(user), csrf_token: csrfToken };
+    return { user: publicUser(user), csrf_token: csrfToken, two_factor };
   });
 
   app.get("/api/v1/auth/session", { preHandler: opts.session }, async (request) => {
     const s = sessionOf(request);
-    return { user: publicUser(s.user), csrf_token: s.csrfToken, expires_at: s.expiresAt.toISOString() };
+    return {
+      user: publicUser(s.user),
+      csrf_token: s.csrfToken,
+      expires_at: s.expiresAt.toISOString(),
+      two_factor: request.twoFactor,
+    };
   });
 
   app.post("/api/v1/auth/logout", { preHandler: opts.session }, async (request, reply) => {

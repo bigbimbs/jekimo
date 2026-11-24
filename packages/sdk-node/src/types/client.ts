@@ -1,5 +1,7 @@
+import type { DatabaseQuery, DatabaseQueryOptions } from "./database.js";
 import type { DropInfo, JekimoError } from "./errors.js";
 import type { PartialEnvelope, Severity } from "./event.js";
+import type { TraceContext, TraceOptions } from "./tracing.js";
 import type { Transport } from "./transport.js";
 
 export interface JekimoOptions {
@@ -88,5 +90,9 @@ export interface JekimoClient {
   flush(timeoutMs?: number): Promise<boolean>;
   /** Flushes within the timeout, then stops the client and drops anything left. */
   close(timeoutMs?: number): Promise<boolean>;
+  captureQuery(query: DatabaseQuery): string | undefined;
+  traceQuery<T>(options: DatabaseQueryOptions, run: () => T | PromiseLike<T>): Promise<T>;
+  withTrace<T>(options: TraceOptions, run: (context: TraceContext) => T): T;
+  getTraceContext(): TraceContext | undefined;
   stats(): ClientStats;
 }

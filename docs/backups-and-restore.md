@@ -1,5 +1,7 @@
 # Backups and restore
 
+When 2FA is configured, also preserve `JEKIMO_MFA_ENCRYPTION_KEY` in a secret manager separately from the database backup. Restoring PostgreSQL without the original key leaves authenticator secrets unreadable; restore the same key on every API process. See [two-factor-authentication.md](two-factor-authentication.md#operator-setup).
+
 This page shows how to back up a Jekimo instance installed with the production Compose file ([install-vps.md](install-vps.md)), copy the backup off the server, restore it into a fresh database, and run a restore drill. Commands run in `/opt/jekimo`, the directory with `docker-compose.yml` and `.env`.
 
 > **Status.** Jekimo has no built-in backup job yet; the procedure below uses `pg_dump` and `pg_restore` directly and works today. The planned nightly job, with its manifest and bucket upload, is described at the end.

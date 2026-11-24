@@ -6,6 +6,7 @@ export interface MemoryUser extends UserRecord {
 }
 
 export interface MemorySession {
+  twoFactorVersion?: string | null;
   id: string;
   userId: string;
   tokenHash: Uint8Array;

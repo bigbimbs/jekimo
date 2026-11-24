@@ -196,3 +196,15 @@ The SDK keeps every event within the [event format limits](https://github.com/bi
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Cron jobs
+
+`createCronMonitor({ baseUrl, ingestionKey, monitorId })` reports scheduled-job starts, successes, and failures with a bounded asynchronous sender. Use `withMonitor(job)` to preserve the job result/error while queuing check-ins, then call `close()` before process exit. See [cron monitoring](../../docs/cron-monitoring.md#nodejs-sdk) for examples, delivery limits, and the HTTP alternative.
+
+## Database query monitoring
+
+Explicit query capture and callback instrumentation feed the project Database page with durations, failures, slow-query counts, and percentiles. No SQL, parameters, results, or exception messages are collected by the helpers. See [database monitoring](../../docs/database-monitoring.md) for setup, API filters, privacy, and current scope.
+
+## PostgreSQL instrumentation and request contexts
+
+`instrumentPostgres(target, { client, name })` observes standard PostgreSQL query calls on a selected client or pool. `client.withTrace({ name }, callback)` correlates recorded queries, logs, and exceptions across asynchronous work without capturing request data. See [request tracing](../../docs/request-tracing.md) for setup and supported forms.

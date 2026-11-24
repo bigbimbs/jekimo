@@ -37,7 +37,9 @@ import {
   shortString,
   truncate,
 } from "./envelope.js";
+import { TraceScope } from "./tracing.js";
 import { attempt, prepareBody, requestHeaders, retryDelay } from "./transport.js";
+import type { DatabaseQuery, DatabaseQueryOptions } from "./types/database.js";
 import type {
   CaptureOptions,
   ClientStats,
@@ -50,6 +52,7 @@ import type {
   Severity,
   Transport,
 } from "./types/index.js";
+import type { TraceContext, TraceOptions } from "./types/tracing.js";
 import { createUlidGenerator } from "./ulid.js";
 
 interface QueuedEvent {
@@ -106,6 +109,7 @@ function positiveInt(value: number | undefined, fallback: number, max = Number.M
 }
 
 interface BuildInput {
+  database?: DatabaseQuery | undefined;
   kind: EventEnvelope["kind"];
   severity: Severity;
   message: string;
@@ -121,6 +125,7 @@ interface BuildInput {
 
 export class Client implements JekimoClient {
   private readonly options: JekimoOptions;
+  private readonly traceScope = new TraceScope();
   private readonly connection: Connection | undefined;
   private readonly transport: Transport;
   private readonly redact: KeyRedactor;
@@ -244,6 +249,52 @@ export class Client implements JekimoClient {
     );
   }
 
+  withTrace<T>(options: TraceOptions, run: (context: TraceContext) => T): T {
+    return this.traceScope.run(options, run);
+  }
+  getTraceContext(): TraceContext | undefined {
+    return this.traceScope.current();
+  }
+
+  captureQuery(query: DatabaseQuery): string | undefined {
+    return this.safely(() =>
+      this.capture({
+        kind: "event",
+        severity: "info",
+        message: query.name,
+        database: {
+          name: query.name,
+          system: query.system,
+          operation: query.operation,
+          duration_ms: query.duration_ms,
+          status: query.status,
+        },
+      }),
+    );
+  }
+
+  async traceQuery<T>(options: DatabaseQueryOptions, run: () => T | PromiseLike<T>): Promise<T> {
+    const start = performance.now();
+    let status: DatabaseQuery["status"] = "ok";
+    try {
+      return await run();
+    } catch (error) {
+      status = "error";
+      throw error;
+    } finally {
+      // Instrumentation must never replace the application's result or thrown value.
+      try {
+        this.captureQuery({
+          name: options.name,
+          system: options.system,
+          operation: options.operation,
+          duration_ms: performance.now() - start,
+          status,
+        });
+      } catch {}
+    }
+  }
+
   stats(): ClientStats {
     return { queued: this.queue.length, ...this.counters };
   }
@@ -340,9 +391,20 @@ export class Client implements JekimoClient {
       if (typeof stacktrace === "string")
         event.exception.stacktrace = truncate(stacktrace, LIMITS.MAX_STACKTRACE_CHARS);
     }
+    if (input.database)
+      event.database = {
+        name: input.database.name,
+        system: input.database.system,
+        operation: input.database.operation,
+        duration_ms: input.database.duration_ms,
+        status: input.database.status,
+      };
     event.sdk = { name: NAME, version: VERSION };
     if (options.captureContext !== false) {
-      const context = normalizeContext({ ...this.baseContext, ...input.context }, this.redact);
+      const context = normalizeContext(
+        { ...this.baseContext, ...input.context, ...this.traceScope.fields(Boolean(input.database)) },
+        this.redact,
+      );
       if (context) event.context = context;
     }
     const attributes = normalizeAttributes(input.attributes, this.redact);

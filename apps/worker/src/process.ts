@@ -22,6 +22,7 @@ import {
   daysFrom,
   type IngestJob,
   type IssueSummary,
+  type QueryObservation,
 } from "@jekimo/storage-postgres";
 import { DAY_MS, PREPARE_PARTITION_DAYS } from "./constants/index.js";
 import { issueTitle } from "./issue.js";
@@ -86,9 +87,31 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
   // retry after a failed issue update still repairs the summary. The latest
   // event prefers one this attempt inserted over a repeat of an older one.
   const insertedIds = new Set(inserted);
+  if (deps.notifications) {
+    const observations: QueryObservation[] = [];
+    const observed = new Set<string>();
+    for (const candidate of append) {
+      if (observed.has(candidate.event.event_id)) continue;
+      observed.add(candidate.event.event_id);
+      if (!candidate.event.database) continue;
+      // Replays must use the persisted value, not a modified duplicate payload.
+      const stored = insertedIds.has(candidate.event.event_id)
+        ? candidate
+        : await deps.events.getEvent(job.project_id, candidate.event.event_id);
+      if (stored?.event.database)
+        observations.push({
+          eventId: stored.event.event_id,
+          receivedAt: stored.receivedAt,
+          database: stored.event.database,
+          ...(stored.event.environment !== undefined && { environment: stored.event.environment }),
+        });
+    }
+    await deps.notifications.scheduleQueryAlerts(job.project_id, observations);
+  }
   const latest = new Map<string, EventEnvelope>();
   const environments = new Map<string, Set<string>>();
   for (const a of append) {
+    if (a.event.database) continue;
     const fp = a.event.fingerprint;
     const prev = latest.get(fp);
     if (!prev || insertedIds.has(a.event.event_id) || !insertedIds.has(prev.event_id)) latest.set(fp, a.event);
@@ -193,6 +216,7 @@ export async function runExpiryPass(
   }
   const dedupeCutoff = new Date(now.getTime() - RETENTION.DEDUPE_WINDOW_DAYS * DAY_MS);
   const dedupePruned = await deps.events.pruneDedupe(dedupeCutoff);
+  await deps.notifications?.prune();
   const counters = await deps.metadata.pruneDailyCounters(counterRetentionStart(now), dedupeCutoff);
   // Audit entries are instance-wide and outlive the projects they mention.
   const auditPruned = await deps.metadata.pruneAudit(

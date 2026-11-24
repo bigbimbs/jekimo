@@ -1,4 +1,16 @@
-import { BugIcon, SettingsIcon } from "lucide-react";
+import {
+  ActivityIcon,
+  BellIcon,
+  BugIcon,
+  ClockIcon,
+  DatabaseIcon,
+  LayoutDashboardIcon,
+  LogsIcon,
+  PlugIcon,
+  RouteIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router";
@@ -16,7 +28,7 @@ function NavItem({ to, icon, children }: { to: string; icon: ReactNode; children
       className={({ isActive }) =>
         cn(
           "group relative flex h-8 items-center gap-2 rounded-md px-2.5 text-[0.8125rem] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0",
-          "max-lg:h-12 max-lg:rounded-none max-lg:px-1 max-lg:hover:bg-transparent",
+          "max-lg:h-12 max-lg:shrink-0 max-lg:rounded-none max-lg:px-1 max-lg:hover:bg-transparent",
           "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full lg:after:hidden",
           isActive &&
             "text-foreground after:bg-primary lg:bg-background lg:shadow-xs lg:ring-1 lg:ring-border [&_svg]:text-primary",
@@ -56,15 +68,45 @@ export function AppShell({
           <ProjectSwitcher projects={projects} current={current} />
         </div>
         {base && (
-          <nav aria-label={t("nav.main")} className="flex gap-4 lg:mt-5 lg:grid lg:gap-0.5">
+          <nav
+            aria-label={t("nav.main")}
+            className="order-last flex w-full max-w-full gap-4 overflow-x-auto lg:order-none lg:mt-5 lg:grid lg:gap-0.5 lg:overflow-visible"
+          >
             <p aria-hidden="true" className="hidden px-2.5 pb-1.5 text-xs font-medium text-muted-foreground lg:block">
               {t("nav.main")}
             </p>
+            <NavItem to={`${base}/dashboard`} icon={<LayoutDashboardIcon aria-hidden="true" />}>
+              {t("nav.dashboard")}
+            </NavItem>
             <NavItem to={`${base}/issues`} icon={<BugIcon aria-hidden="true" />}>
               {t("nav.issues")}
             </NavItem>
+            <NavItem to={`${base}/logs`} icon={<LogsIcon aria-hidden="true" />}>
+              {t("nav.logs")}
+            </NavItem>
+            <NavItem to={`${base}/events`} icon={<ActivityIcon aria-hidden="true" />}>
+              {t("nav.events")}
+            </NavItem>
+            <NavItem to={`${base}/database`} icon={<DatabaseIcon aria-hidden="true" />}>
+              {t("nav.database")}
+            </NavItem>
+            <NavItem to={`${base}/traces`} icon={<RouteIcon aria-hidden="true" />}>
+              {t("nav.traces")}
+            </NavItem>
+            <NavItem to={`${base}/cron`} icon={<ClockIcon aria-hidden="true" />}>
+              {t("nav.cron")}
+            </NavItem>
+            <NavItem to={`${base}/alerts`} icon={<BellIcon aria-hidden="true" />}>
+              {t("nav.alerts")}
+            </NavItem>
+            <NavItem to={`${base}/integrations`} icon={<PlugIcon aria-hidden="true" />}>
+              {t("nav.integrations")}
+            </NavItem>
             <NavItem to={`${base}/settings`} icon={<SettingsIcon aria-hidden="true" />}>
               {t("nav.settings")}
+            </NavItem>
+            <NavItem to={`${base}/members`} icon={<UsersIcon aria-hidden="true" />}>
+              {t("nav.members")}
             </NavItem>
           </nav>
         )}

@@ -37,6 +37,7 @@ describe("invitations", () => {
   it("returns a single-use link once; accepting it creates the user with a password", async () => {
     const res = await invite("new@example.test");
     expect(res.statusCode).toBe(201);
+    expect(res.headers["cache-control"]).toBe("no-store");
     const { invitation, token, link } = res.json();
     expect(invitation).toMatchObject({
       email: "new@example.test",
@@ -167,6 +168,7 @@ describe("password reset links", () => {
       headers: admin.headers,
     });
     expect(res.statusCode).toBe(201);
+    expect(res.headers["cache-control"]).toBe("no-store");
     const { token, link, reset } = res.json();
     expect(link).toBe(`https://jekimo.example.test/reset-password#token=${token}`);
     expect(reset).toMatchObject({ user_id: user.userId });

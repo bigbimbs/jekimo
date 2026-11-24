@@ -1,3 +1,6 @@
+import type { DatabaseWindow } from "../types/database.js";
+import { summarizeDatabaseRows } from "./database.js";
+import { MemoryTwoFactorRepository } from "./two-factor.js";
 /**
  * In-memory implementations of the storage boundaries, for unit tests of the
  * API and worker. They follow the same contracts as the PostgreSQL classes
@@ -32,6 +35,7 @@ import type {
 } from "../types/access.js";
 import type {
   AppendEvent,
+  EventActivity,
   EventPage,
   EventQuery,
   EventStore,
@@ -59,9 +63,9 @@ import type {
   RedactionRules,
 } from "../types/projects.js";
 import type { Job, Queue, QueuePolicy, QueueStats } from "../types/queue.js";
-import { MemoryAccessRepository, sameBytes } from "./access.js";
+import { sameBytes } from "./access.js";
 
-export class MemoryMetadataRepository extends MemoryAccessRepository implements MetadataRepository {
+export class MemoryMetadataRepository extends MemoryTwoFactorRepository implements MetadataRepository {
   readonly issues: IssueRecord[] = [];
   /** project id -> day -> counts */
   readonly counters = new Map<string, Map<string, DailyCounters>>();
@@ -123,6 +127,7 @@ export class MemoryMetadataRepository extends MemoryAccessRepository implements 
 
   async createSession(input: {
     userId: string;
+    twoFactorVersion?: string | null;
     tokenHash: Uint8Array;
     csrfToken: string;
     expiresAt: Date;
@@ -132,6 +137,7 @@ export class MemoryMetadataRepository extends MemoryAccessRepository implements 
       id: randomUUID(),
       userId: input.userId,
       tokenHash: input.tokenHash,
+      twoFactorVersion: input.twoFactorVersion ?? null,
       csrfToken: input.csrfToken,
       createdAt: now,
       lastSeenAt: now,
@@ -148,6 +154,7 @@ export class MemoryMetadataRepository extends MemoryAccessRepository implements 
     const { passwordHash: _, ...user } = u;
     return {
       sessionId: s.id,
+      twoFactorVersion: s.twoFactorVersion ?? null,
       user,
       csrfToken: s.csrfToken,
       createdAt: s.createdAt,
@@ -462,6 +469,38 @@ export class MemoryEventStore implements EventStore {
   readonly rows: (StoredEvent & { projectId: string })[] = [];
   readonly dedupe = new Map<string, Date>();
 
+  async summarizeDatabase(projectId: string, query: DatabaseWindow) {
+    return summarizeDatabaseRows(
+      this.rows
+        .filter(
+          (r) =>
+            r.projectId === projectId &&
+            r.receivedAt >= query.from &&
+            r.receivedAt < query.to &&
+            (query.environment === undefined || r.event.environment === query.environment),
+        )
+        .flatMap((r) => (r.event.database ? [r.event.database] : [])),
+      query.slowMs,
+    );
+  }
+  async summarizeActivity(projectId: string, from: Date, to: Date): Promise<EventActivity[]> {
+    const groups = new Map<string, EventActivity>();
+    for (const row of this.rows) {
+      if (row.projectId !== projectId || row.receivedAt < from || row.receivedAt >= to) continue;
+      const hour = new Date(row.receivedAt);
+      hour.setUTCMinutes(0, 0, 0);
+      const { kind, severity } = row.event;
+      const key = `${hour.toISOString()}/${kind}/${severity}`;
+      const group = groups.get(key);
+      if (group) group.count++;
+      else groups.set(key, { hour, kind, severity, count: 1 });
+    }
+    return [...groups.values()].sort(
+      (a, b) =>
+        a.hour.getTime() - b.hour.getTime() || a.kind.localeCompare(b.kind) || a.severity.localeCompare(b.severity),
+    );
+  }
+
   async appendEvents(projectId: string, events: AppendEvent[]): Promise<{ inserted: string[] }> {
     const inserted: string[] = [];
     for (const e of events) {
@@ -493,6 +532,8 @@ export class MemoryEventStore implements EventStore {
       .filter((r) => r.projectId === projectId && r.receivedAt >= query.from && r.receivedAt < query.to)
       .filter((r) => !severities || severities.length === 0 || severities.includes(r.event.severity))
       .filter((r) => !kinds || kinds.length === 0 || kinds.includes(r.event.kind))
+      .filter((r) => query.database === undefined || Boolean(r.event.database) === query.database)
+      .filter((r) => query.traceId === undefined || r.event.context?.trace_id === query.traceId)
       .filter((r) => query.environment === undefined || r.event.environment === query.environment)
       .filter((r) => query.release === undefined || r.event.release === query.release)
       .filter((r) => query.fingerprint === undefined || r.event.fingerprint === query.fingerprint)
@@ -540,7 +581,7 @@ export class MemoryEventStore implements EventStore {
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {
     const out = new Map<string, FingerprintSummary>();
     for (const r of this.rows) {
-      if (r.projectId !== projectId) continue;
+      if (r.projectId !== projectId || r.event.database) continue;
       if (fingerprints && !fingerprints.includes(r.event.fingerprint)) continue;
       const s = out.get(r.event.fingerprint);
       if (!s)

@@ -18,13 +18,13 @@ export function ProjectLayout() {
   const { projectId = "" } = useParams();
   const projects = useQuery({ queryKey: queryKeys.projects, queryFn: api.listProjects });
   const project = projects.data?.find((p) => p.id === projectId);
+  const accessibleProjectId = project?.id;
 
-  // Leaving a project drops everything cached for it, so no screen of the
-  // next project can render the previous one's data, even for a frame.
-  useEffect(
-    () => () => queryClient.removeQueries({ queryKey: queryKeys.project(projectId) }),
-    [projectId, queryClient],
-  );
+  // Leaving a project or losing membership drops its cache after its pages unmount.
+  useEffect(() => {
+    if (!accessibleProjectId) return;
+    return () => queryClient.removeQueries({ queryKey: queryKeys.project(accessibleProjectId) });
+  }, [accessibleProjectId, queryClient]);
 
   useEffect(() => {
     if (!project) return;

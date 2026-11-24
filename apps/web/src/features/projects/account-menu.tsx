@@ -1,5 +1,6 @@
 import { ChevronsUpDownIcon, LogOutIcon, ShieldCheckIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ function Avatar({ email }: { email: string }) {
 
 export function AccountMenu() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user, signOut } = useSession();
   return (
     <DropdownMenu>
@@ -52,6 +54,19 @@ export function AccountMenu() {
           </DropdownMenuLabel>
         )}
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate("/security")}>
+          <ShieldCheckIcon aria-hidden="true" />
+          {t("account.security")}
+        </DropdownMenuItem>
+        {user.instance_role === "admin" && (
+          <>
+            <DropdownMenuItem onSelect={() => navigate("/admin/users")}>{t("account.users")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate("/admin/invitations")}>
+              {t("account.invitations")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate("/admin/audit-log")}>{t("account.audit")}</DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuItem onSelect={() => void signOut()}>
           <LogOutIcon aria-hidden="true" />
           {t("account.signOut")}

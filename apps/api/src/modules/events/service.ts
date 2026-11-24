@@ -1,5 +1,5 @@
 import { ULID_PATTERN } from "@jekimo/event-schema";
-import type { EventPage, EventQuery, ProjectAccess } from "@jekimo/storage-postgres";
+import type { DatabaseWindow, EventPage, EventQuery, ProjectAccess } from "@jekimo/storage-postgres";
 import { searchWords } from "@jekimo/storage-postgres";
 import { DAY_MS } from "../../constants/index.js";
 import { ApiError } from "../../errors.js";
@@ -30,6 +30,20 @@ export class EventService {
       if (err instanceof RangeError) throw new ApiError(400, "invalid_request", "cursor is not valid");
       throw err;
     }
+  }
+
+  async database(access: ProjectAccess, query: DatabaseWindow) {
+    if (query.to.getTime() - query.from.getTime() > 7 * DAY_MS)
+      throw new ApiError(400, "invalid_request", "database window cannot exceed 7 days");
+    const summary = await this.deps.events.summarizeDatabase(access.projectId, query);
+    const recent = await this.deps.events.queryEvents(access.projectId, { ...query, database: true, limit: 25 });
+    return { ...summary, recent: recent.events };
+  }
+
+  async summary(access: ProjectAccess) {
+    const { from, to } = this.window(undefined, undefined);
+    const activity = await this.deps.events.summarizeActivity(access.projectId, from, to);
+    return { from: from.toISOString(), to: to.toISOString(), activity };
   }
 
   async get(access: ProjectAccess, eventId: string) {

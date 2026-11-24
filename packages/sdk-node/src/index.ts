@@ -1,8 +1,13 @@
 import { Client } from "./client.js";
 import { DEFAULT_UNHANDLED_TIMEOUT_MS, NAME, VERSION } from "./constants/index.js";
+import { createCronMonitor as createCronMonitorClient } from "./cron.js";
 import { installUnhandledHandlers } from "./node.js";
+import { instrumentPostgres as instrumentPg } from "./postgres.js";
 import type { CaptureOptions, JekimoClient, JekimoOptions } from "./types/client.js";
+import type { CronMonitorClient, CronMonitorOptions } from "./types/cron.js";
+import type { DatabaseQuery, DatabaseQueryOptions } from "./types/database.js";
 import type { PartialEnvelope, Severity } from "./types/event.js";
+import type { PostgresInstrumentation, PostgresInstrumentationOptions, PostgresTarget } from "./types/postgres.js";
 import type { CaptureUnhandledOptions } from "./types/process.js";
 
 // Public types are re-exported from these files one by one, not from
@@ -70,4 +75,25 @@ export function close(timeoutMs?: number): Promise<boolean> {
  */
 export function captureUnhandled(options: CaptureUnhandledOptions = {}): () => void {
   return installUnhandledHandlers(() => options.client ?? current, options.timeoutMs ?? DEFAULT_UNHANDLED_TIMEOUT_MS);
+}
+export function createCronMonitor(options: CronMonitorOptions): CronMonitorClient {
+  return createCronMonitorClient(options);
+}
+export type { CronMonitorClient, CronMonitorOptions } from "./types/cron.js";
+
+export type { DatabaseQuery, DatabaseQueryOptions } from "./types/database.js";
+export function captureQuery(query: DatabaseQuery): string | undefined {
+  return current?.captureQuery(query);
+}
+export async function traceQuery<T>(options: DatabaseQueryOptions, run: () => T | PromiseLike<T>): Promise<T> {
+  return current ? current.traceQuery(options, run) : await run();
+}
+
+export type { PostgresInstrumentation, PostgresInstrumentationOptions, PostgresTarget } from "./types/postgres.js";
+export type { TraceContext, TraceOptions } from "./types/tracing.js";
+export function instrumentPostgres(
+  target: PostgresTarget,
+  options: PostgresInstrumentationOptions,
+): PostgresInstrumentation {
+  return instrumentPg(target, options);
 }

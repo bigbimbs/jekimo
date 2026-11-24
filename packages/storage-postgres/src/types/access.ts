@@ -39,6 +39,7 @@ export interface UserRecord {
 }
 
 export interface SessionRecord {
+  twoFactorVersion?: string | null;
   sessionId: string;
   user: UserRecord;
   csrfToken: string;

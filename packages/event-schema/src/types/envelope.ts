@@ -3,6 +3,7 @@
 // tests check that they do.
 
 import type { EventKind, SCHEMA_VERSION, Severity } from "../constants/envelope.js";
+import type { DatabaseQuery } from "./database.js";
 
 export interface ExceptionInfo {
   /** Exception class or type name, for example "DatabaseError". */
@@ -48,6 +49,7 @@ export interface EventEnvelope {
   /** Required when `kind` is "exception". */
   exception?: ExceptionInfo;
   sdk?: SdkInfo;
+  database?: DatabaseQuery;
   /** Correlation identifiers: request_id, trace_id, span_id, and similar. */
   context?: Record<string, string>;
   /** Free-form structured data, subject to redaction and size limits. */
