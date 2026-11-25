@@ -1,7 +1,7 @@
 import type { DatabaseQuery, DatabaseQueryOptions } from "./database.js";
 import type { DropInfo, JekimoError } from "./errors.js";
 import type { PartialEnvelope, Severity } from "./event.js";
-import type { TraceContext, TraceOptions } from "./tracing.js";
+import type { SpanHandle, SpanOptions, TraceContext, TraceOptions } from "./tracing.js";
 import type { Transport } from "./transport.js";
 
 export interface JekimoOptions {
@@ -93,6 +93,8 @@ export interface JekimoClient {
   captureQuery(query: DatabaseQuery): string | undefined;
   traceQuery<T>(options: DatabaseQueryOptions, run: () => T | PromiseLike<T>): Promise<T>;
   withTrace<T>(options: TraceOptions, run: (context: TraceContext) => T): T;
+  startSpan(options: SpanOptions): SpanHandle;
+  withSpan<T>(options: SpanOptions, run: (context: TraceContext) => T | PromiseLike<T>): Promise<T>;
   getTraceContext(): TraceContext | undefined;
   stats(): ClientStats;
 }

@@ -89,4 +89,13 @@ for (const backend of ["memory", "postgres"] as const)
       expect(all.events.every((r) => r.event.project_id === "db_one")).toBe(true);
       expect((await store.queryEvents("db_one", { ...query, traceId: "c".repeat(32) })).events).toHaveLength(0);
     });
+    it("stores timing context while excluding spans from rebuilt issue counts", async () => {
+      const span = record(10, "span_project");
+      delete span.event.database;
+      span.event.fingerprint = "jekimo.span:1111111111111111";
+      span.event.context = { trace_id: "a".repeat(32), span_type: "span", span_duration_ms: "50" };
+      await store.appendEvents("span_project", [span]);
+      expect(await store.summarizeFingerprints("span_project")).toEqual([]);
+      expect((await store.getEvent("span_project", span.event.event_id))?.event.context).toEqual(span.event.context);
+    });
   });

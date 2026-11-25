@@ -50,7 +50,8 @@
     "fingerprint": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 256
+      "maxLength": 256,
+      "description": "Grouping key. The jekimo.span: prefix is reserved for info event timing records, which do not contribute to issues."
     },
     "exception": {
       "type": "object",
@@ -206,6 +207,27 @@
         "properties": {
           "kind": {
             "const": "event"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["fingerprint"],
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^jekimo\\.span:"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "event"
+          },
+          "severity": {
+            "const": "info"
           }
         }
       }

@@ -59,3 +59,14 @@ describe("JSON Schema and validator agree", () => {
     expect(validateEvent(e, { mode: "stored", now }).ok).toBe(false);
   });
 });
+
+it("requires reserved timing fingerprints to be informational custom events", () => {
+  const e = clone(exceptionExample()) as Mutable;
+  e.fingerprint = "jekimo.span:1111111111111111";
+  expect(validateWithSchema(e)).toBe(false);
+  expect(validateEvent(e, { mode: "stored", now }).ok).toBe(false);
+  e.kind = "event";
+  e.severity = "info";
+  expect(validateWithSchema(e)).toBe(true);
+  expect(validateEvent(e, { mode: "stored", now }).ok).toBe(true);
+});

@@ -7,3 +7,4 @@ export * from "./permissions.js";
 export * from "./redact.js";
 export * from "./retention.js";
 export * from "./sampling.js";
+export * from "./tracing.js";

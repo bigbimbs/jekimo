@@ -567,3 +567,14 @@ it("uses only the first stored copy of a database event in a batch", async () =>
   );
   expect(scheduleQueryAlerts).toHaveBeenCalledWith("prj_test", [expect.objectContaining({ database: query.database })]);
 });
+
+it("stores timing spans without producing issues, even when context is suppressed", async () => {
+  const span = ev("01JBQ4Z3H8X9T2K7M5N6P8R9SV", {
+    kind: "event",
+    fingerprint: "jekimo.span:aaaaaaaaaaaaaaaa",
+    message: "GET /reports",
+  });
+  await processIngestJob(job([span]), { metadata, events }, ctx());
+  expect(events.rows).toHaveLength(1);
+  expect(metadata.issues).toHaveLength(0);
+});

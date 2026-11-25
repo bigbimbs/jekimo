@@ -15,6 +15,7 @@ import {
   PROJECT_PERMISSIONS,
   type ProjectPermission,
   SEVERITIES,
+  SPAN_FINGERPRINT_PREFIX,
   utcDay,
 } from "@jekimo/event-schema";
 import { assertProjectAccess, mintProjectAccess } from "../access.js";
@@ -581,7 +582,8 @@ export class MemoryEventStore implements EventStore {
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {
     const out = new Map<string, FingerprintSummary>();
     for (const r of this.rows) {
-      if (r.projectId !== projectId || r.event.database) continue;
+      if (r.projectId !== projectId || r.event.database || r.event.fingerprint.startsWith(SPAN_FINGERPRINT_PREFIX))
+        continue;
       if (fingerprints && !fingerprints.includes(r.event.fingerprint)) continue;
       const s = out.get(r.event.fingerprint);
       if (!s)

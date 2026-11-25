@@ -16,6 +16,7 @@ import {
   normalizeSampleRate,
   parseIngestionKey,
   SCHEMA_VERSION,
+  SPAN_FINGERPRINT_PREFIX,
   shouldKeepEvent,
   validateEvent,
 } from "@jekimo/event-schema";
@@ -28,6 +29,7 @@ import {
   REQUEST_TIMEOUT_MS,
   VERSION,
 } from "./constants/index.js";
+import { MAX_SPAN_DURATION_MS } from "./constants/tracing.js";
 import {
   byteLength,
   exceptionFrom,
@@ -52,7 +54,7 @@ import type {
   Severity,
   Transport,
 } from "./types/index.js";
-import type { TraceContext, TraceOptions } from "./types/tracing.js";
+import type { SpanHandle, SpanOptions, TraceContext, TraceOptions } from "./types/tracing.js";
 import { createUlidGenerator } from "./ulid.js";
 
 interface QueuedEvent {
@@ -251,6 +253,56 @@ export class Client implements JekimoClient {
 
   withTrace<T>(options: TraceOptions, run: (context: TraceContext) => T): T {
     return this.traceScope.run(options, run);
+  }
+  startSpan(options: SpanOptions): SpanHandle {
+    const startedAt = new Date().toISOString();
+    const start = performance.now();
+    const context = this.traceScope.run(options, (value) => value);
+    const operation =
+      typeof options.operation === "string" && options.operation.length > 0 && options.operation.length <= 128
+        ? options.operation
+        : "task";
+    let ended = false;
+    return {
+      context,
+      run: (callback) => this.traceScope.enter(context, callback),
+      end: (status = "ok") => {
+        if (ended) return;
+        ended = true;
+        const duration = performance.now() - start;
+        if (!Number.isFinite(duration) || duration < 0 || duration > MAX_SPAN_DURATION_MS) return;
+        this.traceScope.enter(context, () =>
+          this.captureEvent({
+            kind: "event",
+            severity: "info",
+            message: context.name,
+            timestamp: startedAt,
+            fingerprint: `${SPAN_FINGERPRINT_PREFIX}${context.spanId}`,
+            context: {
+              span_type: "span",
+              span_started_at: startedAt,
+              span_duration_ms: String(duration),
+              span_status: status === "error" ? "error" : "ok",
+              span_operation: operation,
+            },
+          }),
+        );
+      },
+    };
+  }
+  async withSpan<T>(options: SpanOptions, run: (context: TraceContext) => T | PromiseLike<T>): Promise<T> {
+    const span = this.startSpan(options);
+    let status: "ok" | "error" = "ok";
+    try {
+      return await span.run(run);
+    } catch (error) {
+      status = "error";
+      throw error;
+    } finally {
+      try {
+        span.end(status);
+      } catch {}
+    }
   }
   getTraceContext(): TraceContext | undefined {
     return this.traceScope.current();
