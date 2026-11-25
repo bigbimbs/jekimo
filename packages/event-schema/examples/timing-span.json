@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBQ4Z3H8X9T2K7M5N6P8R9SY",
+  "project_id": "prj_billing",
+  "timestamp": "2026-11-05T09:14:33.412Z",
+  "kind": "event",
+  "severity": "info",
+  "message": "GET /invoices/:id",
+  "fingerprint": "jekimo.span:1111111111111111",
+  "context": {
+    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "span_id": "1111111111111111",
+    "trace_name": "GET /invoices/:id",
+    "span_type": "span",
+    "span_started_at": "2026-11-05T09:14:33.412Z",
+    "span_duration_ms": "300.25",
+    "span_status": "ok",
+    "span_operation": "http.server"
+  }
+}

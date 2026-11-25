@@ -44,7 +44,7 @@ export interface EventEnvelope {
   environment?: string;
   /** Release or version identifier of the reporting application. */
   release?: string;
-  /** Stable grouping key. When absent the worker derives one. */
+  /** Stable grouping key; jekimo.span: is reserved for info event timing records, excluded from issues. */
   fingerprint?: string;
   /** Required when `kind` is "exception". */
   exception?: ExceptionInfo;

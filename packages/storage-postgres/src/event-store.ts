@@ -324,7 +324,7 @@ export class PostgresEventStore implements EventStore {
 
   async summarizeFingerprints(projectId: string, fingerprints?: string[]): Promise<FingerprintSummary[]> {
     const params: unknown[] = [projectId];
-    let where = "project_id = $1 AND database IS NULL";
+    let where = "project_id = $1 AND database IS NULL AND fingerprint NOT LIKE 'jekimo.span:%'";
     if (fingerprints !== undefined) {
       if (fingerprints.length === 0) return [];
       params.push(fingerprints);

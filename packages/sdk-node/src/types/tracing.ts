@@ -11,3 +11,14 @@ export interface TraceContext {
   readonly parentSpanId?: string;
   readonly name: string;
 }
+
+export interface SpanOptions extends TraceOptions {
+  /** Static operation category, for example http.server or task. */
+  operation?: string;
+}
+export interface SpanHandle {
+  readonly context: TraceContext;
+  run<T>(callback: (context: TraceContext) => T): T;
+  /** Idempotent completion; does not send over the network synchronously. */
+  end(status?: "ok" | "error"): void;
+}

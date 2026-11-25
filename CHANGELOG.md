@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Opt-in PostgreSQL client/pool query instrumentation and isolated Node SDK request contexts. A new Traces page correlates recorded queries, logs, and errors by trace ID; migration `0015` adds indexed lookup. This is request correlation, not a full distributed timing waterfall.
+- Recorded Node SDK spans and a timing waterfall with parent relationships, failures, and partial-data indicators. Opt-in Fastify lifecycle hooks and a Prisma model-query extension correlate request and database work without capturing raw URLs, SQL, arguments or results. Update API/worker before using reserved timing-span fingerprints; migration 0015 remains sufficient. See [request tracing](docs/request-tracing.md).
+
+- Opt-in PostgreSQL client/pool query instrumentation and isolated Node SDK request contexts. A new Traces page correlates recorded queries, logs, and errors by trace ID; migration `0015` adds indexed lookup. Automatic cross-service header propagation remains planned.
 
 - Slow-query notification rules with saved duration thresholds, exact environment/operation filters, rule-wide cooldowns, and dashboard editing. Migration `0014` adds durable retry protection; alerts use existing email, Slack, and webhook connections.
 

@@ -208,3 +208,7 @@ Explicit query capture and callback instrumentation feed the project Database pa
 ## PostgreSQL instrumentation and request contexts
 
 `instrumentPostgres(target, { client, name })` observes standard PostgreSQL query calls on a selected client or pool. `client.withTrace({ name }, callback)` correlates recorded queries, logs, and exceptions across asynchronous work without capturing request data. See [request tracing](../../docs/request-tracing.md) for setup and supported forms.
+
+### Timed spans and framework/ORM integrations
+
+`client.withSpan(options, callback)` records an awaited operation; `client.startSpan(options)` supports callback lifecycles through `run` and idempotent `end`. `withTrace` stays correlation-only. Install `createFastifyTracingHooks(client)` before Fastify routes, or pass `createPrismaTracingExtension({ client, system: "postgresql" })` to Prisma's `$extends` and use the returned client. The SDK keeps zero runtime dependencies. See [request tracing](../../docs/request-tracing.md) for setup, supported paths, sampling/privacy behavior, and waterfall limitations.

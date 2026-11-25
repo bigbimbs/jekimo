@@ -1,12 +1,15 @@
 import { Client } from "./client.js";
 import { DEFAULT_UNHANDLED_TIMEOUT_MS, NAME, VERSION } from "./constants/index.js";
 import { createCronMonitor as createCronMonitorClient } from "./cron.js";
+import { createFastifyTracingHooks as fastifyHooks } from "./fastify.js";
 import { installUnhandledHandlers } from "./node.js";
 import { instrumentPostgres as instrumentPg } from "./postgres.js";
+import { createPrismaTracingExtension as prismaExtension } from "./prisma.js";
 import type { CaptureOptions, JekimoClient, JekimoOptions } from "./types/client.js";
 import type { CronMonitorClient, CronMonitorOptions } from "./types/cron.js";
 import type { DatabaseQuery, DatabaseQueryOptions } from "./types/database.js";
 import type { PartialEnvelope, Severity } from "./types/event.js";
+import type { FastifyTraceHooks, PrismaTracingExtension, PrismaTracingOptions } from "./types/integrations.js";
 import type { PostgresInstrumentation, PostgresInstrumentationOptions, PostgresTarget } from "./types/postgres.js";
 import type { CaptureUnhandledOptions } from "./types/process.js";
 
@@ -90,10 +93,25 @@ export async function traceQuery<T>(options: DatabaseQueryOptions, run: () => T 
 }
 
 export type { PostgresInstrumentation, PostgresInstrumentationOptions, PostgresTarget } from "./types/postgres.js";
-export type { TraceContext, TraceOptions } from "./types/tracing.js";
+export type { SpanHandle, SpanOptions, TraceContext, TraceOptions } from "./types/tracing.js";
 export function instrumentPostgres(
   target: PostgresTarget,
   options: PostgresInstrumentationOptions,
 ): PostgresInstrumentation {
   return instrumentPg(target, options);
+}
+
+export type {
+  FastifyTraceHooks,
+  FastifyTraceReply,
+  FastifyTraceRequest,
+  PrismaQueryCall,
+  PrismaTracingExtension,
+  PrismaTracingOptions,
+} from "./types/integrations.js";
+export function createFastifyTracingHooks(client: JekimoClient): FastifyTraceHooks {
+  return fastifyHooks(client);
+}
+export function createPrismaTracingExtension(options: PrismaTracingOptions): PrismaTracingExtension {
+  return prismaExtension(options);
 }

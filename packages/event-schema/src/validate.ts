@@ -14,6 +14,7 @@ import {
   ULID_PATTERN,
 } from "./constants/envelope.js";
 import { LIMITS } from "./constants/limits.js";
+import { SPAN_FINGERPRINT_PREFIX } from "./constants/tracing.js";
 import type { DatabaseQuery } from "./types/database.js";
 import type { AttributeValue, EventEnvelope, ExceptionInfo, SdkInfo } from "./types/envelope.js";
 import type {
@@ -314,6 +315,9 @@ export function validateEvent(input: unknown, options: ValidateOptions = {}): Va
   const release = c.string("/release", input.release, { max: LIMITS.MAX_SHORT_STRING_CHARS });
   const fingerprint = c.string("/fingerprint", input.fingerprint, { max: LIMITS.MAX_FINGERPRINT_CHARS });
   const exception = validateException(c, input.exception);
+  if (fingerprint?.startsWith(SPAN_FINGERPRINT_PREFIX) && (kind !== "event" || severity !== "info"))
+    c.error("/fingerprint", "forbidden", "timing span fingerprints require kind event and severity info");
+
   if (kind === "exception" && input.exception === undefined) {
     c.error("/exception", "required", '/exception is required when /kind is "exception"');
   }

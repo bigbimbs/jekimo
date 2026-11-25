@@ -13,6 +13,7 @@ import {
   normalizeRetentionDays,
   RETENTION,
   redactEvent,
+  SPAN_FINGERPRINT_PREFIX,
   shouldKeepEvent,
   validateEvent,
 } from "@jekimo/event-schema";
@@ -111,7 +112,8 @@ export async function processIngestJob(job: IngestJob, deps: ProcessDeps, ctx: P
   const latest = new Map<string, EventEnvelope>();
   const environments = new Map<string, Set<string>>();
   for (const a of append) {
-    if (a.event.database) continue;
+    if (a.event.database || (a.event.kind === "event" && a.event.fingerprint?.startsWith(SPAN_FINGERPRINT_PREFIX)))
+      continue;
     const fp = a.event.fingerprint;
     const prev = latest.get(fp);
     if (!prev || insertedIds.has(a.event.event_id) || !insertedIds.has(prev.event_id)) latest.set(fp, a.event);

@@ -34,6 +34,9 @@ export class TraceScope {
     });
     return this.storage.run(context, () => callback(context));
   }
+  enter<T>(context: TraceContext, callback: (context: TraceContext) => T): T {
+    return this.storage.run(context, () => callback(context));
+  }
   fields(query = false): Record<string, string> {
     const context = this.storage.getStore();
     if (!context) return {};

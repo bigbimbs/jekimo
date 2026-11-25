@@ -179,7 +179,7 @@ When `fingerprint` is absent the worker derives one:
 - For `kind: exception`: from `exception.type` and the in-app frames of `exception.stacktrace`, with line numbers removed so a release does not split an issue.
 - For other kinds: from `message` with numbers, UUIDs, and hex strings replaced by placeholders.
 
-Database measurements retain fingerprints for event compatibility, but MUST NOT contribute to issue creation or issue counts.
+Database measurements retain fingerprints for event compatibility, but MUST NOT contribute to issue creation or issue counts. The `jekimo.span:` fingerprint prefix is reserved for timing records: these MUST use kind `event` and severity `info`, and MUST NOT contribute to issue creation or counts, even when their context is redacted. See [request tracing](request-tracing.md) for the bounded context convention and timing limitations.
 
 Sending an explicit `fingerprint` overrides this. The derivation algorithm may improve over time; existing issues keep their stored fingerprint.
 

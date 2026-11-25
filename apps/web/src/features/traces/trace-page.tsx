@@ -10,6 +10,8 @@ import { useApi } from "../../lib/api-context";
 import { useFormat } from "../../lib/format";
 import { useProject } from "../projects/use-project";
 
+import { TraceWaterfall } from "./trace-waterfall";
+
 export function TracePage() {
   const { t } = useTranslation("traces"),
     api = useApi(),
@@ -84,12 +86,17 @@ export function TracePage() {
           <p className="text-sm text-muted-foreground">
             {t("window", { from: format.dateTime(window.from), to: format.dateTime(window.to) })}
           </p>
+          <TraceWaterfall records={rows} hasMore={records.hasNextPage} />
           {rows.length === 0 ? (
             <p>{t("empty")}</p>
           ) : (
             <section className="grid gap-3" aria-label={t("records")}>
               {rows.map(({ event, received_at }) => (
-                <article key={event.event_id} className="grid gap-2 rounded-lg border border-border p-4">
+                <article
+                  id={`record-${event.event_id}`}
+                  key={event.event_id}
+                  className="grid gap-2 rounded-lg border border-border p-4"
+                >
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     <span>{t(event.database ? "query" : event.kind)}</span>
                     <span>{format.dateTime(received_at)}</span>

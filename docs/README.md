@@ -17,7 +17,7 @@ Specs marked **normative** define contracts that the code in `packages/event-sch
 
 ## Operating an instance
 
-- [request-tracing.md](request-tracing.md): PostgreSQL instrumentation, request correlation, and trace lookup.
+- [request-tracing.md](request-tracing.md): PostgreSQL instrumentation, recorded spans, timing waterfalls, Fastify/Prisma integrations, and trace lookup.
 
 - [database-monitoring.md](database-monitoring.md): query instrumentation, performance metrics, privacy, and current limits.
 
