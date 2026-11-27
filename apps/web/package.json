@@ -20,7 +20,7 @@
     "i18next": "^27.2.6",
     "i18next-icu": "^2.7.1",
     "intl-messageformat": "^12.2.1",
-    "lucide-react": "^1.70.0",
+    "lucide-react": "^1.79.0",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
